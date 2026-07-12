@@ -1,19 +1,16 @@
-import { type PublicKey, type Signer } from '../../domain/ports/signer';
+import { type PublicKey } from '../../domain/ports/signer';
 import { JwksProvider } from './jwks-provider';
 
 const rawKey = new Uint8Array(32).fill(7);
 
-const fakeSigner: Signer = {
-  activeKid: () => Promise.resolve('accesscore-signing-1'),
-  sign: () => Promise.resolve({ kid: 'k1', alg: 'EdDSA', value: 'sig' }),
-  verify: () => Promise.resolve(true),
+const keySource = {
   publicKeys: (): Promise<PublicKey[]> =>
-    Promise.resolve([{ kid: 'accesscore-signing-1', alg: 'EdDSA', key: rawKey }]),
+    Promise.resolve([{ kid: 'accesscore-signing-1', alg: 'EdDSA', key: rawKey, version: 1 }]),
 };
 
 describe('JwksProvider', () => {
   it('maps signer public keys to Ed25519 JWKs', async () => {
-    const jwks = await new JwksProvider(fakeSigner).jwks();
+    const jwks = await new JwksProvider(keySource).jwks();
 
     expect(jwks.keys).toHaveLength(1);
     expect(jwks.keys[0]).toMatchObject({

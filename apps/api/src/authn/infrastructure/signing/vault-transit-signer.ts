@@ -8,7 +8,7 @@ export interface VaultTransitSignerConfig {
 
 interface VaultKeyData {
   latest_version: number;
-  min_available_version: number;
+  min_decryption_version: number;
   keys: Record<string, { public_key: string }>;
 }
 
@@ -26,27 +26,26 @@ export class VaultTransitSigner implements Signer {
     this.keyName = config.keyName;
   }
 
-  async activeKid(): Promise<string> {
-    const active = (await this.publicKeys())[0];
-    if (!active) {
-      throw new Error('no active signing key');
-    }
-    return active.kid;
+  kidFor(version: number): string {
+    return `${this.keyName}-${version}`;
   }
 
-  async sign(payload: Uint8Array): Promise<Signature> {
+  async sign(payload: Uint8Array, keyVersion?: number): Promise<Signature> {
     await this.ensureKey();
     const body = await this.request<{ data: { signature: string } }>(
       'POST',
       `transit/sign/${this.keyName}`,
-      { input: Buffer.from(payload).toString('base64') },
+      {
+        input: Buffer.from(payload).toString('base64'),
+        ...(keyVersion === undefined ? {} : { key_version: keyVersion }),
+      },
     );
     const [, version, valueB64] = body.data.signature.split(':');
     if (!version || !valueB64) {
       throw new Error('unexpected Vault signature format');
     }
     return {
-      kid: `${this.keyName}-${version.slice(1)}`,
+      kid: this.kidFor(Number(version.slice(1))),
       alg: 'EdDSA',
       value: Buffer.from(valueB64, 'base64').toString('base64url'),
     };
@@ -66,16 +65,36 @@ export class VaultTransitSigner implements Signer {
 
   async publicKeys(): Promise<PublicKey[]> {
     await this.ensureKey();
-    const body = await this.request<{ data: VaultKeyData }>('GET', `transit/keys/${this.keyName}`);
+    const body = await this.readKey();
     return Object.entries(body.data.keys)
       .map(([version, entry]) => ({
         version: Number(version),
-        kid: `${this.keyName}-${version}`,
+        kid: this.kidFor(Number(version)),
         alg: 'EdDSA' as const,
         key: new Uint8Array(Buffer.from(entry.public_key, 'base64')),
       }))
-      .sort((a, b) => b.version - a.version)
-      .map(({ kid, alg, key }) => ({ kid, alg, key }));
+      .sort((a, b) => b.version - a.version);
+  }
+
+  async latestVersion(): Promise<number> {
+    await this.ensureKey();
+    return (await this.readKey()).data.latest_version;
+  }
+
+  async rotate(): Promise<void> {
+    await this.ensureKey();
+    await this.request('POST', `transit/keys/${this.keyName}/rotate`);
+  }
+
+  async setMinDecryptionVersion(version: number): Promise<void> {
+    await this.ensureKey();
+    await this.request('POST', `transit/keys/${this.keyName}/config`, {
+      min_decryption_version: version,
+    });
+  }
+
+  private readKey(): Promise<{ data: VaultKeyData }> {
+    return this.request<{ data: VaultKeyData }>('GET', `transit/keys/${this.keyName}`);
   }
 
   private ensureKey(): Promise<void> {

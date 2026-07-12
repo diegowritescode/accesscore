@@ -13,6 +13,7 @@ export const envSchema = z.object({
   JWT_AUDIENCE: z.string().min(1).default('accesscore'),
   ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(900),
   REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(1209600),
+  JWKS_CACHE_MAX_AGE: z.coerce.number().int().nonnegative().default(300),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { type Database } from '../../../db/db.module';
 import { UserId } from '../../../identity/domain/value-objects/user-id';
 import { type SessionsRepository } from '../../domain/ports/sessions-repository';
@@ -35,6 +35,15 @@ export class DrizzleSessionsRepository implements SessionsRepository {
       .update(sessions)
       .set({ status: 'revoked', revokedAt: at })
       .where(eq(sessions.id, id.value));
+  }
+
+  async revokeAllForUser(userId: UserId, at: Date): Promise<string[]> {
+    const rows = await this.db
+      .update(sessions)
+      .set({ status: 'revoked', revokedAt: at })
+      .where(and(eq(sessions.userId, userId.value), eq(sessions.status, 'active')))
+      .returning({ id: sessions.id });
+    return rows.map((row) => row.id);
   }
 
   private toDomain(row: typeof sessions.$inferSelect): Session {

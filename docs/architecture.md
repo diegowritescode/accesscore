@@ -83,8 +83,12 @@ See [ADR-003](adr/003-token-and-session-strategy.md).
   authorization verdicts; authz is decided by the PDP at the PEP or via explicitly scoped tokens).
 - **Refresh tokens:** rotation on every use + **reuse detection** → reusing a rotated token
   revokes the whole **token family** (theft detection). Immediate revocation via Redis.
-- **Sessions** bound to devices; logout-all; **step-up** (a policy condition may require
-  `aal ≥ 2` / recent MFA).
+- **Sessions** bound to devices; `POST /auth/logout` (one session) and `/auth/logout-all` (all
+  of a user's) revoke the token families and add each session `sid` to a Redis blocklist that a
+  PEP guard checks after verifying the JWT (fail-closed; offline verifiers stay TTL-bounded).
+  Credential-lifecycle events (password reset, …) revoke sessions through the same path — see
+  [ADR-010](adr/010-session-revocation-and-context-coupling.md). **Step-up** (a policy condition
+  may require `aal ≥ 2` / recent MFA).
 - **MFA:** TOTP + recovery codes (core); WebAuthn/passkeys (ring).
 - **Downscoped tokens:** assume-role / token exchange (RFC 8693) for delegation and machine
   identity (ring).

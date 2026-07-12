@@ -107,6 +107,12 @@ class FakeFamilies implements TokenFamiliesRepository {
     this.reuseCalls += 1;
     return Promise.resolve();
   }
+  revokeBySession(): Promise<void> {
+    return Promise.resolve();
+  }
+  revokeAllForUser(): Promise<void> {
+    return Promise.resolve();
+  }
 }
 
 class FakeSessions implements SessionsRepository {
@@ -119,6 +125,9 @@ class FakeSessions implements SessionsRepository {
   }
   revoke(): Promise<void> {
     return Promise.resolve();
+  }
+  revokeAllForUser(): Promise<string[]> {
+    return Promise.resolve([]);
   }
 }
 

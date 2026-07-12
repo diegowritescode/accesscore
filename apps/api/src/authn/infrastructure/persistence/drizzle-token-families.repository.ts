@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { type Database } from '../../../db/db.module';
 import { outbox } from '../../../identity/infrastructure/persistence/schema';
 import { UserId } from '../../../identity/domain/value-objects/user-id';
@@ -41,6 +41,20 @@ export class DrizzleTokenFamiliesRepository implements TokenFamiliesRepository {
       .update(tokenFamilies)
       .set({ status: 'revoked', revokedAt: at, revokedReason: reason })
       .where(eq(tokenFamilies.id, id.value));
+  }
+
+  async revokeBySession(sessionId: SessionId, reason: string, at: Date): Promise<void> {
+    await this.db
+      .update(tokenFamilies)
+      .set({ status: 'revoked', revokedAt: at, revokedReason: reason })
+      .where(and(eq(tokenFamilies.sessionId, sessionId.value), eq(tokenFamilies.status, 'active')));
+  }
+
+  async revokeAllForUser(userId: UserId, reason: string, at: Date): Promise<void> {
+    await this.db
+      .update(tokenFamilies)
+      .set({ status: 'revoked', revokedAt: at, revokedReason: reason })
+      .where(and(eq(tokenFamilies.userId, userId.value), eq(tokenFamilies.status, 'active')));
   }
 
   async revokeForReuse(id: TokenFamilyId, at: Date, event: ReuseEvent): Promise<void> {

@@ -9,7 +9,7 @@ describe('RedisRevocationStore (integration)', () => {
   const store = new RedisRevocationStore(redis);
 
   beforeEach(async () => {
-    await redis.del(`authn:revoked:jti:${jti}`);
+    await redis.del(`authn:revoked:${jti}`);
   });
 
   afterAll(async () => {
@@ -22,7 +22,7 @@ describe('RedisRevocationStore (integration)', () => {
     await store.revoke(jti, 60);
 
     expect(await store.isRevoked(jti)).toBe(true);
-    const ttl = await redis.ttl(`authn:revoked:jti:${jti}`);
+    const ttl = await redis.ttl(`authn:revoked:${jti}`);
     expect(ttl).toBeGreaterThan(0);
     expect(ttl).toBeLessThanOrEqual(60);
   });

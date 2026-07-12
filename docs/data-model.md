@@ -24,14 +24,22 @@ and decision-context snapshots.
 
 ### authn
 
+- **Session** — `id`, `userId`, `status` (`active` | `revoked`), `deviceLabel`, `userAgent`,
+  `ip`, `createdAt`, `lastSeenAt`, `expiresAt`, `revokedAt`. A device-bound login context.
+- **TokenFamily** — `id`, `userId`, `sessionId`, `status` (`active` | `revoked`), `createdAt`,
+  `revokedAt`, `revokedReason`. Groups every refresh token issued off one login.
+- **RefreshToken** — `id`, `familyId`, `tokenHash` (SHA-256, unique — the raw token is never
+  stored), `generation`, `status` (`active` | `rotated` | `revoked`), `createdAt`, `expiresAt`,
+  `consumedAt`. _Invariants:_ a refresh token belongs to exactly one family; presenting an
+  already-rotated/revoked hash ⇒ revoke the whole family (reuse detection, ADR-003).
 - **MfaEnrollment** — `userId`, `type` (`totp`), `secretEncrypted`, `confirmedAt`,
   `recoveryCodeHashes[]`. _Invariant:_ only a confirmed enrollment satisfies `aal ≥ 2`.
-- **Session / TokenFamily** — `id`, `userId`, `familyId`, `deviceInfo`, `currentRefreshHash`,
-  `createdAt`, `lastUsedAt`, `revokedAt`, `revokedReason`.
-  _Invariants:_ a refresh token belongs to exactly one family; presenting an already-rotated
-  refresh hash ⇒ revoke the whole family (reuse detection, ADR-003).
-- **SigningKey** — `kid`, `alg` (`EdDSA`), `publicJwk`, `privateKeyEncrypted`, `status`
-  (`active` | `next` | `retired`), `createdAt`, `rotatedAt`. Powers JWKS + rotation.
+- **Signing keys** — non-exportable **Ed25519** keys held in **HashiCorp Vault Transit**
+  ([ADR-009](adr/009-key-management-and-cryptography.md)); the application never stores private
+  key material. The JWKS is derived live from Vault's key versions — each published as an
+  `OKP`/`Ed25519` JWK with a `kid`→`alg` binding. Rotation advances the Vault key version
+  (`active` / `next` / `retired` lifecycle). _Supersedes the earlier `privateKeyEncrypted`
+  design._
 
 ### tenancy
 
@@ -71,6 +79,7 @@ and decision-context snapshots.
 
 - `Organization 1—* User`, `Organization 1—* Membership *—1 User`.
 - `User 1—* Session`, `User 1—* MfaEnrollment`.
+- `Session 1—* TokenFamily 1—* RefreshToken` (refresh rotation history per login).
 - `Organization 1—* RelationTuple / Policy / AuditEvent` (everything is tenant-scoped).
 - `RelationTuple.subject` may reference a `User` or another tuple's userset (self-referential graph).
 - `DecisionLog` and `AuditEvent` reference principals/resources by `ResourceRef`, not FKs

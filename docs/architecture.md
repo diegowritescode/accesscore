@@ -71,8 +71,10 @@ Enterprise decomposition (XACML vocabulary):
 
 See [ADR-003](adr/003-token-and-session-strategy.md).
 
-- **Asymmetric signing** (EdDSA/Ed25519 preferred; RS256 fallback), **JWKS** endpoint,
-  multiple active keys via `kid`, scheduled rotation.
+- **Asymmetric signing** — non-exportable **Ed25519** keys in **HashiCorp Vault Transit**
+  ([ADR-009](adr/009-key-management-and-cryptography.md); ES256 the portable fallback for KMS
+  lacking EdDSA) behind a `Signer` port, a **JWKS** endpoint publishing each key version as an
+  `OKP`/`Ed25519` JWK with a `kid`→`alg` binding, and scheduled rotation.
 - Short-lived **access tokens** (stateless, minimal claims — they carry identity, _not_
   authorization verdicts; authz is decided by the PDP at the PEP or via explicitly scoped tokens).
 - **Refresh tokens:** rotation on every use + **reuse detection** → reusing a rotated token

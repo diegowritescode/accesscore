@@ -11,7 +11,10 @@ import { type TokenFamiliesRepository } from '../domain/ports/token-families-rep
 import { type RefreshToken } from '../domain/refresh-token';
 import { type Session } from '../domain/session';
 import { type TokenFamily } from '../domain/token-family';
+import { type UnitOfWork } from '../../shared/persistence/unit-of-work';
 import { LoginHandler } from './login';
+
+const unitOfWork: UnitOfWork = { withTransaction: (work) => work({ executor: {} }) };
 
 const now = new Date('2026-07-12T12:00:00.000Z');
 const clock: Clock = { now: () => now };
@@ -104,6 +107,7 @@ const build = (check: CredentialCheck | null) => {
     refreshTokens,
     accessTokens,
     refreshTokenGenerator,
+    unitOfWork,
     clock,
     { refreshTtlSeconds: 1_000 },
   );

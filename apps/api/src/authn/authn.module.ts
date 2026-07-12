@@ -8,6 +8,7 @@ import { SESSION_REVOKER } from '../identity/domain/ports/session-revoker';
 import { USERS_REPOSITORY, type UsersRepository } from '../identity/domain/ports/users-repository';
 import { IdentityModule } from '../identity/identity.module';
 import { REDIS } from '../redis/redis.module';
+import { UNIT_OF_WORK, type UnitOfWork } from '../shared/persistence/unit-of-work';
 import { LIST_SESSIONS_HANDLER, ListSessionsHandler } from './application/list-sessions';
 import { LOGIN_HANDLER, LoginHandler } from './application/login';
 import { REFRESH_HANDLER, RefreshHandler } from './application/refresh';
@@ -147,6 +148,7 @@ import { JwksController } from './interface/jwks.controller';
         REFRESH_TOKENS_REPOSITORY,
         ACCESS_TOKEN_ISSUER,
         REFRESH_TOKEN_GENERATOR,
+        UNIT_OF_WORK,
         CLOCK,
         ENV,
       ],
@@ -157,6 +159,7 @@ import { JwksController } from './interface/jwks.controller';
         refreshTokens: RefreshTokensRepository,
         accessTokens: AccessTokenIssuer,
         refreshTokenGenerator: RefreshTokenGenerator,
+        unitOfWork: UnitOfWork,
         clock: Clock,
         env: Env,
       ): LoginHandler =>
@@ -167,6 +170,7 @@ import { JwksController } from './interface/jwks.controller';
           refreshTokens,
           accessTokens,
           refreshTokenGenerator,
+          unitOfWork,
           clock,
           { refreshTtlSeconds: env.REFRESH_TOKEN_TTL },
         ),
@@ -206,15 +210,23 @@ import { JwksController } from './interface/jwks.controller';
     },
     {
       provide: SESSION_TERMINATOR,
-      inject: [SESSIONS_REPOSITORY, TOKEN_FAMILIES_REPOSITORY, REVOCATION_STORE, CLOCK, ENV],
+      inject: [
+        SESSIONS_REPOSITORY,
+        TOKEN_FAMILIES_REPOSITORY,
+        REVOCATION_STORE,
+        UNIT_OF_WORK,
+        CLOCK,
+        ENV,
+      ],
       useFactory: (
         sessions: SessionsRepository,
         tokenFamilies: TokenFamiliesRepository,
         revocation: RevocationStore,
+        unitOfWork: UnitOfWork,
         clock: Clock,
         env: Env,
       ): SessionTerminator =>
-        new SessionTerminator(sessions, tokenFamilies, revocation, clock, {
+        new SessionTerminator(sessions, tokenFamilies, revocation, unitOfWork, clock, {
           accessTokenTtlSeconds: env.ACCESS_TOKEN_TTL,
         }),
     },

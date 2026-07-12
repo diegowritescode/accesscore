@@ -82,3 +82,25 @@ Friction points and how they're neutralized:
   template and are covered by integration tests with cyclic and cross-tenant fixtures.
 - **Outbox relay:** a poller uses `SELECT … FOR UPDATE SKIP LOCKED`; consumers are idempotent
   (idempotency key); at-least-once delivery.
+
+## Implementation status (2026-07-12, US-2.11)
+
+Built:
+
+- **`UnitOfWork` port** (`shared/persistence/unit-of-work.ts`) exposes
+  `withTransaction(work: (tx) => Promise<T>)`, where `tx` is an **opaque `Tx` handle** (an
+  abstraction, not Drizzle's transaction type). Repository ports accept an optional `Tx` on
+  write methods; the Drizzle adapters bind the real executor internally
+  (`(tx?.executor as Executor) ?? this.db`). This preserves hexagonal purity — the application
+  never references Drizzle's `tx` — while keeping the generic `DrizzleUnitOfWork` decoupled from
+  any feature's repositories (the earlier "hands back transaction-scoped repositories" sketch
+  would have coupled the UoW to every module's repos). `LoginHandler` and `SessionTerminator`
+  now write atomically through it.
+- **`revisions` changelog** (`revisions` table + `RevisionsRepository.allocate(tx)`) assigns a
+  commit-ordered revision under a **transaction-scoped advisory lock** (`pg_advisory_xact_lock`),
+  validated by an integration test (two concurrent allocations serialize; rollback persists
+  nothing). It replaces the "bare sequence" and is the foundation for Slice 3 tuple writes and
+  consistency tokens (ADR-004).
+
+Still pending (later slices): the outbox relay/poller, and the recursive-CTE tuple traversal
+(Slice 3+).

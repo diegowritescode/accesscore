@@ -4,6 +4,7 @@ module.exports = {
   testRegex: '.*\\.spec\\.ts$',
   transform: { '^.+\\.ts$': 'ts-jest' },
   collectCoverageFrom: ['**/*.ts', '!**/*.spec.ts', '!**/*.module.ts', '!main.ts'],
-  coverageDirectory: '../coverage',
+  coverageDirectory: '../coverage/unit',
+  coverageReporters: ['json'],
   testEnvironment: 'node',
 };

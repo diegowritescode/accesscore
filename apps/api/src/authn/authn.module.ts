@@ -90,8 +90,9 @@ import { JwksController } from './interface/jwks.controller';
     },
     {
       provide: JWKS_PROVIDER,
-      inject: [SIGNER],
-      useFactory: (signer: Signer): JwksProvider => new JwksProvider(signer),
+      inject: [SIGNER, CLOCK, ENV],
+      useFactory: (signer: Signer, clock: Clock, env: Env): JwksProvider =>
+        new JwksProvider(signer, clock, env.JWKS_CACHE_MAX_AGE),
     },
     {
       provide: JWT_VERIFIER,

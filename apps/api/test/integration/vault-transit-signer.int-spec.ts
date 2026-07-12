@@ -23,7 +23,7 @@ describe('VaultTransitSigner (integration)', () => {
 
   it('publishes JWKS a consumer can independently verify a Vault signature with', async () => {
     const signature = await signer.sign(payload);
-    const jwks = await new JwksProvider(signer).jwks();
+    const jwks = await new JwksProvider(signer, { now: () => new Date() }, 300).jwks();
     const jwk = jwks.keys.find((key) => key.kid === signature.kid);
 
     expect(jwk).toBeDefined();

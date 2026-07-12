@@ -57,8 +57,11 @@ export class JwtVerifier {
       return err('malformed');
     }
 
-    const { keys } = await this.jwks.jwks();
-    const jwk = keys.find((candidate) => candidate.kid === header.kid);
+    const kid = header.kid;
+    let jwk = (await this.jwks.jwks()).keys.find((candidate) => candidate.kid === kid);
+    if (!jwk) {
+      jwk = (await this.jwks.refresh()).keys.find((candidate) => candidate.kid === kid);
+    }
     if (!jwk) {
       return err('unknown_kid');
     }

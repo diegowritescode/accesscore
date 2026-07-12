@@ -8,4 +8,8 @@ export class LogMailer implements Mailer {
   async sendEmailVerification(email: Email, _token: string): Promise<void> {
     this.logger.log(`email verification queued for ${email.value}`);
   }
+
+  async sendPasswordReset(email: Email, _token: string): Promise<void> {
+    this.logger.log(`password reset queued for ${email.value}`);
+  }
 }

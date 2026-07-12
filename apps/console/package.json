@@ -1,0 +1,12 @@
+{
+  "name": "@accesscore/console",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "echo \"console: placeholder — Next.js app added in the console slice\"",
+    "dev": "echo \"console: placeholder\"",
+    "lint": "echo \"console: placeholder\"",
+    "typecheck": "echo \"console: placeholder\"",
+    "test": "echo \"console: placeholder\""
+  }
+}

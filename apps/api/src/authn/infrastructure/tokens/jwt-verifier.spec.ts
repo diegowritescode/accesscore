@@ -8,7 +8,7 @@ const nowSec = Math.floor(now.getTime() / 1000);
 const clock: Clock = { now: () => now };
 
 const signer = new SoftwareSigner();
-const verifier = new JwtVerifier(new JwksProvider(signer), clock, {
+const verifier = new JwtVerifier(new JwksProvider(signer, clock, 300), clock, {
   issuer: 'https://auth.accesscore.dev',
   audience: 'accesscore',
   clockSkewSeconds: 30,

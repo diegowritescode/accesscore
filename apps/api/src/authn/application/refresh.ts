@@ -114,6 +114,7 @@ export class RefreshHandler {
       return this.replayFromGrace(token, hash, RACE_RETRIES);
     }
 
+    await this.sessions.touch(session.id, now);
     await this.graceCache.put(
       hash,
       {

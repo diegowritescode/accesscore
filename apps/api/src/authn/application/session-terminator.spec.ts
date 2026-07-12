@@ -3,6 +3,7 @@ import { type Clock } from '../domain/ports/clock';
 import { type RevocationStore } from '../domain/ports/revocation-store';
 import { type SessionsRepository } from '../domain/ports/sessions-repository';
 import { type TokenFamiliesRepository } from '../domain/ports/token-families-repository';
+import { type Session } from '../domain/session';
 import { SessionId } from '../domain/value-objects/session-id';
 import { SessionTerminator } from './session-terminator';
 
@@ -25,6 +26,12 @@ class FakeSessions implements SessionsRepository {
   }
   revokeAllForUser(): Promise<string[]> {
     return Promise.resolve(this.revokeAllSids);
+  }
+  listActiveByUser(): Promise<Session[]> {
+    return Promise.resolve([]);
+  }
+  touch(): Promise<void> {
+    return Promise.resolve();
   }
 }
 

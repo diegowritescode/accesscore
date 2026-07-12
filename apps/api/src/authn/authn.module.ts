@@ -8,8 +8,10 @@ import { SESSION_REVOKER } from '../identity/domain/ports/session-revoker';
 import { USERS_REPOSITORY, type UsersRepository } from '../identity/domain/ports/users-repository';
 import { IdentityModule } from '../identity/identity.module';
 import { REDIS } from '../redis/redis.module';
+import { LIST_SESSIONS_HANDLER, ListSessionsHandler } from './application/list-sessions';
 import { LOGIN_HANDLER, LoginHandler } from './application/login';
 import { REFRESH_HANDLER, RefreshHandler } from './application/refresh';
+import { REVOKE_SESSION_HANDLER, RevokeSessionHandler } from './application/revoke-session';
 import { SESSION_TERMINATOR, SessionTerminator } from './application/session-terminator';
 import { SIGNING_KEYS, SigningKeyService } from './application/signing-keys';
 import { ACCESS_TOKEN_ISSUER, type AccessTokenIssuer } from './domain/ports/access-token-issuer';
@@ -221,6 +223,20 @@ import { JwksController } from './interface/jwks.controller';
       inject: [SESSION_TERMINATOR],
       useFactory: (terminator: SessionTerminator): AuthnSessionRevoker =>
         new AuthnSessionRevoker(terminator),
+    },
+    {
+      provide: LIST_SESSIONS_HANDLER,
+      inject: [SESSIONS_REPOSITORY],
+      useFactory: (sessions: SessionsRepository): ListSessionsHandler =>
+        new ListSessionsHandler(sessions),
+    },
+    {
+      provide: REVOKE_SESSION_HANDLER,
+      inject: [SESSIONS_REPOSITORY, SESSION_TERMINATOR],
+      useFactory: (
+        sessions: SessionsRepository,
+        terminator: SessionTerminator,
+      ): RevokeSessionHandler => new RevokeSessionHandler(sessions, terminator),
     },
     AccessTokenGuard,
   ],

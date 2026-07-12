@@ -5,6 +5,8 @@ import { type SessionId } from '../value-objects/session-id';
 export interface SessionsRepository {
   create(session: Session): Promise<void>;
   findById(id: SessionId): Promise<Session | null>;
+  listActiveByUser(userId: UserId): Promise<Session[]>;
+  touch(id: SessionId, at: Date): Promise<void>;
   revoke(id: SessionId, at: Date): Promise<void>;
   revokeAllForUser(userId: UserId, at: Date): Promise<string[]>;
 }

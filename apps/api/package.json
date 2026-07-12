@@ -9,8 +9,8 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
-    "test:int": "jest --config ./test/jest-integration.json",
+    "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
+    "test:int": "jest --config ./test/jest-integration.json --runInBand",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },

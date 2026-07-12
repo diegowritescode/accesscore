@@ -24,8 +24,10 @@ and decision-context snapshots.
 
 ### authn
 
-- **Session** — `id`, `userId`, `status` (`active` | `revoked`), `deviceLabel`, `userAgent`,
-  `ip`, `createdAt`, `lastSeenAt`, `expiresAt`, `revokedAt`. A device-bound login context.
+- **Session** — `id`, `userId`, `orgId` (active org, nullable), `aal`, `authTime`, `status`
+  (`active` | `revoked`), `deviceLabel`, `userAgent`, `ip`, `createdAt`, `lastSeenAt`,
+  `expiresAt`, `revokedAt`. A device-bound login context; `orgId`/`aal`/`authTime` are minted
+  into the access token and preserved across refresh.
 - **TokenFamily** — `id`, `userId`, `sessionId`, `status` (`active` | `revoked`), `createdAt`,
   `revokedAt`, `revokedReason`. Groups every refresh token issued off one login.
 - **RefreshToken** — `id`, `familyId`, `tokenHash` (SHA-256, unique — the raw token is never

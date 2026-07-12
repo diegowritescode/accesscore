@@ -1,5 +1,6 @@
 import { index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { users } from '../../../identity/infrastructure/persistence/schema';
+import { organizations } from '../../../tenancy/infrastructure/persistence/schema';
 
 export const sessions = pgTable(
   'sessions',
@@ -9,6 +10,9 @@ export const sessions = pgTable(
       .notNull()
       .references(() => users.id),
     status: text('status').notNull().default('active'),
+    orgId: uuid('org_id').references(() => organizations.id),
+    aal: integer('aal').notNull().default(1),
+    authTime: timestamp('auth_time', { withTimezone: true }).notNull().defaultNow(),
     deviceLabel: text('device_label'),
     userAgent: text('user_agent'),
     ip: text('ip'),

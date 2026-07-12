@@ -42,6 +42,9 @@ describe('authn persistence (integration)', () => {
     await sessions.create({
       id,
       userId,
+      orgId: null,
+      aal: 1,
+      authTime: now,
       status: 'active',
       deviceLabel: 'iPhone 15',
       userAgent: 'AccessCore/1.0',

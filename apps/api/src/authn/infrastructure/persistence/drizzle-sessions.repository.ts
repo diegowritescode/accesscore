@@ -1,5 +1,6 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { type Database, type Executor } from '../../../db/db.module';
+import { OrgId } from '../../../shared/kernel/org-id';
 import { UserId } from '../../../shared/kernel/user-id';
 import { type Tx } from '../../../shared/persistence/unit-of-work';
 import { type SessionsRepository } from '../../domain/ports/sessions-repository';
@@ -11,18 +12,23 @@ export class DrizzleSessionsRepository implements SessionsRepository {
   constructor(private readonly db: Database) {}
 
   async create(session: Session, tx?: Tx): Promise<void> {
-    await this.executor(tx).insert(sessions).values({
-      id: session.id.value,
-      userId: session.userId.value,
-      status: session.status,
-      deviceLabel: session.deviceLabel,
-      userAgent: session.userAgent,
-      ip: session.ip,
-      createdAt: session.createdAt,
-      lastSeenAt: session.lastSeenAt,
-      expiresAt: session.expiresAt,
-      revokedAt: session.revokedAt,
-    });
+    await this.executor(tx)
+      .insert(sessions)
+      .values({
+        id: session.id.value,
+        userId: session.userId.value,
+        orgId: session.orgId?.value ?? null,
+        aal: session.aal,
+        authTime: session.authTime,
+        status: session.status,
+        deviceLabel: session.deviceLabel,
+        userAgent: session.userAgent,
+        ip: session.ip,
+        createdAt: session.createdAt,
+        lastSeenAt: session.lastSeenAt,
+        expiresAt: session.expiresAt,
+        revokedAt: session.revokedAt,
+      });
   }
 
   async findById(id: SessionId): Promise<Session | null> {
@@ -68,6 +74,9 @@ export class DrizzleSessionsRepository implements SessionsRepository {
     return {
       id: SessionId.fromString(row.id),
       userId: UserId.fromString(row.userId),
+      orgId: row.orgId ? OrgId.fromString(row.orgId) : null,
+      aal: row.aal,
+      authTime: row.authTime,
       status: row.status as SessionStatus,
       deviceLabel: row.deviceLabel,
       userAgent: row.userAgent,

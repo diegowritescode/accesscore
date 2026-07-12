@@ -1,6 +1,7 @@
 export interface AccessTokenClaims {
   sub: string;
   sid: string;
+  org: string | null;
   aal: number;
   authTime: Date;
 }

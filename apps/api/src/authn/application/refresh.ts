@@ -105,8 +105,9 @@ export class RefreshHandler {
     const access = await this.accessTokens.issue({
       sub: family.userId.value,
       sid: session.id.value,
-      aal: 1,
-      authTime: session.createdAt,
+      org: session.orgId?.value ?? null,
+      aal: session.aal,
+      authTime: session.authTime,
     });
 
     const won = await this.refreshTokens.rotate(token.id, successor, now);

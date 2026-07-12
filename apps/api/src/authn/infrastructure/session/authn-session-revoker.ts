@@ -1,5 +1,5 @@
 import { type SessionRevoker } from '../../../identity/domain/ports/session-revoker';
-import { type UserId } from '../../../identity/domain/value-objects/user-id';
+import { type UserId } from '../../../shared/kernel/user-id';
 import { type SessionTerminator } from '../../application/session-terminator';
 
 export class AuthnSessionRevoker implements SessionRevoker {

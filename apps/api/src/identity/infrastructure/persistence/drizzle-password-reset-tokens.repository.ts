@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { type Database } from '../../../db/db.module';
 import { PasswordResetToken } from '../../domain/password-reset-token';
 import { type PasswordResetTokensRepository } from '../../domain/ports/password-reset-tokens-repository';
-import { UserId } from '../../domain/value-objects/user-id';
+import { UserId } from '../../../shared/kernel/user-id';
 import { passwordResetTokens } from './schema';
 
 export class DrizzlePasswordResetTokensRepository implements PasswordResetTokensRepository {

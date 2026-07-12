@@ -1,4 +1,4 @@
-import { type UserId } from './value-objects/user-id';
+import { type UserId } from '../../shared/kernel/user-id';
 
 export interface PasswordResetTokenProps {
   id: string;

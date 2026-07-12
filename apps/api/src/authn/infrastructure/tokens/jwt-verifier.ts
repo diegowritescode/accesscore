@@ -1,6 +1,6 @@
 import { createPublicKey, verify as cryptoVerify, type JsonWebKey } from 'node:crypto';
 import { err, ok, type Result } from '../../../shared/result';
-import { type Clock } from '../../domain/ports/clock';
+import { type Clock } from '../../../shared/kernel/clock';
 import { JwksProvider } from '../jwks/jwks-provider';
 
 export type VerifyError =

@@ -16,7 +16,7 @@ import { REVOKE_SESSION_HANDLER, RevokeSessionHandler } from './application/revo
 import { SESSION_TERMINATOR, SessionTerminator } from './application/session-terminator';
 import { SIGNING_KEYS, SigningKeyService } from './application/signing-keys';
 import { ACCESS_TOKEN_ISSUER, type AccessTokenIssuer } from './domain/ports/access-token-issuer';
-import { CLOCK, type Clock } from './domain/ports/clock';
+import { CLOCK, type Clock } from '../shared/kernel/clock';
 import { CREDENTIALS, type Credentials } from './domain/ports/credentials';
 import { REFRESH_GRACE_CACHE, type RefreshGraceCache } from './domain/ports/refresh-grace-cache';
 import { REFRESH_TOKEN_GENERATOR } from './domain/ports/refresh-token-generator';
@@ -32,7 +32,7 @@ import { TOKEN_FAMILIES_REPOSITORY } from './domain/ports/token-families-reposit
 import type { TokenFamiliesRepository } from './domain/ports/token-families-repository';
 import { type TokenSigner } from './domain/ports/token-signer';
 import { RedisRefreshGraceCache } from './infrastructure/cache/redis-refresh-grace-cache';
-import { SystemClock } from './infrastructure/clock/system-clock';
+import { SystemClock } from '../shared/kernel/system-clock';
 import { IdentityCredentials } from './infrastructure/credentials/identity-credentials';
 import { AuthnSessionRevoker } from './infrastructure/session/authn-session-revoker';
 import { JWKS_PROVIDER, JwksProvider } from './infrastructure/jwks/jwks-provider';

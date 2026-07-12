@@ -1,4 +1,4 @@
-import { type Clock } from '../domain/ports/clock';
+import { type Clock } from '../../shared/kernel/clock';
 import { type Signature, type Signer } from '../domain/ports/signer';
 import { type SigningKeyState } from '../domain/ports/signing-key-state';
 import { type ActiveKey, type TokenSigner } from '../domain/ports/token-signer';

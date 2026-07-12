@@ -1,6 +1,6 @@
-import { type UserId } from '../../identity/domain/value-objects/user-id';
+import { type UserId } from '../../shared/kernel/user-id';
 import { type UnitOfWork } from '../../shared/persistence/unit-of-work';
-import { type Clock } from '../domain/ports/clock';
+import { type Clock } from '../../shared/kernel/clock';
 import { type RevocationStore } from '../domain/ports/revocation-store';
 import { type SessionsRepository } from '../domain/ports/sessions-repository';
 import { type TokenFamiliesRepository } from '../domain/ports/token-families-repository';

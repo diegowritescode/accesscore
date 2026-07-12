@@ -1,5 +1,5 @@
 import { RegisterUserHandler } from './register-user';
-import { type Clock } from '../domain/ports/clock';
+import { type Clock } from '../../shared/kernel/clock';
 import { type Hasher } from '../domain/ports/hasher';
 import { type Mailer } from '../domain/ports/mailer';
 import { type TokenGenerator } from '../domain/ports/token-generator';
@@ -8,7 +8,7 @@ import { type VerificationTokensRepository } from '../domain/ports/verification-
 import { User } from '../domain/user';
 import { Email } from '../domain/value-objects/email';
 import { PasswordHash } from '../domain/value-objects/password-hash';
-import { UserId } from '../domain/value-objects/user-id';
+import { UserId } from '../../shared/kernel/user-id';
 
 const now = new Date('2026-01-01T00:00:00.000Z');
 

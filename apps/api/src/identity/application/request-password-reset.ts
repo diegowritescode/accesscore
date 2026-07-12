@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { ok, type Result } from '../../shared/result';
 import { PasswordResetToken } from '../domain/password-reset-token';
-import { type Clock } from '../domain/ports/clock';
+import { type Clock } from '../../shared/kernel/clock';
 import { type Mailer } from '../domain/ports/mailer';
 import { type PasswordResetTokensRepository } from '../domain/ports/password-reset-tokens-repository';
 import { type TokenGenerator } from '../domain/ports/token-generator';

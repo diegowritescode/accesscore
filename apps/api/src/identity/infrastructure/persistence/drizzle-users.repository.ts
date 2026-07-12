@@ -4,7 +4,7 @@ import { type UsersRepository } from '../../domain/ports/users-repository';
 import { User, type UserStatus } from '../../domain/user';
 import { Email } from '../../domain/value-objects/email';
 import { PasswordHash } from '../../domain/value-objects/password-hash';
-import { UserId } from '../../domain/value-objects/user-id';
+import { UserId } from '../../../shared/kernel/user-id';
 import { outbox, users } from './schema';
 
 export class DrizzleUsersRepository implements UsersRepository {

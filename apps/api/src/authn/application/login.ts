@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { UserId } from '../../identity/domain/value-objects/user-id';
+import { UserId } from '../../shared/kernel/user-id';
 import { type UnitOfWork } from '../../shared/persistence/unit-of-work';
 import { err, ok, type Result } from '../../shared/result';
 import { type AccessTokenIssuer } from '../domain/ports/access-token-issuer';
-import { type Clock } from '../domain/ports/clock';
+import { type Clock } from '../../shared/kernel/clock';
 import { type Credentials } from '../domain/ports/credentials';
 import { type RefreshTokenGenerator } from '../domain/ports/refresh-token-generator';
 import { type RefreshTokensRepository } from '../domain/ports/refresh-tokens-repository';

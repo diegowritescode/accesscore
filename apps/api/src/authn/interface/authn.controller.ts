@@ -11,7 +11,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { UserId } from '../../identity/domain/value-objects/user-id';
+import { UserId } from '../../shared/kernel/user-id';
 import { ProblemException } from '../../shared/http/problem-details';
 import {
   LIST_SESSIONS_HANDLER,

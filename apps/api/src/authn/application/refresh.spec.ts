@@ -2,7 +2,7 @@ import {
   type AccessTokenIssuer,
   type IssuedAccessToken,
 } from '../domain/ports/access-token-issuer';
-import { type Clock } from '../domain/ports/clock';
+import { type Clock } from '../../shared/kernel/clock';
 import { type GracePair, type RefreshGraceCache } from '../domain/ports/refresh-grace-cache';
 import { type RefreshTokenGenerator } from '../domain/ports/refresh-token-generator';
 import { type RefreshTokensRepository } from '../domain/ports/refresh-tokens-repository';
@@ -13,7 +13,7 @@ import { type Session } from '../domain/session';
 import { type TokenFamily, type TokenFamilyStatus } from '../domain/token-family';
 import { SessionId } from '../domain/value-objects/session-id';
 import { TokenFamilyId } from '../domain/value-objects/token-family-id';
-import { UserId } from '../../identity/domain/value-objects/user-id';
+import { UserId } from '../../shared/kernel/user-id';
 import { RefreshHandler } from './refresh';
 
 const now = new Date('2026-07-12T12:00:00.000Z');

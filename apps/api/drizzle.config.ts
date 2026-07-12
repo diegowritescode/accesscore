@@ -5,6 +5,7 @@ export default defineConfig({
     './src/db/schema.ts',
     './src/identity/infrastructure/persistence/schema.ts',
     './src/authn/infrastructure/persistence/schema.ts',
+    './src/tenancy/infrastructure/persistence/schema.ts',
   ],
   out: './drizzle',
   dialect: 'postgresql',

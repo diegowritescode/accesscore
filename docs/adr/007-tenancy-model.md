@@ -42,3 +42,16 @@ Adopt **global identity + per-organization membership**.
 
 - **Single-org user** — rejected: cannot model the same human across organizations and breaks
   under B2B SSO; `Membership` would be redundant.
+
+## Implementation status (2026-07-12, US-2.10)
+
+- **`tenancy` module** built: `Organization` aggregate + `Membership` record (global `User`,
+  no `orgId` on the user), `OrgId` in the shared kernel, `organizations`/`memberships` tables
+  (unique `(user_id, org_id)`; unique org `slug`). `TenancyService.provisionPersonalOrganization`
+  creates an org + owner membership atomically under the UnitOfWork; `findActiveOrganization`
+  resolves the caller's active org from membership.
+- **Pending (US-2.10 part B):** minting the verified **`org` claim** at login (from the active
+  membership) and carrying it on the session + through refresh, plus surfacing it in the guard —
+  so the PDP can derive the active org from the token only (ADR-008). Multi-org selection
+  ("switch org") and admin-driven org creation/invites are later slices; for now the active org
+  is the caller's oldest active membership.

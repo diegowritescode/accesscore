@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { type Database } from '../../../db/db.module';
 import { UserId } from '../../../identity/domain/value-objects/user-id';
 import { type SessionsRepository } from '../../domain/ports/sessions-repository';
@@ -28,6 +28,19 @@ export class DrizzleSessionsRepository implements SessionsRepository {
     const rows = await this.db.select().from(sessions).where(eq(sessions.id, id.value)).limit(1);
     const row = rows[0];
     return row ? this.toDomain(row) : null;
+  }
+
+  async listActiveByUser(userId: UserId): Promise<Session[]> {
+    const rows = await this.db
+      .select()
+      .from(sessions)
+      .where(and(eq(sessions.userId, userId.value), eq(sessions.status, 'active')))
+      .orderBy(desc(sessions.createdAt));
+    return rows.map((row) => this.toDomain(row));
+  }
+
+  async touch(id: SessionId, at: Date): Promise<void> {
+    await this.db.update(sessions).set({ lastSeenAt: at }).where(eq(sessions.id, id.value));
   }
 
   async revoke(id: SessionId, at: Date): Promise<void> {

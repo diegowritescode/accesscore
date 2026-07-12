@@ -44,6 +44,12 @@ class FakeSessions implements SessionsRepository {
   revokeAllForUser(): Promise<string[]> {
     return Promise.resolve([]);
   }
+  listActiveByUser(): Promise<Session[]> {
+    return Promise.resolve([]);
+  }
+  touch(): Promise<void> {
+    return Promise.resolve();
+  }
 }
 
 class FakeFamilies implements TokenFamiliesRepository {

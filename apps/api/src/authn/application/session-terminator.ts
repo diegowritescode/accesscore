@@ -31,6 +31,14 @@ export class SessionTerminator {
     );
   }
 
+  async terminateSessionById(sessionId: string): Promise<void> {
+    const at = this.clock.now();
+    const sid = SessionId.fromString(sessionId);
+    await this.tokenFamilies.revokeBySession(sid, 'session_revoked', at);
+    await this.sessions.revoke(sid, at);
+    await this.revocation.revoke(`sid:${sessionId}`, this.config.accessTokenTtlSeconds);
+  }
+
   async terminateAllForUser(userId: UserId): Promise<void> {
     const at = this.clock.now();
     await this.tokenFamilies.revokeAllForUser(userId, 'logout_all', at);

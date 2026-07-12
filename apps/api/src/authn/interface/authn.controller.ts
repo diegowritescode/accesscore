@@ -1,8 +1,26 @@
-import { Body, Controller, Headers, HttpCode, Inject, Ip, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  HttpCode,
+  Inject,
+  Ip,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { UserId } from '../../identity/domain/value-objects/user-id';
 import { ProblemException } from '../../shared/http/problem-details';
+import {
+  LIST_SESSIONS_HANDLER,
+  type ListSessionsHandler,
+  type SessionView,
+} from '../application/list-sessions';
 import { LOGIN_HANDLER, type LoginHandler } from '../application/login';
 import { REFRESH_HANDLER, type RefreshHandler } from '../application/refresh';
+import { REVOKE_SESSION_HANDLER, type RevokeSessionHandler } from '../application/revoke-session';
 import { SESSION_TERMINATOR, type SessionTerminator } from '../application/session-terminator';
 import { AccessTokenGuard, type AuthTokenClaims } from './access-token.guard';
 import { AuthToken } from './auth-token.decorator';
@@ -28,6 +46,8 @@ export class AuthnController {
     @Inject(LOGIN_HANDLER) private readonly login: LoginHandler,
     @Inject(REFRESH_HANDLER) private readonly refresh: RefreshHandler,
     @Inject(SESSION_TERMINATOR) private readonly sessions: SessionTerminator,
+    @Inject(LIST_SESSIONS_HANDLER) private readonly listSessions: ListSessionsHandler,
+    @Inject(REVOKE_SESSION_HANDLER) private readonly revokeSession: RevokeSessionHandler,
   ) {}
 
   @Post('login')
@@ -83,6 +103,27 @@ export class AuthnController {
   @UseGuards(AccessTokenGuard)
   async logoutAll(@AuthToken() token: AuthTokenClaims): Promise<void> {
     await this.sessions.terminateAllForUser(UserId.fromString(token.sub));
+  }
+
+  @Get('sessions')
+  @UseGuards(AccessTokenGuard)
+  async listUserSessions(
+    @AuthToken() token: AuthTokenClaims,
+  ): Promise<{ sessions: SessionView[] }> {
+    return { sessions: await this.listSessions.execute(token.sub, token.sid) };
+  }
+
+  @Delete('sessions/:id')
+  @HttpCode(204)
+  @UseGuards(AccessTokenGuard)
+  async revokeUserSession(
+    @AuthToken() token: AuthTokenClaims,
+    @Param('id') id: string,
+  ): Promise<void> {
+    const result = await this.revokeSession.execute({ callerUserId: token.sub, sessionId: id });
+    if (!result.ok) {
+      throw new ProblemException({ type: 'about:blank', title: 'Session not found', status: 404 });
+    }
   }
 
   private toResponse(pair: {

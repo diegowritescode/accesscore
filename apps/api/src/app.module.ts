@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthnModule } from './authn/authn.module';
+import { AuthzModule } from './authz/authz.module';
 import { ENV } from './config/env.module';
 import type { Env } from './config/env';
 import { EnvModule } from './config/env.module';
@@ -20,6 +21,7 @@ import { TenancyModule } from './tenancy/tenancy.module';
     HealthModule,
     IdentityModule,
     AuthnModule,
+    AuthzModule,
     TenancyModule,
     ThrottlerModule.forRootAsync({
       inject: [ENV],

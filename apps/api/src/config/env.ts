@@ -9,6 +9,10 @@ export const envSchema = z.object({
   VAULT_ADDR: z.string().url().default('http://localhost:8200'),
   VAULT_TOKEN: z.string().min(1).default('accesscore-dev-token'),
   VAULT_TRANSIT_KEY: z.string().min(1).default('accesscore-signing'),
+  JWT_ISSUER: z.string().min(1).default('https://auth.accesscore.dev'),
+  JWT_AUDIENCE: z.string().min(1).default('accesscore'),
+  ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(900),
+  REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(1209600),
 });
 
 export type Env = z.infer<typeof envSchema>;

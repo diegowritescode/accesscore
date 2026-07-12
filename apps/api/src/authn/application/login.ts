@@ -1,0 +1,109 @@
+import { randomUUID } from 'node:crypto';
+import { UserId } from '../../identity/domain/value-objects/user-id';
+import { err, ok, type Result } from '../../shared/result';
+import { type AccessTokenIssuer } from '../domain/ports/access-token-issuer';
+import { type Clock } from '../domain/ports/clock';
+import { type Credentials } from '../domain/ports/credentials';
+import { type RefreshTokenGenerator } from '../domain/ports/refresh-token-generator';
+import { type RefreshTokensRepository } from '../domain/ports/refresh-tokens-repository';
+import { type SessionsRepository } from '../domain/ports/sessions-repository';
+import { type TokenFamiliesRepository } from '../domain/ports/token-families-repository';
+import { SessionId } from '../domain/value-objects/session-id';
+import { TokenFamilyId } from '../domain/value-objects/token-family-id';
+
+export interface LoginCommand {
+  email: string;
+  password: string;
+  userAgent: string | null;
+  ip: string | null;
+}
+
+export interface LoginResult {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: 'Bearer';
+  expiresIn: number;
+}
+
+export interface LoginConfig {
+  refreshTtlSeconds: number;
+}
+
+export type LoginError = 'invalid_credentials';
+
+export const LOGIN_HANDLER = Symbol('LOGIN_HANDLER');
+
+export class LoginHandler {
+  constructor(
+    private readonly credentials: Credentials,
+    private readonly sessions: SessionsRepository,
+    private readonly tokenFamilies: TokenFamiliesRepository,
+    private readonly refreshTokens: RefreshTokensRepository,
+    private readonly accessTokens: AccessTokenIssuer,
+    private readonly refreshTokenGenerator: RefreshTokenGenerator,
+    private readonly clock: Clock,
+    private readonly config: LoginConfig,
+  ) {}
+
+  async execute(command: LoginCommand): Promise<Result<LoginResult, LoginError>> {
+    const check = await this.credentials.verify(command.email, command.password);
+    if (!check) {
+      return err('invalid_credentials');
+    }
+
+    const now = this.clock.now();
+    const userId = UserId.fromString(check.userId);
+    const sessionId = SessionId.generate();
+    const familyId = TokenFamilyId.generate();
+    const refreshExpiresAt = new Date(now.getTime() + this.config.refreshTtlSeconds * 1000);
+
+    const accessToken = await this.accessTokens.issue({
+      sub: check.userId,
+      sid: sessionId.value,
+      aal: check.aal,
+      authTime: now,
+    });
+
+    await this.sessions.create({
+      id: sessionId,
+      userId,
+      status: 'active',
+      deviceLabel: null,
+      userAgent: command.userAgent,
+      ip: command.ip,
+      createdAt: now,
+      lastSeenAt: now,
+      expiresAt: refreshExpiresAt,
+      revokedAt: null,
+    });
+
+    await this.tokenFamilies.create({
+      id: familyId,
+      userId,
+      sessionId,
+      status: 'active',
+      createdAt: now,
+      revokedAt: null,
+      revokedReason: null,
+    });
+
+    const refresh = this.refreshTokenGenerator.generate();
+    await this.refreshTokens.add({
+      id: randomUUID(),
+      familyId,
+      tokenHash: refresh.hash,
+      generation: 1,
+      status: 'active',
+      createdAt: now,
+      expiresAt: refreshExpiresAt,
+      consumedAt: null,
+    });
+
+    return ok({
+      accessToken: accessToken.token,
+      refreshToken: refresh.raw,
+      tokenType: 'Bearer',
+      expiresIn: accessToken.expiresInSeconds,
+    });
+  }
+}

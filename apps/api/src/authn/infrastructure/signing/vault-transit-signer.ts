@@ -26,6 +26,14 @@ export class VaultTransitSigner implements Signer {
     this.keyName = config.keyName;
   }
 
+  async activeKid(): Promise<string> {
+    const active = (await this.publicKeys())[0];
+    if (!active) {
+      throw new Error('no active signing key');
+    }
+    return active.kid;
+  }
+
   async sign(payload: Uint8Array): Promise<Signature> {
     await this.ensureKey();
     const body = await this.request<{ data: { signature: string } }>(

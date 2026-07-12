@@ -13,4 +13,8 @@ export class Password {
     if (input.length > Password.maxLength) return err('too_long');
     return ok(new Password(input));
   }
+
+  static forVerification(input: string): Password {
+    return new Password(input);
+  }
 }

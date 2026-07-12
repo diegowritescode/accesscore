@@ -18,6 +18,7 @@ const rejectionStatus = async (promise: Promise<unknown>): Promise<number> => {
 const claims: VerifiedClaims = {
   sub: 'user-1',
   sid: 'session-1',
+  org: 'org-1',
   jti: 'jti-1',
   aal: 1,
   exp: 4102444800,
@@ -54,6 +55,7 @@ describe('AccessTokenGuard', () => {
     expect(req.authToken).toEqual({
       sub: 'user-1',
       sid: 'session-1',
+      org: 'org-1',
       jti: 'jti-1',
       aal: 1,
       exp: 4102444800,

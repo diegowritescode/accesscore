@@ -9,6 +9,8 @@ import { USERS_REPOSITORY, type UsersRepository } from '../identity/domain/ports
 import { IdentityModule } from '../identity/identity.module';
 import { REDIS } from '../redis/redis.module';
 import { UNIT_OF_WORK, type UnitOfWork } from '../shared/persistence/unit-of-work';
+import { TENANCY_SERVICE, type TenancyService } from '../tenancy/application/tenancy-service';
+import { TenancyModule } from '../tenancy/tenancy.module';
 import { LIST_SESSIONS_HANDLER, ListSessionsHandler } from './application/list-sessions';
 import { LOGIN_HANDLER, LoginHandler } from './application/login';
 import { REFRESH_HANDLER, RefreshHandler } from './application/refresh';
@@ -51,7 +53,7 @@ import { AuthnController } from './interface/authn.controller';
 import { JwksController } from './interface/jwks.controller';
 
 @Module({
-  imports: [forwardRef(() => IdentityModule)],
+  imports: [forwardRef(() => IdentityModule), TenancyModule],
   controllers: [AuthnController, JwksController],
   providers: [
     { provide: CLOCK, useClass: SystemClock },
@@ -148,6 +150,7 @@ import { JwksController } from './interface/jwks.controller';
         REFRESH_TOKENS_REPOSITORY,
         ACCESS_TOKEN_ISSUER,
         REFRESH_TOKEN_GENERATOR,
+        TENANCY_SERVICE,
         UNIT_OF_WORK,
         CLOCK,
         ENV,
@@ -159,6 +162,7 @@ import { JwksController } from './interface/jwks.controller';
         refreshTokens: RefreshTokensRepository,
         accessTokens: AccessTokenIssuer,
         refreshTokenGenerator: RefreshTokenGenerator,
+        tenancy: TenancyService,
         unitOfWork: UnitOfWork,
         clock: Clock,
         env: Env,
@@ -170,6 +174,7 @@ import { JwksController } from './interface/jwks.controller';
           refreshTokens,
           accessTokens,
           refreshTokenGenerator,
+          tenancy,
           unitOfWork,
           clock,
           { refreshTtlSeconds: env.REFRESH_TOKEN_TTL },

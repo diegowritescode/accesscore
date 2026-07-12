@@ -11,6 +11,9 @@ const OWNED = '11111111-1111-1111-1111-111111111111';
 const session = (id: string, ownerId: string): Session => ({
   id: SessionId.fromString(id),
   userId: UserId.fromString(ownerId),
+  orgId: null,
+  aal: 1,
+  authTime: now,
   status: 'active',
   deviceLabel: null,
   userAgent: null,

@@ -7,6 +7,7 @@ import { JWT_VERIFIER, type JwtVerifier } from '../infrastructure/tokens/jwt-ver
 export interface AuthTokenClaims {
   sub: string;
   sid: string;
+  org: string | null;
   jti: string;
   aal: number;
   exp: number;
@@ -38,7 +39,7 @@ export class AccessTokenGuard implements CanActivate {
       throw unauthorized();
     }
 
-    const { sub, sid, jti, exp, aal } = result.value;
+    const { sub, sid, jti, exp, aal, org } = result.value;
     if (
       typeof sub !== 'string' ||
       typeof sid !== 'string' ||
@@ -52,7 +53,14 @@ export class AccessTokenGuard implements CanActivate {
       throw unauthorized();
     }
 
-    request.authToken = { sub, sid, jti, exp, aal: typeof aal === 'number' ? aal : 0 };
+    request.authToken = {
+      sub,
+      sid,
+      org: typeof org === 'string' ? org : null,
+      jti,
+      exp,
+      aal: typeof aal === 'number' ? aal : 0,
+    };
     return true;
   }
 }

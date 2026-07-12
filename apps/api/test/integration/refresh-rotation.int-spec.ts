@@ -48,6 +48,9 @@ describe('refresh rotation persistence (integration)', () => {
     await sessions.create({
       id: sessionId,
       userId,
+      orgId: null,
+      aal: 1,
+      authTime: now,
       status: 'active',
       deviceLabel: null,
       userAgent: null,

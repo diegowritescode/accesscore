@@ -11,10 +11,15 @@ import { type TokenFamiliesRepository } from '../domain/ports/token-families-rep
 import { type RefreshToken } from '../domain/refresh-token';
 import { type Session } from '../domain/session';
 import { type TokenFamily } from '../domain/token-family';
+import { OrgId } from '../../shared/kernel/org-id';
 import { type UnitOfWork } from '../../shared/persistence/unit-of-work';
+import { type TenancyService } from '../../tenancy/application/tenancy-service';
 import { LoginHandler } from './login';
 
 const unitOfWork: UnitOfWork = { withTransaction: (work) => work({ executor: {} }) };
+const tenancy = {
+  findActiveOrganization: () => Promise.resolve(OrgId.fromString('org-1')),
+} as unknown as TenancyService;
 
 const now = new Date('2026-07-12T12:00:00.000Z');
 const clock: Clock = { now: () => now };
@@ -107,6 +112,7 @@ const build = (check: CredentialCheck | null) => {
     refreshTokens,
     accessTokens,
     refreshTokenGenerator,
+    tenancy,
     unitOfWork,
     clock,
     { refreshTtlSeconds: 1_000 },
@@ -136,6 +142,8 @@ describe('LoginHandler', () => {
 
     expect(sessions.created).toHaveLength(1);
     expect(sessions.created[0]?.userId.value).toBe('user-1');
+    expect(sessions.created[0]?.orgId?.value).toBe('org-1');
+    expect(sessions.created[0]?.aal).toBe(1);
     expect(sessions.created[0]?.userAgent).toBe('AccessCore/1.0');
     expect(sessions.created[0]?.ip).toBe('203.0.113.7');
 

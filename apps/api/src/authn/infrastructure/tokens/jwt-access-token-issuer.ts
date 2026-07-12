@@ -35,6 +35,7 @@ export class JwtAccessTokenIssuer implements AccessTokenIssuer {
       aud: this.config.audience,
       sub: claims.sub,
       sid: claims.sid,
+      ...(claims.org ? { org: claims.org } : {}),
       jti,
       aal: claims.aal,
       auth_time: Math.floor(claims.authTime.getTime() / 1000),

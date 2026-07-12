@@ -22,7 +22,13 @@ describe('JwtAccessTokenIssuer', () => {
   });
 
   it('issues a JWT carrying the required claims that the signer can verify', async () => {
-    const result = await issuer.issue({ sub: 'user-1', sid: 'session-1', aal: 1, authTime: now });
+    const result = await issuer.issue({
+      sub: 'user-1',
+      sid: 'session-1',
+      org: 'org-1',
+      aal: 1,
+      authTime: now,
+    });
 
     const [headerB64, payloadB64, signatureB64] = result.token.split('.');
     const header = JSON.parse(Buffer.from(headerB64!, 'base64url').toString('utf8')) as {
@@ -41,6 +47,7 @@ describe('JwtAccessTokenIssuer', () => {
       aud: 'accesscore',
       sub: 'user-1',
       sid: 'session-1',
+      org: 'org-1',
       aal: 1,
       auth_time: iat,
       iat,

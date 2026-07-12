@@ -9,6 +9,7 @@ import { type RefreshTokenGenerator } from '../domain/ports/refresh-token-genera
 import { type RefreshTokensRepository } from '../domain/ports/refresh-tokens-repository';
 import { type SessionsRepository } from '../domain/ports/sessions-repository';
 import { type TokenFamiliesRepository } from '../domain/ports/token-families-repository';
+import { type TenancyService } from '../../tenancy/application/tenancy-service';
 import { SessionId } from '../domain/value-objects/session-id';
 import { TokenFamilyId } from '../domain/value-objects/token-family-id';
 
@@ -42,6 +43,7 @@ export class LoginHandler {
     private readonly refreshTokens: RefreshTokensRepository,
     private readonly accessTokens: AccessTokenIssuer,
     private readonly refreshTokenGenerator: RefreshTokenGenerator,
+    private readonly tenancy: TenancyService,
     private readonly unitOfWork: UnitOfWork,
     private readonly clock: Clock,
     private readonly config: LoginConfig,
@@ -55,6 +57,7 @@ export class LoginHandler {
 
     const now = this.clock.now();
     const userId = UserId.fromString(check.userId);
+    const orgId = await this.tenancy.findActiveOrganization(userId);
     const sessionId = SessionId.generate();
     const familyId = TokenFamilyId.generate();
     const refreshExpiresAt = new Date(now.getTime() + this.config.refreshTtlSeconds * 1000);
@@ -62,6 +65,7 @@ export class LoginHandler {
     const accessToken = await this.accessTokens.issue({
       sub: check.userId,
       sid: sessionId.value,
+      org: orgId?.value ?? null,
       aal: check.aal,
       authTime: now,
     });
@@ -72,6 +76,9 @@ export class LoginHandler {
         {
           id: sessionId,
           userId,
+          orgId,
+          aal: check.aal,
+          authTime: now,
           status: 'active',
           deviceLabel: null,
           userAgent: command.userAgent,

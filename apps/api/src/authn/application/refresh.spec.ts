@@ -61,6 +61,9 @@ const family = (status: TokenFamilyStatus): TokenFamily => ({
 const session = (status: 'active' | 'revoked', expiresAt: Date): Session => ({
   id: sessionId,
   userId,
+  orgId: null,
+  aal: 1,
+  authTime: now,
   status,
   deviceLabel: null,
   userAgent: null,

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { err, ok, type Result } from '../../shared/result';
 import { EmailVerificationToken } from '../domain/email-verification-token';
-import { type Clock } from '../domain/ports/clock';
+import { type Clock } from '../../shared/kernel/clock';
 import { type Hasher } from '../domain/ports/hasher';
 import { type Mailer } from '../domain/ports/mailer';
 import { type TokenGenerator } from '../domain/ports/token-generator';
@@ -10,7 +10,7 @@ import { type VerificationTokensRepository } from '../domain/ports/verification-
 import { User } from '../domain/user';
 import { Email } from '../domain/value-objects/email';
 import { Password } from '../domain/value-objects/password';
-import { UserId } from '../domain/value-objects/user-id';
+import { UserId } from '../../shared/kernel/user-id';
 
 export interface RegisterUserCommand {
   email: string;

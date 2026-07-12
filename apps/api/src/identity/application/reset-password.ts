@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '../../shared/result';
-import { type Clock } from '../domain/ports/clock';
+import { type Clock } from '../../shared/kernel/clock';
 import { type Hasher } from '../domain/ports/hasher';
 import { type PasswordResetTokensRepository } from '../domain/ports/password-reset-tokens-repository';
 import { type SessionRevoker } from '../domain/ports/session-revoker';

@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { type Database } from '../../../db/db.module';
 import { EmailVerificationToken } from '../../domain/email-verification-token';
 import { type VerificationTokensRepository } from '../../domain/ports/verification-tokens-repository';
-import { UserId } from '../../domain/value-objects/user-id';
+import { UserId } from '../../../shared/kernel/user-id';
 import { emailVerificationTokens } from './schema';
 
 export class DrizzleVerificationTokensRepository implements VerificationTokensRepository {

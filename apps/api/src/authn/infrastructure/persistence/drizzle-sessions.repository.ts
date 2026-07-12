@@ -1,6 +1,6 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { type Database, type Executor } from '../../../db/db.module';
-import { UserId } from '../../../identity/domain/value-objects/user-id';
+import { UserId } from '../../../shared/kernel/user-id';
 import { type Tx } from '../../../shared/persistence/unit-of-work';
 import { type SessionsRepository } from '../../domain/ports/sessions-repository';
 import { type Session, type SessionStatus } from '../../domain/session';

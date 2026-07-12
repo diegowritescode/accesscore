@@ -1,6 +1,6 @@
 import { type User } from '../user';
 import { type Email } from '../value-objects/email';
-import { type UserId } from '../value-objects/user-id';
+import { type UserId } from '../../../shared/kernel/user-id';
 
 export interface UsersRepository {
   save(user: User): Promise<void>;

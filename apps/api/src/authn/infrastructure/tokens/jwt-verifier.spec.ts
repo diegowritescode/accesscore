@@ -1,4 +1,4 @@
-import { type Clock } from '../../domain/ports/clock';
+import { type Clock } from '../../../shared/kernel/clock';
 import { JwksProvider } from '../jwks/jwks-provider';
 import { SoftwareSigner } from '../signing/software-signer';
 import { JwtVerifier } from './jwt-verifier';

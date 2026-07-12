@@ -1,5 +1,5 @@
 import { RequestPasswordResetHandler } from './request-password-reset';
-import { type Clock } from '../domain/ports/clock';
+import { type Clock } from '../../shared/kernel/clock';
 import { type Mailer } from '../domain/ports/mailer';
 import { type PasswordResetTokensRepository } from '../domain/ports/password-reset-tokens-repository';
 import { type TokenGenerator } from '../domain/ports/token-generator';
@@ -7,7 +7,7 @@ import { type UsersRepository } from '../domain/ports/users-repository';
 import { User, type UserStatus } from '../domain/user';
 import { Email } from '../domain/value-objects/email';
 import { PasswordHash } from '../domain/value-objects/password-hash';
-import { UserId } from '../domain/value-objects/user-id';
+import { UserId } from '../../shared/kernel/user-id';
 
 const now = new Date('2026-01-01T00:00:00.000Z');
 

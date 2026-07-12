@@ -1,5 +1,5 @@
 import { err, ok, type Result } from '../../shared/result';
-import { type Clock } from '../domain/ports/clock';
+import { type Clock } from '../../shared/kernel/clock';
 import { type TokenGenerator } from '../domain/ports/token-generator';
 import { type UsersRepository } from '../domain/ports/users-repository';
 import { type VerificationTokensRepository } from '../domain/ports/verification-tokens-repository';

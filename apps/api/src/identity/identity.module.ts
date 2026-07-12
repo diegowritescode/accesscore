@@ -8,7 +8,7 @@ import {
 } from './application/request-password-reset';
 import { ResetPasswordHandler, RESET_PASSWORD_HANDLER } from './application/reset-password';
 import { VerifyEmailHandler, VERIFY_EMAIL_HANDLER } from './application/verify-email';
-import { CLOCK, type Clock } from './domain/ports/clock';
+import { CLOCK, type Clock } from '../shared/kernel/clock';
 import { HASHER, type Hasher } from './domain/ports/hasher';
 import { MAILER, type Mailer } from './domain/ports/mailer';
 import {
@@ -22,7 +22,7 @@ import {
   VERIFICATION_TOKENS_REPOSITORY,
   type VerificationTokensRepository,
 } from './domain/ports/verification-tokens-repository';
-import { SystemClock } from './infrastructure/clock/system-clock';
+import { SystemClock } from '../shared/kernel/system-clock';
 import { Argon2Hasher } from './infrastructure/crypto/argon2-hasher';
 import { CryptoTokenGenerator } from './infrastructure/crypto/crypto-token-generator';
 import { LogMailer } from './infrastructure/notifications/log-mailer';

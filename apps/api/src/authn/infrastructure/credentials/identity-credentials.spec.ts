@@ -3,7 +3,7 @@ import { type UsersRepository } from '../../../identity/domain/ports/users-repos
 import { User, type UserStatus } from '../../../identity/domain/user';
 import { Email } from '../../../identity/domain/value-objects/email';
 import { PasswordHash } from '../../../identity/domain/value-objects/password-hash';
-import { UserId } from '../../../identity/domain/value-objects/user-id';
+import { UserId } from '../../../shared/kernel/user-id';
 import { IdentityCredentials } from './identity-credentials';
 
 const fixed = new Date('2026-07-12T00:00:00.000Z');

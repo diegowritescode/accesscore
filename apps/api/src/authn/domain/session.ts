@@ -1,4 +1,4 @@
-import { type UserId } from '../../identity/domain/value-objects/user-id';
+import { type UserId } from '../../shared/kernel/user-id';
 import { type SessionId } from './value-objects/session-id';
 
 export type SessionStatus = 'active' | 'revoked';

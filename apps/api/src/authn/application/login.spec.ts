@@ -2,7 +2,7 @@ import {
   type AccessTokenIssuer,
   type IssuedAccessToken,
 } from '../domain/ports/access-token-issuer';
-import { type Clock } from '../domain/ports/clock';
+import { type Clock } from '../../shared/kernel/clock';
 import { type CredentialCheck, type Credentials } from '../domain/ports/credentials';
 import { type RefreshTokenGenerator } from '../domain/ports/refresh-token-generator';
 import { type RefreshTokensRepository } from '../domain/ports/refresh-tokens-repository';

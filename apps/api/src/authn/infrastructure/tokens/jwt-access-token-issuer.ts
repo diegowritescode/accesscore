@@ -4,7 +4,7 @@ import {
   type AccessTokenIssuer,
   type IssuedAccessToken,
 } from '../../domain/ports/access-token-issuer';
-import { type Clock } from '../../domain/ports/clock';
+import { type Clock } from '../../../shared/kernel/clock';
 import { type TokenSigner } from '../../domain/ports/token-signer';
 
 export interface AccessTokenConfig {

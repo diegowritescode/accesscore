@@ -1,5 +1,5 @@
 import { type Tx } from '../../../shared/persistence/unit-of-work';
-import { type UserId } from '../../../identity/domain/value-objects/user-id';
+import { type UserId } from '../../../shared/kernel/user-id';
 import { type TokenFamily } from '../token-family';
 import { type SessionId } from '../value-objects/session-id';
 import { type TokenFamilyId } from '../value-objects/token-family-id';

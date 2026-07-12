@@ -1,4 +1,4 @@
-import { UserId } from '../../identity/domain/value-objects/user-id';
+import { UserId } from '../../shared/kernel/user-id';
 import { type SessionsRepository } from '../domain/ports/sessions-repository';
 import { type Session } from '../domain/session';
 import { SessionId } from '../domain/value-objects/session-id';

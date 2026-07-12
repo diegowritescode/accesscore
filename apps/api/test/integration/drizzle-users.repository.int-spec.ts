@@ -4,7 +4,7 @@ import { DrizzleUsersRepository } from '../../src/identity/infrastructure/persis
 import { User } from '../../src/identity/domain/user';
 import { Email } from '../../src/identity/domain/value-objects/email';
 import { PasswordHash } from '../../src/identity/domain/value-objects/password-hash';
-import { UserId } from '../../src/identity/domain/value-objects/user-id';
+import { UserId } from '../../src/shared/kernel/user-id';
 
 const DATABASE_URL =
   process.env.DATABASE_URL ?? 'postgres://accesscore:accesscore@localhost:5432/accesscore';

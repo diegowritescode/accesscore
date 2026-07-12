@@ -1,13 +1,13 @@
 import { VerifyEmailHandler } from './verify-email';
 import { EmailVerificationToken } from '../domain/email-verification-token';
-import { type Clock } from '../domain/ports/clock';
+import { type Clock } from '../../shared/kernel/clock';
 import { type TokenGenerator } from '../domain/ports/token-generator';
 import { type UsersRepository } from '../domain/ports/users-repository';
 import { type VerificationTokensRepository } from '../domain/ports/verification-tokens-repository';
 import { User } from '../domain/user';
 import { Email } from '../domain/value-objects/email';
 import { PasswordHash } from '../domain/value-objects/password-hash';
-import { UserId } from '../domain/value-objects/user-id';
+import { UserId } from '../../shared/kernel/user-id';
 
 const now = new Date('2026-01-01T00:00:00.000Z');
 const userId = UserId.fromString('11111111-1111-1111-1111-111111111111');

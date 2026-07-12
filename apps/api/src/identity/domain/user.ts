@@ -1,7 +1,7 @@
 import { type DomainEvent } from '../../shared/domain-event';
 import { type Email } from './value-objects/email';
 import { type PasswordHash } from './value-objects/password-hash';
-import { type UserId } from './value-objects/user-id';
+import { type UserId } from '../../shared/kernel/user-id';
 
 export type UserStatus = 'pending_verification' | 'active' | 'suspended';
 

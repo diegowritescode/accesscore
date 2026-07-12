@@ -7,7 +7,7 @@ import { DrizzleTokenFamiliesRepository } from '../../src/authn/infrastructure/p
 import { type RefreshToken } from '../../src/authn/domain/refresh-token';
 import { SessionId } from '../../src/authn/domain/value-objects/session-id';
 import { TokenFamilyId } from '../../src/authn/domain/value-objects/token-family-id';
-import { UserId } from '../../src/identity/domain/value-objects/user-id';
+import { UserId } from '../../src/shared/kernel/user-id';
 
 const DATABASE_URL =
   process.env.DATABASE_URL ?? 'postgres://accesscore:accesscore@localhost:5432/accesscore';

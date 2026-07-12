@@ -19,3 +19,14 @@ export const outbox = pgTable('outbox', {
   publishedAt: timestamp('published_at', { withTimezone: true }),
   attempts: integer('attempts').notNull().default(0),
 });
+
+export const emailVerificationTokens = pgTable('email_verification_tokens', {
+  id: uuid('id').primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+});

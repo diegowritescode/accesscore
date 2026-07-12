@@ -1,11 +1,15 @@
 import { eq } from 'drizzle-orm';
 import { type Database } from '../../../db/db.module';
+import { outbox } from '../../../identity/infrastructure/persistence/schema';
 import { UserId } from '../../../identity/domain/value-objects/user-id';
-import { type TokenFamiliesRepository } from '../../domain/ports/token-families-repository';
+import {
+  type ReuseEvent,
+  type TokenFamiliesRepository,
+} from '../../domain/ports/token-families-repository';
 import { type TokenFamily, type TokenFamilyStatus } from '../../domain/token-family';
 import { SessionId } from '../../domain/value-objects/session-id';
 import { TokenFamilyId } from '../../domain/value-objects/token-family-id';
-import { tokenFamilies } from './schema';
+import { refreshTokens, tokenFamilies } from './schema';
 
 export class DrizzleTokenFamiliesRepository implements TokenFamiliesRepository {
   constructor(private readonly db: Database) {}
@@ -37,6 +41,29 @@ export class DrizzleTokenFamiliesRepository implements TokenFamiliesRepository {
       .update(tokenFamilies)
       .set({ status: 'revoked', revokedAt: at, revokedReason: reason })
       .where(eq(tokenFamilies.id, id.value));
+  }
+
+  async revokeForReuse(id: TokenFamilyId, at: Date, event: ReuseEvent): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(tokenFamilies)
+        .set({ status: 'revoked', revokedAt: at, revokedReason: 'reuse_detected' })
+        .where(eq(tokenFamilies.id, id.value));
+      await tx
+        .update(refreshTokens)
+        .set({ status: 'revoked' })
+        .where(eq(refreshTokens.familyId, id.value));
+      await tx.insert(outbox).values({
+        aggregateId: id.value,
+        type: 'authn.refresh_token_reused',
+        payload: {
+          userId: event.userId,
+          sessionId: event.sessionId,
+          generation: event.generation,
+        },
+        occurredAt: at,
+      });
+    });
   }
 
   private toDomain(row: typeof tokenFamilies.$inferSelect): TokenFamily {

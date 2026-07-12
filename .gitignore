@@ -3,6 +3,7 @@ dist/
 .next/
 build/
 coverage/
+.nyc_output/
 .turbo/
 *.log
 .env

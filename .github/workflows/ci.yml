@@ -49,6 +49,4 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm run build
       - run: pnpm --filter @accesscore/api run db:migrate
-      - run: pnpm run test
-      - run: pnpm --filter @accesscore/api run test:int
-      - run: pnpm --filter @accesscore/api run test:e2e
+      - run: pnpm --filter @accesscore/api run coverage

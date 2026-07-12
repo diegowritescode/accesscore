@@ -1,7 +1,11 @@
-import { Body, Controller, Headers, HttpCode, Inject, Ip, Post } from '@nestjs/common';
+import { Body, Controller, Headers, HttpCode, Inject, Ip, Post, UseGuards } from '@nestjs/common';
+import { UserId } from '../../identity/domain/value-objects/user-id';
 import { ProblemException } from '../../shared/http/problem-details';
 import { LOGIN_HANDLER, type LoginHandler } from '../application/login';
 import { REFRESH_HANDLER, type RefreshHandler } from '../application/refresh';
+import { SESSION_TERMINATOR, type SessionTerminator } from '../application/session-terminator';
+import { AccessTokenGuard, type AuthTokenClaims } from './access-token.guard';
+import { AuthToken } from './auth-token.decorator';
 import { loginSchema } from './login.dto';
 import { refreshSchema } from './refresh.dto';
 
@@ -23,6 +27,7 @@ export class AuthnController {
   constructor(
     @Inject(LOGIN_HANDLER) private readonly login: LoginHandler,
     @Inject(REFRESH_HANDLER) private readonly refresh: RefreshHandler,
+    @Inject(SESSION_TERMINATOR) private readonly sessions: SessionTerminator,
   ) {}
 
   @Post('login')
@@ -47,12 +52,7 @@ export class AuthnController {
       throw invalidCredentials();
     }
 
-    return {
-      access_token: result.value.accessToken,
-      refresh_token: result.value.refreshToken,
-      token_type: result.value.tokenType,
-      expires_in: result.value.expiresIn,
-    };
+    return this.toResponse(result.value);
   }
 
   @Post('refresh')
@@ -68,11 +68,34 @@ export class AuthnController {
       throw invalidGrant();
     }
 
+    return this.toResponse(result.value);
+  }
+
+  @Post('logout')
+  @HttpCode(204)
+  @UseGuards(AccessTokenGuard)
+  async logout(@AuthToken() token: AuthTokenClaims): Promise<void> {
+    await this.sessions.terminateSession(token.sid, token.exp);
+  }
+
+  @Post('logout-all')
+  @HttpCode(204)
+  @UseGuards(AccessTokenGuard)
+  async logoutAll(@AuthToken() token: AuthTokenClaims): Promise<void> {
+    await this.sessions.terminateAllForUser(UserId.fromString(token.sub));
+  }
+
+  private toResponse(pair: {
+    accessToken: string;
+    refreshToken: string;
+    tokenType: string;
+    expiresIn: number;
+  }): TokenResponse {
     return {
-      access_token: result.value.accessToken,
-      refresh_token: result.value.refreshToken,
-      token_type: result.value.tokenType,
-      expires_in: result.value.expiresIn,
+      access_token: pair.accessToken,
+      refresh_token: pair.refreshToken,
+      token_type: pair.tokenType,
+      expires_in: pair.expiresIn,
     };
   }
 }

@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
+import { AuthnModule } from '../authn/authn.module';
 import { DB, type Database } from '../db/db.module';
 import { RegisterUserHandler, REGISTER_USER_HANDLER } from './application/register-user';
 import {
@@ -28,17 +29,16 @@ import { LogMailer } from './infrastructure/notifications/log-mailer';
 import { DrizzlePasswordResetTokensRepository } from './infrastructure/persistence/drizzle-password-reset-tokens.repository';
 import { DrizzleUsersRepository } from './infrastructure/persistence/drizzle-users.repository';
 import { DrizzleVerificationTokensRepository } from './infrastructure/persistence/drizzle-verification-tokens.repository';
-import { NoopSessionRevoker } from './infrastructure/session/noop-session-revoker';
 import { AuthController } from './interface/auth.controller';
 
 @Module({
+  imports: [forwardRef(() => AuthnModule)],
   controllers: [AuthController],
   providers: [
     { provide: HASHER, useClass: Argon2Hasher },
     { provide: CLOCK, useClass: SystemClock },
     { provide: TOKEN_GENERATOR, useClass: CryptoTokenGenerator },
     { provide: MAILER, useClass: LogMailer },
-    { provide: SESSION_REVOKER, useClass: NoopSessionRevoker },
     {
       provide: USERS_REPOSITORY,
       inject: [DB],

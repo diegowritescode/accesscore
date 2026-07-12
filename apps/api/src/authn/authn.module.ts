@@ -1,14 +1,16 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import type { Redis } from 'ioredis';
 import { ENV } from '../config/env.module';
 import type { Env } from '../config/env';
 import { DB, type Database } from '../db/db.module';
 import { HASHER, type Hasher } from '../identity/domain/ports/hasher';
+import { SESSION_REVOKER } from '../identity/domain/ports/session-revoker';
 import { USERS_REPOSITORY, type UsersRepository } from '../identity/domain/ports/users-repository';
 import { IdentityModule } from '../identity/identity.module';
 import { REDIS } from '../redis/redis.module';
 import { LOGIN_HANDLER, LoginHandler } from './application/login';
 import { REFRESH_HANDLER, RefreshHandler } from './application/refresh';
+import { SESSION_TERMINATOR, SessionTerminator } from './application/session-terminator';
 import { SIGNING_KEYS, SigningKeyService } from './application/signing-keys';
 import { ACCESS_TOKEN_ISSUER, type AccessTokenIssuer } from './domain/ports/access-token-issuer';
 import { CLOCK, type Clock } from './domain/ports/clock';
@@ -18,7 +20,7 @@ import { REFRESH_TOKEN_GENERATOR } from './domain/ports/refresh-token-generator'
 import type { RefreshTokenGenerator } from './domain/ports/refresh-token-generator';
 import { REFRESH_TOKENS_REPOSITORY } from './domain/ports/refresh-tokens-repository';
 import type { RefreshTokensRepository } from './domain/ports/refresh-tokens-repository';
-import { REVOCATION_STORE } from './domain/ports/revocation-store';
+import { REVOCATION_STORE, type RevocationStore } from './domain/ports/revocation-store';
 import { SESSIONS_REPOSITORY } from './domain/ports/sessions-repository';
 import type { SessionsRepository } from './domain/ports/sessions-repository';
 import { SIGNER, type Signer } from './domain/ports/signer';
@@ -29,6 +31,7 @@ import { type TokenSigner } from './domain/ports/token-signer';
 import { RedisRefreshGraceCache } from './infrastructure/cache/redis-refresh-grace-cache';
 import { SystemClock } from './infrastructure/clock/system-clock';
 import { IdentityCredentials } from './infrastructure/credentials/identity-credentials';
+import { AuthnSessionRevoker } from './infrastructure/session/authn-session-revoker';
 import { JWKS_PROVIDER, JwksProvider } from './infrastructure/jwks/jwks-provider';
 import { AppMetaSigningKeyState } from './infrastructure/persistence/app-meta-signing-key-state.repository';
 import { DrizzleRefreshTokensRepository } from './infrastructure/persistence/drizzle-refresh-tokens.repository';
@@ -40,11 +43,12 @@ import { VaultTransitSigner } from './infrastructure/signing/vault-transit-signe
 import { JwtAccessTokenIssuer } from './infrastructure/tokens/jwt-access-token-issuer';
 import { JWT_VERIFIER, JwtVerifier } from './infrastructure/tokens/jwt-verifier';
 import { Sha256RefreshTokenGenerator } from './infrastructure/tokens/sha256-refresh-token-generator';
+import { AccessTokenGuard } from './interface/access-token.guard';
 import { AuthnController } from './interface/authn.controller';
 import { JwksController } from './interface/jwks.controller';
 
 @Module({
-  imports: [IdentityModule],
+  imports: [forwardRef(() => IdentityModule)],
   controllers: [AuthnController, JwksController],
   providers: [
     { provide: CLOCK, useClass: SystemClock },
@@ -198,6 +202,27 @@ import { JwksController } from './interface/jwks.controller';
           { graceSeconds: env.REFRESH_GRACE_SECONDS },
         ),
     },
+    {
+      provide: SESSION_TERMINATOR,
+      inject: [SESSIONS_REPOSITORY, TOKEN_FAMILIES_REPOSITORY, REVOCATION_STORE, CLOCK, ENV],
+      useFactory: (
+        sessions: SessionsRepository,
+        tokenFamilies: TokenFamiliesRepository,
+        revocation: RevocationStore,
+        clock: Clock,
+        env: Env,
+      ): SessionTerminator =>
+        new SessionTerminator(sessions, tokenFamilies, revocation, clock, {
+          accessTokenTtlSeconds: env.ACCESS_TOKEN_TTL,
+        }),
+    },
+    {
+      provide: SESSION_REVOKER,
+      inject: [SESSION_TERMINATOR],
+      useFactory: (terminator: SessionTerminator): AuthnSessionRevoker =>
+        new AuthnSessionRevoker(terminator),
+    },
+    AccessTokenGuard,
   ],
   exports: [
     SIGNER,
@@ -205,6 +230,8 @@ import { JwksController } from './interface/jwks.controller';
     JWKS_PROVIDER,
     JWT_VERIFIER,
     REVOCATION_STORE,
+    SESSION_REVOKER,
+    SESSION_TERMINATOR,
     SESSIONS_REPOSITORY,
     TOKEN_FAMILIES_REPOSITORY,
     REFRESH_TOKENS_REPOSITORY,

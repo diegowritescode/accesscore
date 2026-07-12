@@ -15,6 +15,13 @@
       "when": 1783833820101,
       "tag": "0001_noisy_quasar",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783834635701,
+      "tag": "0002_tough_ultimatum",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@ describe('SoftwareSigner', () => {
 
     expect(signature.alg).toBe('EdDSA');
     expect(signature.kid).toBe('software-1');
+    expect(await signer.activeKid()).toBe('software-1');
     expect(await signer.verify(payload, signature)).toBe(true);
   });
 

@@ -4,6 +4,7 @@ import { JwksProvider } from './jwks-provider';
 const rawKey = new Uint8Array(32).fill(7);
 
 const fakeSigner: Signer = {
+  activeKid: () => Promise.resolve('accesscore-signing-1'),
   sign: () => Promise.resolve({ kid: 'k1', alg: 'EdDSA', value: 'sig' }),
   verify: () => Promise.resolve(true),
   publicKeys: (): Promise<PublicKey[]> =>

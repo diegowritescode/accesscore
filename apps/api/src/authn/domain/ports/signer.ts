@@ -13,6 +13,7 @@ export interface PublicKey {
 }
 
 export interface Signer {
+  activeKid(): Promise<string>;
   sign(payload: Uint8Array): Promise<Signature>;
   verify(payload: Uint8Array, signature: Signature): Promise<boolean>;
   publicKeys(): Promise<PublicKey[]>;

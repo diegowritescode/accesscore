@@ -78,6 +78,19 @@ export class User {
     return this.props.updatedAt;
   }
 
+  verifyEmail(now: Date): void {
+    if (this.props.status === 'active') return;
+    this.props.status = 'active';
+    this.props.emailVerifiedAt = now;
+    this.props.updatedAt = now;
+    this.domainEvents.push({
+      type: 'identity.email_verified',
+      occurredAt: now,
+      aggregateId: this.props.id.value,
+      payload: {},
+    });
+  }
+
   pullEvents(): DomainEvent[] {
     const drained = [...this.domainEvents];
     this.domainEvents.length = 0;

@@ -91,6 +91,17 @@ export class User {
     });
   }
 
+  changePassword(passwordHash: PasswordHash, now: Date): void {
+    this.props.passwordHash = passwordHash;
+    this.props.updatedAt = now;
+    this.domainEvents.push({
+      type: 'identity.password_changed',
+      occurredAt: now,
+      aggregateId: this.props.id.value,
+      payload: {},
+    });
+  }
+
   pullEvents(): DomainEvent[] {
     const drained = [...this.domainEvents];
     this.domainEvents.length = 0;

@@ -5,7 +5,10 @@ import { type SessionsRepository } from '../domain/ports/sessions-repository';
 import { type TokenFamiliesRepository } from '../domain/ports/token-families-repository';
 import { type Session } from '../domain/session';
 import { SessionId } from '../domain/value-objects/session-id';
+import { type UnitOfWork } from '../../shared/persistence/unit-of-work';
 import { SessionTerminator } from './session-terminator';
+
+const unitOfWork: UnitOfWork = { withTransaction: (work) => work({ executor: {} }) };
 
 const now = new Date('2026-07-12T12:00:00.000Z');
 const nowSec = Math.floor(now.getTime() / 1000);
@@ -75,7 +78,7 @@ const setup = () => {
   const sessions = new FakeSessions();
   const families = new FakeFamilies();
   const revocation = new FakeRevocation();
-  const terminator = new SessionTerminator(sessions, families, revocation, clock, {
+  const terminator = new SessionTerminator(sessions, families, revocation, unitOfWork, clock, {
     accessTokenTtlSeconds: 900,
   });
   return { sessions, families, revocation, terminator };

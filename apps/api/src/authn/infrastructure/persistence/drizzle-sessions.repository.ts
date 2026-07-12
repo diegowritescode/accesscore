@@ -1,6 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm';
-import { type Database } from '../../../db/db.module';
+import { type Database, type Executor } from '../../../db/db.module';
 import { UserId } from '../../../identity/domain/value-objects/user-id';
+import { type Tx } from '../../../shared/persistence/unit-of-work';
 import { type SessionsRepository } from '../../domain/ports/sessions-repository';
 import { type Session, type SessionStatus } from '../../domain/session';
 import { SessionId } from '../../domain/value-objects/session-id';
@@ -9,8 +10,8 @@ import { sessions } from './schema';
 export class DrizzleSessionsRepository implements SessionsRepository {
   constructor(private readonly db: Database) {}
 
-  async create(session: Session): Promise<void> {
-    await this.db.insert(sessions).values({
+  async create(session: Session, tx?: Tx): Promise<void> {
+    await this.executor(tx).insert(sessions).values({
       id: session.id.value,
       userId: session.userId.value,
       status: session.status,
@@ -43,20 +44,24 @@ export class DrizzleSessionsRepository implements SessionsRepository {
     await this.db.update(sessions).set({ lastSeenAt: at }).where(eq(sessions.id, id.value));
   }
 
-  async revoke(id: SessionId, at: Date): Promise<void> {
-    await this.db
+  async revoke(id: SessionId, at: Date, tx?: Tx): Promise<void> {
+    await this.executor(tx)
       .update(sessions)
       .set({ status: 'revoked', revokedAt: at })
       .where(eq(sessions.id, id.value));
   }
 
-  async revokeAllForUser(userId: UserId, at: Date): Promise<string[]> {
-    const rows = await this.db
+  async revokeAllForUser(userId: UserId, at: Date, tx?: Tx): Promise<string[]> {
+    const rows = await this.executor(tx)
       .update(sessions)
       .set({ status: 'revoked', revokedAt: at })
       .where(and(eq(sessions.userId, userId.value), eq(sessions.status, 'active')))
       .returning({ id: sessions.id });
     return rows.map((row) => row.id);
+  }
+
+  private executor(tx?: Tx): Executor {
+    return (tx?.executor as Executor) ?? this.db;
   }
 
   private toDomain(row: typeof sessions.$inferSelect): Session {

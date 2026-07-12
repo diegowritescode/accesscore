@@ -3,11 +3,16 @@ import { Pool } from 'pg';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ENV } from '../config/env.module';
 import type { Env } from '../config/env';
+import { REVISIONS_REPOSITORY } from '../shared/persistence/revisions-repository';
+import { UNIT_OF_WORK } from '../shared/persistence/unit-of-work';
+import { DrizzleRevisionsRepository } from './drizzle-revisions.repository';
+import { DrizzleUnitOfWork } from './drizzle-unit-of-work';
 
 export const PG_POOL = Symbol('PG_POOL');
 export const DB = Symbol('DB');
 
 export type Database = NodePgDatabase<Record<string, never>>;
+export type Executor = Database;
 
 @Global()
 @Module({
@@ -22,7 +27,13 @@ export type Database = NodePgDatabase<Record<string, never>>;
       inject: [PG_POOL],
       useFactory: (pool: Pool): Database => drizzle(pool),
     },
+    {
+      provide: UNIT_OF_WORK,
+      inject: [DB],
+      useFactory: (db: Database): DrizzleUnitOfWork => new DrizzleUnitOfWork(db),
+    },
+    { provide: REVISIONS_REPOSITORY, useClass: DrizzleRevisionsRepository },
   ],
-  exports: [PG_POOL, DB],
+  exports: [PG_POOL, DB, UNIT_OF_WORK, REVISIONS_REPOSITORY],
 })
 export class DbModule {}

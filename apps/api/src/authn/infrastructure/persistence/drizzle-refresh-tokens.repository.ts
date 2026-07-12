@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
-import { type Database } from '../../../db/db.module';
+import { type Database, type Executor } from '../../../db/db.module';
+import { type Tx } from '../../../shared/persistence/unit-of-work';
 import { type RefreshTokensRepository } from '../../domain/ports/refresh-tokens-repository';
 import { type RefreshToken, type RefreshTokenStatus } from '../../domain/refresh-token';
 import { TokenFamilyId } from '../../domain/value-objects/token-family-id';
@@ -8,8 +9,8 @@ import { refreshTokens } from './schema';
 export class DrizzleRefreshTokensRepository implements RefreshTokensRepository {
   constructor(private readonly db: Database) {}
 
-  async add(token: RefreshToken): Promise<void> {
-    await this.db.insert(refreshTokens).values(this.toRow(token));
+  async add(token: RefreshToken, tx?: Tx): Promise<void> {
+    await ((tx?.executor as Executor) ?? this.db).insert(refreshTokens).values(this.toRow(token));
   }
 
   async findByHash(tokenHash: string): Promise<RefreshToken | null> {

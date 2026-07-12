@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { UserId } from '../../identity/domain/value-objects/user-id';
+import { type UnitOfWork } from '../../shared/persistence/unit-of-work';
 import { err, ok, type Result } from '../../shared/result';
 import { type AccessTokenIssuer } from '../domain/ports/access-token-issuer';
 import { type Clock } from '../domain/ports/clock';
@@ -41,6 +42,7 @@ export class LoginHandler {
     private readonly refreshTokens: RefreshTokensRepository,
     private readonly accessTokens: AccessTokenIssuer,
     private readonly refreshTokenGenerator: RefreshTokenGenerator,
+    private readonly unitOfWork: UnitOfWork,
     private readonly clock: Clock,
     private readonly config: LoginConfig,
   ) {}
@@ -64,39 +66,48 @@ export class LoginHandler {
       authTime: now,
     });
 
-    await this.sessions.create({
-      id: sessionId,
-      userId,
-      status: 'active',
-      deviceLabel: null,
-      userAgent: command.userAgent,
-      ip: command.ip,
-      createdAt: now,
-      lastSeenAt: now,
-      expiresAt: refreshExpiresAt,
-      revokedAt: null,
-    });
-
-    await this.tokenFamilies.create({
-      id: familyId,
-      userId,
-      sessionId,
-      status: 'active',
-      createdAt: now,
-      revokedAt: null,
-      revokedReason: null,
-    });
-
     const refresh = this.refreshTokenGenerator.generate();
-    await this.refreshTokens.add({
-      id: randomUUID(),
-      familyId,
-      tokenHash: refresh.hash,
-      generation: 1,
-      status: 'active',
-      createdAt: now,
-      expiresAt: refreshExpiresAt,
-      consumedAt: null,
+    await this.unitOfWork.withTransaction(async (tx) => {
+      await this.sessions.create(
+        {
+          id: sessionId,
+          userId,
+          status: 'active',
+          deviceLabel: null,
+          userAgent: command.userAgent,
+          ip: command.ip,
+          createdAt: now,
+          lastSeenAt: now,
+          expiresAt: refreshExpiresAt,
+          revokedAt: null,
+        },
+        tx,
+      );
+      await this.tokenFamilies.create(
+        {
+          id: familyId,
+          userId,
+          sessionId,
+          status: 'active',
+          createdAt: now,
+          revokedAt: null,
+          revokedReason: null,
+        },
+        tx,
+      );
+      await this.refreshTokens.add(
+        {
+          id: randomUUID(),
+          familyId,
+          tokenHash: refresh.hash,
+          generation: 1,
+          status: 'active',
+          createdAt: now,
+          expiresAt: refreshExpiresAt,
+          consumedAt: null,
+        },
+        tx,
+      );
     });
 
     return ok({

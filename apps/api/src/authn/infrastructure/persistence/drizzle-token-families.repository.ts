@@ -1,7 +1,8 @@
 import { and, eq } from 'drizzle-orm';
-import { type Database } from '../../../db/db.module';
+import { type Database, type Executor } from '../../../db/db.module';
 import { outbox } from '../../../identity/infrastructure/persistence/schema';
 import { UserId } from '../../../identity/domain/value-objects/user-id';
+import { type Tx } from '../../../shared/persistence/unit-of-work';
 import {
   type ReuseEvent,
   type TokenFamiliesRepository,
@@ -14,8 +15,8 @@ import { refreshTokens, tokenFamilies } from './schema';
 export class DrizzleTokenFamiliesRepository implements TokenFamiliesRepository {
   constructor(private readonly db: Database) {}
 
-  async create(family: TokenFamily): Promise<void> {
-    await this.db.insert(tokenFamilies).values({
+  async create(family: TokenFamily, tx?: Tx): Promise<void> {
+    await this.executor(tx).insert(tokenFamilies).values({
       id: family.id.value,
       userId: family.userId.value,
       sessionId: family.sessionId.value,
@@ -43,15 +44,15 @@ export class DrizzleTokenFamiliesRepository implements TokenFamiliesRepository {
       .where(eq(tokenFamilies.id, id.value));
   }
 
-  async revokeBySession(sessionId: SessionId, reason: string, at: Date): Promise<void> {
-    await this.db
+  async revokeBySession(sessionId: SessionId, reason: string, at: Date, tx?: Tx): Promise<void> {
+    await this.executor(tx)
       .update(tokenFamilies)
       .set({ status: 'revoked', revokedAt: at, revokedReason: reason })
       .where(and(eq(tokenFamilies.sessionId, sessionId.value), eq(tokenFamilies.status, 'active')));
   }
 
-  async revokeAllForUser(userId: UserId, reason: string, at: Date): Promise<void> {
-    await this.db
+  async revokeAllForUser(userId: UserId, reason: string, at: Date, tx?: Tx): Promise<void> {
+    await this.executor(tx)
       .update(tokenFamilies)
       .set({ status: 'revoked', revokedAt: at, revokedReason: reason })
       .where(and(eq(tokenFamilies.userId, userId.value), eq(tokenFamilies.status, 'active')));
@@ -78,6 +79,10 @@ export class DrizzleTokenFamiliesRepository implements TokenFamiliesRepository {
         occurredAt: at,
       });
     });
+  }
+
+  private executor(tx?: Tx): Executor {
+    return (tx?.executor as Executor) ?? this.db;
   }
 
   private toDomain(row: typeof tokenFamilies.$inferSelect): TokenFamily {

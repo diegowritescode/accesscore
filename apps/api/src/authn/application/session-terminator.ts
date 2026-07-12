@@ -1,4 +1,5 @@
 import { type UserId } from '../../identity/domain/value-objects/user-id';
+import { type UnitOfWork } from '../../shared/persistence/unit-of-work';
 import { type Clock } from '../domain/ports/clock';
 import { type RevocationStore } from '../domain/ports/revocation-store';
 import { type SessionsRepository } from '../domain/ports/sessions-repository';
@@ -16,6 +17,7 @@ export class SessionTerminator {
     private readonly sessions: SessionsRepository,
     private readonly tokenFamilies: TokenFamiliesRepository,
     private readonly revocation: RevocationStore,
+    private readonly unitOfWork: UnitOfWork,
     private readonly clock: Clock,
     private readonly config: SessionTerminatorConfig,
   ) {}
@@ -23,8 +25,10 @@ export class SessionTerminator {
   async terminateSession(sessionId: string, accessTokenExpiresAt: number): Promise<void> {
     const at = this.clock.now();
     const sid = SessionId.fromString(sessionId);
-    await this.tokenFamilies.revokeBySession(sid, 'logout', at);
-    await this.sessions.revoke(sid, at);
+    await this.unitOfWork.withTransaction(async (tx) => {
+      await this.tokenFamilies.revokeBySession(sid, 'logout', at, tx);
+      await this.sessions.revoke(sid, at, tx);
+    });
     await this.revocation.revoke(
       `sid:${sessionId}`,
       accessTokenExpiresAt - Math.floor(at.getTime() / 1000),
@@ -34,15 +38,19 @@ export class SessionTerminator {
   async terminateSessionById(sessionId: string): Promise<void> {
     const at = this.clock.now();
     const sid = SessionId.fromString(sessionId);
-    await this.tokenFamilies.revokeBySession(sid, 'session_revoked', at);
-    await this.sessions.revoke(sid, at);
+    await this.unitOfWork.withTransaction(async (tx) => {
+      await this.tokenFamilies.revokeBySession(sid, 'session_revoked', at, tx);
+      await this.sessions.revoke(sid, at, tx);
+    });
     await this.revocation.revoke(`sid:${sessionId}`, this.config.accessTokenTtlSeconds);
   }
 
   async terminateAllForUser(userId: UserId): Promise<void> {
     const at = this.clock.now();
-    await this.tokenFamilies.revokeAllForUser(userId, 'logout_all', at);
-    const sids = await this.sessions.revokeAllForUser(userId, at);
+    const sids = await this.unitOfWork.withTransaction(async (tx) => {
+      await this.tokenFamilies.revokeAllForUser(userId, 'logout_all', at, tx);
+      return this.sessions.revokeAllForUser(userId, at, tx);
+    });
     await Promise.all(
       sids.map((sid) => this.revocation.revoke(`sid:${sid}`, this.config.accessTokenTtlSeconds)),
     );

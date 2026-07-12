@@ -55,6 +55,9 @@ class FakeFamilies implements TokenFamiliesRepository {
   revoke(): Promise<void> {
     return Promise.resolve();
   }
+  revokeForReuse(): Promise<void> {
+    return Promise.resolve();
+  }
 }
 
 class FakeRefreshTokens implements RefreshTokensRepository {
@@ -65,6 +68,12 @@ class FakeRefreshTokens implements RefreshTokensRepository {
   }
   findByHash(): Promise<RefreshToken | null> {
     return Promise.resolve(null);
+  }
+  findActiveByFamily(): Promise<RefreshToken | null> {
+    return Promise.resolve(null);
+  }
+  rotate(): Promise<boolean> {
+    return Promise.resolve(true);
   }
 }
 

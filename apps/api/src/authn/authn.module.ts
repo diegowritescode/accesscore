@@ -8,10 +8,12 @@ import { USERS_REPOSITORY, type UsersRepository } from '../identity/domain/ports
 import { IdentityModule } from '../identity/identity.module';
 import { REDIS } from '../redis/redis.module';
 import { LOGIN_HANDLER, LoginHandler } from './application/login';
+import { REFRESH_HANDLER, RefreshHandler } from './application/refresh';
 import { SIGNING_KEYS, SigningKeyService } from './application/signing-keys';
 import { ACCESS_TOKEN_ISSUER, type AccessTokenIssuer } from './domain/ports/access-token-issuer';
 import { CLOCK, type Clock } from './domain/ports/clock';
 import { CREDENTIALS, type Credentials } from './domain/ports/credentials';
+import { REFRESH_GRACE_CACHE, type RefreshGraceCache } from './domain/ports/refresh-grace-cache';
 import { REFRESH_TOKEN_GENERATOR } from './domain/ports/refresh-token-generator';
 import type { RefreshTokenGenerator } from './domain/ports/refresh-token-generator';
 import { REFRESH_TOKENS_REPOSITORY } from './domain/ports/refresh-tokens-repository';
@@ -24,6 +26,7 @@ import { SIGNING_KEY_STATE, type SigningKeyState } from './domain/ports/signing-
 import { TOKEN_FAMILIES_REPOSITORY } from './domain/ports/token-families-repository';
 import type { TokenFamiliesRepository } from './domain/ports/token-families-repository';
 import { type TokenSigner } from './domain/ports/token-signer';
+import { RedisRefreshGraceCache } from './infrastructure/cache/redis-refresh-grace-cache';
 import { SystemClock } from './infrastructure/clock/system-clock';
 import { IdentityCredentials } from './infrastructure/credentials/identity-credentials';
 import { JWKS_PROVIDER, JwksProvider } from './infrastructure/jwks/jwks-provider';
@@ -92,6 +95,11 @@ import { JwksController } from './interface/jwks.controller';
       useFactory: (redis: Redis): RedisRevocationStore => new RedisRevocationStore(redis),
     },
     {
+      provide: REFRESH_GRACE_CACHE,
+      inject: [REDIS],
+      useFactory: (redis: Redis): RedisRefreshGraceCache => new RedisRefreshGraceCache(redis),
+    },
+    {
       provide: SESSIONS_REPOSITORY,
       inject: [DB],
       useFactory: (db: Database): DrizzleSessionsRepository => new DrizzleSessionsRepository(db),
@@ -155,6 +163,39 @@ import { JwksController } from './interface/jwks.controller';
           refreshTokenGenerator,
           clock,
           { refreshTtlSeconds: env.REFRESH_TOKEN_TTL },
+        ),
+    },
+    {
+      provide: REFRESH_HANDLER,
+      inject: [
+        REFRESH_TOKENS_REPOSITORY,
+        TOKEN_FAMILIES_REPOSITORY,
+        SESSIONS_REPOSITORY,
+        ACCESS_TOKEN_ISSUER,
+        REFRESH_TOKEN_GENERATOR,
+        REFRESH_GRACE_CACHE,
+        CLOCK,
+        ENV,
+      ],
+      useFactory: (
+        refreshTokens: RefreshTokensRepository,
+        tokenFamilies: TokenFamiliesRepository,
+        sessions: SessionsRepository,
+        accessTokens: AccessTokenIssuer,
+        refreshTokenGenerator: RefreshTokenGenerator,
+        graceCache: RefreshGraceCache,
+        clock: Clock,
+        env: Env,
+      ): RefreshHandler =>
+        new RefreshHandler(
+          refreshTokens,
+          tokenFamilies,
+          sessions,
+          accessTokens,
+          refreshTokenGenerator,
+          graceCache,
+          clock,
+          { graceSeconds: env.REFRESH_GRACE_SECONDS },
         ),
     },
   ],

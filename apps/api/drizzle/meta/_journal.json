@@ -64,6 +64,13 @@
       "when": 1783898828656,
       "tag": "0008_late_phalanx",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783900146254,
+      "tag": "0009_friendly_maggott",
+      "breakpoints": true
     }
   ]
 }

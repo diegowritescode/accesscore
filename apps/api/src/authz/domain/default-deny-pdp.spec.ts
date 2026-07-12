@@ -1,9 +1,5 @@
-import {
-  type Action,
-  type Principal,
-  type RequestContext,
-  type Resource,
-} from './authorization-request';
+import { Action } from './action';
+import { type Principal, type RequestContext, type Resource } from './authorization-request';
 import { DefaultDenyPolicyDecisionPoint } from './default-deny-pdp';
 
 describe('DefaultDenyPolicyDecisionPoint', () => {
@@ -16,7 +12,7 @@ describe('DefaultDenyPolicyDecisionPoint', () => {
     sessionId: 'session-1',
     authenticatedAt: new Date('2026-07-12T00:00:00.000Z'),
   };
-  const action: Action = { name: 'document.read' };
+  const action = Action.of('document.read');
   const resource: Resource = { type: 'document', id: 'document-1' };
   const context: RequestContext = {
     ip: '203.0.113.7',

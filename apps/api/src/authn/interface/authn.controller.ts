@@ -11,6 +11,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { UserId } from '../../shared/kernel/user-id';
 import { ProblemException } from '../../shared/http/problem-details';
 import {
@@ -52,6 +53,7 @@ export class AuthnController {
 
   @Post('login')
   @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   async loginEndpoint(
     @Body() body: unknown,
     @Headers('user-agent') userAgent: string | undefined,
@@ -77,6 +79,7 @@ export class AuthnController {
 
   @Post('refresh')
   @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   async refreshEndpoint(@Body() body: unknown): Promise<TokenResponse> {
     const parsed = refreshSchema.safeParse(body);
     if (!parsed.success) {

@@ -25,9 +25,10 @@ app ↔ PostgreSQL; app ↔ Redis.
   chain evidence; every authorization decision records its derivation.
 - **Information disclosure** — no user enumeration; **no secrets in tokens or logs**;
   encryption at rest for MFA secrets and signing private keys; PII minimization; TLS in transit.
-- **Denial of service** — rate limiting; brute-force **lockout** (per-account and per-IP with
-  backoff); the PDP **fails closed**, is cached, and is protected by circuit breakers and query
-  limits.
+- **Denial of service** — per-IP rate limiting (stricter on the credential endpoints), request
+  body-size limits, and DTO length caps that bound Argon2 work; brute-force **lockout**
+  (per-account with backoff) is planned; the PDP **fails closed**, is cached, and is protected by
+  circuit breakers and query limits.
 - **Elevation of privilege** — deterministic **deny-override** evaluation; **permission
   boundaries**; object-level authorization via the PDP prevents **IDOR/BOLA**; **step-up**
   (MFA) required for sensitive actions; admin API separated from the user API; least privilege.
@@ -85,3 +86,22 @@ Pressure-tested by an adversarial security review; the material changes:
   dummy Argon2 verify for unknown users; lifecycle events revoke sessions/families/tokens.
 - **Rings:** signed entity store, sender-constrained tokens (DPoP/mTLS), external audit anchoring,
   OIDC-provider hardening (exact `redirect_uri`, PKCE, single-use codes, `nonce`).
+
+## Implementation status (2026-07-12, end of Slice 2.5)
+
+This document is the target threat model; controls land incrementally across the spine. What is
+enforced in code today, and what is scheduled, so the doc never overclaims:
+
+- **Enforced now** — Argon2id + timing-safe compare + dummy verify for unknown users;
+  anti-enumeration on login/register/reset; asymmetric (EdDSA) token signatures verified against
+  a published JWKS; `iss`/`aud`/`exp`/`nbf` binding with bounded clock skew; refresh **reuse
+  detection** revoking the family + TTL-bounded access-token blocklist; per-IP rate limiting
+  (global default plus a tighter budget on `login`/`refresh`); `helmet` security headers; request
+  body-size limit and DTO length caps; **fail-fast config guards** (production refuses the
+  software signer and the dev default Vault token); non-exportable Vault Transit signing keys.
+- **Scheduled — Slice 3 (PDP):** object-level authorization (IDOR/BOLA prevention),
+  deny-override evaluation, consistency tokens, and the decision log.
+- **Scheduled — Slice 6 (hardening):** per-account brute-force **lockout** with backoff, and the
+  **tamper-evident audit** hash chain (per-org monotonic sequence + signed checkpoints). Both are
+  designed above and tracked as portfolio deliverables; they are deliberately deferred, not
+  dropped.

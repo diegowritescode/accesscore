@@ -7,9 +7,18 @@ import { HealthModule } from './health/health.module';
 import { IdentityModule } from './identity/identity.module';
 import { RedisModule } from './redis/redis.module';
 import { ProblemDetailsFilter } from './shared/http/problem-details.filter';
+import { TenancyModule } from './tenancy/tenancy.module';
 
 @Module({
-  imports: [EnvModule, DbModule, RedisModule, HealthModule, IdentityModule, AuthnModule],
+  imports: [
+    EnvModule,
+    DbModule,
+    RedisModule,
+    HealthModule,
+    IdentityModule,
+    AuthnModule,
+    TenancyModule,
+  ],
   providers: [{ provide: APP_FILTER, useClass: ProblemDetailsFilter }],
 })
 export class AppModule {}

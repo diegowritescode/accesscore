@@ -9,7 +9,8 @@ describe('SoftwareSigner', () => {
 
     expect(signature.alg).toBe('EdDSA');
     expect(signature.kid).toBe('software-1');
-    expect(await signer.activeKid()).toBe('software-1');
+    expect(signer.kidFor(1)).toBe('software-1');
+    expect(await signer.latestVersion()).toBe(1);
     expect(await signer.verify(payload, signature)).toBe(true);
   });
 
@@ -32,6 +33,7 @@ describe('SoftwareSigner', () => {
     expect(keys).toHaveLength(1);
     expect(keys[0]?.alg).toBe('EdDSA');
     expect(keys[0]?.kid).toBe('software-1');
+    expect(keys[0]?.version).toBe(1);
     expect(keys[0]?.key).toHaveLength(32);
   });
 });

@@ -5,7 +5,7 @@ import {
   type IssuedAccessToken,
 } from '../../domain/ports/access-token-issuer';
 import { type Clock } from '../../domain/ports/clock';
-import { type Signer } from '../../domain/ports/signer';
+import { type TokenSigner } from '../../domain/ports/token-signer';
 
 export interface AccessTokenConfig {
   issuer: string;
@@ -18,7 +18,7 @@ const encodeSegment = (value: object): string =>
 
 export class JwtAccessTokenIssuer implements AccessTokenIssuer {
   constructor(
-    private readonly signer: Signer,
+    private readonly tokenSigner: TokenSigner,
     private readonly clock: Clock,
     private readonly config: AccessTokenConfig,
   ) {}
@@ -27,9 +27,9 @@ export class JwtAccessTokenIssuer implements AccessTokenIssuer {
     const iat = Math.floor(this.clock.now().getTime() / 1000);
     const exp = iat + this.config.ttlSeconds;
     const jti = randomUUID();
-    const kid = await this.signer.activeKid();
+    const active = await this.tokenSigner.resolveActive();
 
-    const header = { alg: 'EdDSA', typ: 'JWT', kid };
+    const header = { alg: 'EdDSA', typ: 'JWT', kid: active.kid };
     const payload = {
       iss: this.config.issuer,
       aud: this.config.audience,
@@ -44,8 +44,11 @@ export class JwtAccessTokenIssuer implements AccessTokenIssuer {
     };
 
     const signingInput = `${encodeSegment(header)}.${encodeSegment(payload)}`;
-    const signature = await this.signer.sign(new TextEncoder().encode(signingInput));
-    if (signature.kid !== kid) {
+    const signature = await this.tokenSigner.sign(
+      new TextEncoder().encode(signingInput),
+      active.version,
+    );
+    if (signature.kid !== active.kid) {
       throw new Error('signing key rotated during issuance');
     }
 

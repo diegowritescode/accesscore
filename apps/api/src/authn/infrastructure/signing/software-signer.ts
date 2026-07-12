@@ -22,10 +22,6 @@ export class SoftwareSigner implements Signer {
     this.rawPublicKey = new Uint8Array(Buffer.from(jwk.x, 'base64url'));
   }
 
-  activeKid(): Promise<string> {
-    return Promise.resolve(this.kid);
-  }
-
   async sign(payload: Uint8Array): Promise<Signature> {
     const value = cryptoSign(null, payload, this.privateKey).toString('base64url');
     return { kid: this.kid, alg: 'EdDSA', value };
@@ -37,6 +33,22 @@ export class SoftwareSigner implements Signer {
   }
 
   async publicKeys(): Promise<PublicKey[]> {
-    return [{ kid: this.kid, alg: 'EdDSA', key: this.rawPublicKey }];
+    return [{ kid: this.kid, alg: 'EdDSA', key: this.rawPublicKey, version: 1 }];
+  }
+
+  latestVersion(): Promise<number> {
+    return Promise.resolve(1);
+  }
+
+  kidFor(_version: number): string {
+    return this.kid;
+  }
+
+  rotate(): Promise<void> {
+    return Promise.reject(new Error('rotation not supported by the software signer'));
+  }
+
+  setMinDecryptionVersion(): Promise<void> {
+    return Promise.reject(new Error('rotation not supported by the software signer'));
   }
 }

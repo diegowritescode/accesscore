@@ -1,5 +1,7 @@
 import { type Signer } from '../../domain/ports/signer';
 
+type PublicKeySource = Pick<Signer, 'publicKeys'>;
+
 export interface Jwk {
   kty: 'OKP';
   crv: 'Ed25519';
@@ -16,7 +18,7 @@ export interface Jwks {
 export const JWKS_PROVIDER = Symbol('JWKS_PROVIDER');
 
 export class JwksProvider {
-  constructor(private readonly signer: Signer) {}
+  constructor(private readonly signer: PublicKeySource) {}
 
   async jwks(): Promise<Jwks> {
     const keys = await this.signer.publicKeys();

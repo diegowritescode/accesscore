@@ -73,8 +73,12 @@ See [ADR-003](adr/003-token-and-session-strategy.md).
 
 - **Asymmetric signing** — non-exportable **Ed25519** keys in **HashiCorp Vault Transit**
   ([ADR-009](adr/009-key-management-and-cryptography.md); ES256 the portable fallback for KMS
-  lacking EdDSA) behind a `Signer` port, a **JWKS** endpoint publishing each key version as an
-  `OKP`/`Ed25519` JWK with a `kid`→`alg` binding, and scheduled rotation.
+  lacking EdDSA) behind a `Signer` port. `GET /.well-known/jwks.json` publishes each live key
+  version as an `OKP`/`Ed25519` JWK with a `kid`→`alg` binding (cacheable). **Rotation** is
+  **publish-before-sign** (a new version reaches JWKS before it signs) and **retire-after-drain**
+  (an old version leaves JWKS only once its tokens expire); the active/next pointer + drain state
+  live outside Vault. Verifiers resolve the key by `kid` and enforce the **JWK's** declared `alg`
+  — never the token header's — defeating algorithm-confusion.
 - Short-lived **access tokens** (stateless, minimal claims — they carry identity, _not_
   authorization verdicts; authz is decided by the PDP at the PEP or via explicitly scoped tokens).
 - **Refresh tokens:** rotation on every use + **reuse detection** → reusing a rotated token

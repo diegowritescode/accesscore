@@ -1,4 +1,6 @@
 import { type Clock } from '../../domain/ports/clock';
+import { type Signature } from '../../domain/ports/signer';
+import { type ActiveKey, type TokenSigner } from '../../domain/ports/token-signer';
 import { SoftwareSigner } from '../signing/software-signer';
 import { JwtAccessTokenIssuer } from './jwt-access-token-issuer';
 
@@ -6,9 +8,14 @@ const now = new Date('2026-07-12T12:00:00.000Z');
 const iat = Math.floor(now.getTime() / 1000);
 const clock: Clock = { now: () => now };
 
+const softwareSigner = new SoftwareSigner();
+const tokenSigner: TokenSigner = {
+  resolveActive: (): Promise<ActiveKey> => Promise.resolve({ version: 1, kid: 'software-1' }),
+  sign: (payload: Uint8Array): Promise<Signature> => softwareSigner.sign(payload),
+};
+
 describe('JwtAccessTokenIssuer', () => {
-  const signer = new SoftwareSigner();
-  const issuer = new JwtAccessTokenIssuer(signer, clock, {
+  const issuer = new JwtAccessTokenIssuer(tokenSigner, clock, {
     issuer: 'https://auth.accesscore.dev',
     audience: 'accesscore',
     ttlSeconds: 900,
@@ -44,7 +51,7 @@ describe('JwtAccessTokenIssuer', () => {
     expect(result.expiresInSeconds).toBe(900);
 
     const signingInput = new TextEncoder().encode(`${headerB64!}.${payloadB64!}`);
-    const verified = await signer.verify(signingInput, {
+    const verified = await softwareSigner.verify(signingInput, {
       kid: header.kid,
       alg: 'EdDSA',
       value: signatureB64!,

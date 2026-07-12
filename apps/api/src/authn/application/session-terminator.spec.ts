@@ -11,7 +11,6 @@ import { SessionTerminator } from './session-terminator';
 const unitOfWork: UnitOfWork = { withTransaction: (work) => work({ executor: {} }) };
 
 const now = new Date('2026-07-12T12:00:00.000Z');
-const nowSec = Math.floor(now.getTime() / 1000);
 const clock: Clock = { now: () => now };
 
 class FakeSessions implements SessionsRepository {
@@ -88,11 +87,11 @@ describe('SessionTerminator', () => {
   it('terminateSession revokes the session family, the session, and blocklists the sid', async () => {
     const { sessions, families, revocation, terminator } = setup();
 
-    await terminator.terminateSession('session-1', nowSec + 300);
+    await terminator.terminateSession('session-1');
 
     expect(families.bySession).toEqual(['session-1']);
     expect(sessions.revoked).toEqual(['session-1']);
-    expect(revocation.blocked).toEqual([{ subject: 'sid:session-1', ttl: 300 }]);
+    expect(revocation.blocked).toEqual([{ subject: 'sid:session-1', ttl: 900 }]);
   });
 
   it('terminateAllForUser revokes all families and sessions and blocklists every sid', async () => {

@@ -3,6 +3,7 @@ import { err, ok, type Result } from '../../shared/result';
 import { type AccessTokenIssuer } from '../domain/ports/access-token-issuer';
 import { type Clock } from '../../shared/kernel/clock';
 import { type RefreshGraceCache } from '../domain/ports/refresh-grace-cache';
+import { type RevocationStore } from '../domain/ports/revocation-store';
 import { type RefreshTokenGenerator } from '../domain/ports/refresh-token-generator';
 import { type RefreshTokensRepository } from '../domain/ports/refresh-tokens-repository';
 import { type SessionsRepository } from '../domain/ports/sessions-repository';
@@ -24,6 +25,7 @@ export interface RefreshResult {
 
 export interface RefreshConfig {
   graceSeconds: number;
+  accessTokenTtlSeconds: number;
 }
 
 export type RefreshError = 'invalid' | 'reuse';
@@ -42,6 +44,7 @@ export class RefreshHandler {
     private readonly accessTokens: AccessTokenIssuer,
     private readonly generator: RefreshTokenGenerator,
     private readonly graceCache: RefreshGraceCache,
+    private readonly revocation: RevocationStore,
     private readonly clock: Clock,
     private readonly config: RefreshConfig,
   ) {}
@@ -81,6 +84,8 @@ export class RefreshHandler {
       sessionId: family.sessionId.value,
       generation: token.generation,
     });
+    await this.sessions.revoke(session.id, now);
+    await this.revocation.revoke(`sid:${session.id.value}`, this.config.accessTokenTtlSeconds);
     return err('reuse');
   }
 

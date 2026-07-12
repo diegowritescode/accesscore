@@ -95,8 +95,13 @@ import { JwksController } from './interface/jwks.controller';
     },
     {
       provide: JWT_VERIFIER,
-      inject: [JWKS_PROVIDER, CLOCK],
-      useFactory: (jwks: JwksProvider, clock: Clock): JwtVerifier => new JwtVerifier(jwks, clock),
+      inject: [JWKS_PROVIDER, CLOCK, ENV],
+      useFactory: (jwks: JwksProvider, clock: Clock, env: Env): JwtVerifier =>
+        new JwtVerifier(jwks, clock, {
+          issuer: env.JWT_ISSUER,
+          audience: env.JWT_AUDIENCE,
+          clockSkewSeconds: env.JWT_CLOCK_SKEW,
+        }),
     },
     {
       provide: REVOCATION_STORE,
@@ -189,6 +194,7 @@ import { JwksController } from './interface/jwks.controller';
         ACCESS_TOKEN_ISSUER,
         REFRESH_TOKEN_GENERATOR,
         REFRESH_GRACE_CACHE,
+        REVOCATION_STORE,
         CLOCK,
         ENV,
       ],
@@ -199,6 +205,7 @@ import { JwksController } from './interface/jwks.controller';
         accessTokens: AccessTokenIssuer,
         refreshTokenGenerator: RefreshTokenGenerator,
         graceCache: RefreshGraceCache,
+        revocation: RevocationStore,
         clock: Clock,
         env: Env,
       ): RefreshHandler =>
@@ -209,8 +216,9 @@ import { JwksController } from './interface/jwks.controller';
           accessTokens,
           refreshTokenGenerator,
           graceCache,
+          revocation,
           clock,
-          { graceSeconds: env.REFRESH_GRACE_SECONDS },
+          { graceSeconds: env.REFRESH_GRACE_SECONDS, accessTokenTtlSeconds: env.ACCESS_TOKEN_TTL },
         ),
     },
     {

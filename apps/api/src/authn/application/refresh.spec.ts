@@ -4,6 +4,7 @@ import {
 } from '../domain/ports/access-token-issuer';
 import { type Clock } from '../../shared/kernel/clock';
 import { type GracePair, type RefreshGraceCache } from '../domain/ports/refresh-grace-cache';
+import { type RevocationStore } from '../domain/ports/revocation-store';
 import { type RefreshTokenGenerator } from '../domain/ports/refresh-token-generator';
 import { type RefreshTokensRepository } from '../domain/ports/refresh-tokens-repository';
 import { type SessionsRepository } from '../domain/ports/sessions-repository';
@@ -159,6 +160,10 @@ const setup = () => {
   refreshTokens.byHash = refreshToken('active', 1);
   families.family = family('active');
   sessions.session = session('active', future);
+  const revocation: RevocationStore = {
+    revoke: () => Promise.resolve(),
+    isRevoked: () => Promise.resolve(false),
+  };
   const handler = new RefreshHandler(
     refreshTokens,
     families,
@@ -166,8 +171,9 @@ const setup = () => {
     accessTokens,
     generator,
     grace,
+    revocation,
     clock,
-    { graceSeconds: 10 },
+    { graceSeconds: 10, accessTokenTtlSeconds: 900 },
   );
   return { handler, refreshTokens, families, sessions, grace };
 };

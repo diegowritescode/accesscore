@@ -22,17 +22,14 @@ export class SessionTerminator {
     private readonly config: SessionTerminatorConfig,
   ) {}
 
-  async terminateSession(sessionId: string, accessTokenExpiresAt: number): Promise<void> {
+  async terminateSession(sessionId: string): Promise<void> {
     const at = this.clock.now();
     const sid = SessionId.fromString(sessionId);
     await this.unitOfWork.withTransaction(async (tx) => {
       await this.tokenFamilies.revokeBySession(sid, 'logout', at, tx);
       await this.sessions.revoke(sid, at, tx);
     });
-    await this.revocation.revoke(
-      `sid:${sessionId}`,
-      accessTokenExpiresAt - Math.floor(at.getTime() / 1000),
-    );
+    await this.revocation.revoke(`sid:${sessionId}`, this.config.accessTokenTtlSeconds);
   }
 
   async terminateSessionById(sessionId: string): Promise<void> {

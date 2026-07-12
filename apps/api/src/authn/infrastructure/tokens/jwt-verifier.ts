@@ -1,12 +1,25 @@
 import { createPublicKey, verify as cryptoVerify, type JsonWebKey } from 'node:crypto';
-import { err, ok, type Result } from '../../../shared/result';
 import { type Clock } from '../../../shared/kernel/clock';
+import { err, ok, type Result } from '../../../shared/result';
 import { JwksProvider } from '../jwks/jwks-provider';
 
 export type VerifyError =
-  'malformed' | 'unknown_kid' | 'alg_mismatch' | 'bad_signature' | 'expired' | 'not_yet_valid';
+  | 'malformed'
+  | 'unknown_kid'
+  | 'alg_mismatch'
+  | 'bad_signature'
+  | 'untrusted_issuer'
+  | 'wrong_audience'
+  | 'expired'
+  | 'not_yet_valid';
 
 export type VerifiedClaims = Record<string, unknown>;
+
+export interface JwtVerifierConfig {
+  issuer: string;
+  audience: string;
+  clockSkewSeconds: number;
+}
 
 interface JwtHeader {
   alg?: unknown;
@@ -20,6 +33,7 @@ export class JwtVerifier {
   constructor(
     private readonly jwks: JwksProvider,
     private readonly clock: Clock,
+    private readonly config: JwtVerifierConfig,
   ) {}
 
   async verify(token: string): Promise<Result<VerifiedClaims, VerifyError>> {
@@ -63,14 +77,32 @@ export class JwtVerifier {
       return err('bad_signature');
     }
 
+    if (payload.iss !== this.config.issuer) {
+      return err('untrusted_issuer');
+    }
+    if (!this.audienceMatches(payload.aud)) {
+      return err('wrong_audience');
+    }
+
     const nowSeconds = Math.floor(this.clock.now().getTime() / 1000);
-    if (typeof payload.exp === 'number' && payload.exp <= nowSeconds) {
+    const skew = this.config.clockSkewSeconds;
+    if (typeof payload.exp !== 'number' || payload.exp + skew <= nowSeconds) {
       return err('expired');
     }
-    if (typeof payload.nbf === 'number' && payload.nbf > nowSeconds) {
+    if (typeof payload.nbf === 'number' && payload.nbf - skew > nowSeconds) {
       return err('not_yet_valid');
     }
 
     return ok(payload);
+  }
+
+  private audienceMatches(aud: unknown): boolean {
+    if (typeof aud === 'string') {
+      return aud === this.config.audience;
+    }
+    if (Array.isArray(aud)) {
+      return aud.includes(this.config.audience);
+    }
+    return false;
   }
 }

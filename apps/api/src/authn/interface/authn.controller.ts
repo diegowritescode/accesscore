@@ -95,7 +95,7 @@ export class AuthnController {
   @HttpCode(204)
   @UseGuards(AccessTokenGuard)
   async logout(@AuthToken() token: AuthTokenClaims): Promise<void> {
-    await this.sessions.terminateSession(token.sid, token.exp);
+    await this.sessions.terminateSession(token.sid);
   }
 
   @Post('logout-all')

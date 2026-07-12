@@ -10,7 +10,11 @@ export class RedisRevocationStore implements RevocationStore {
   constructor(private readonly redis: Redis) {}
 
   async revoke(subject: string, ttlSeconds: number): Promise<void> {
-    await this.redis.set(`${PREFIX}${subject}`, '1', 'EX', Math.max(1, Math.ceil(ttlSeconds)));
+    try {
+      await this.redis.set(`${PREFIX}${subject}`, '1', 'EX', Math.max(1, Math.ceil(ttlSeconds)));
+    } catch (error) {
+      this.logger.error('revocation write failed; access token bounded by its TTL', error as Error);
+    }
   }
 
   async isRevoked(subject: string): Promise<boolean> {

@@ -107,5 +107,13 @@ describe('Refresh (e2e)', () => {
     expect(event.rowCount).toBe(1);
 
     await refresh(second.refresh_token).expect(401);
+
+    // theft containment: the session is revoked and its access token is blocklisted
+    const session = await pool.query<{ status: string }>('SELECT status FROM sessions');
+    expect(session.rows[0]?.status).toBe('revoked');
+    await request(app.getHttpServer())
+      .get('/auth/sessions')
+      .set('Authorization', `Bearer ${first.access_token}`)
+      .expect(401);
   });
 });

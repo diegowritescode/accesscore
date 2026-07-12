@@ -8,7 +8,11 @@ const nowSec = Math.floor(now.getTime() / 1000);
 const clock: Clock = { now: () => now };
 
 const signer = new SoftwareSigner();
-const verifier = new JwtVerifier(new JwksProvider(signer), clock);
+const verifier = new JwtVerifier(new JwksProvider(signer), clock, {
+  issuer: 'https://auth.accesscore.dev',
+  audience: 'accesscore',
+  clockSkewSeconds: 30,
+});
 
 const encode = (value: object): string => Buffer.from(JSON.stringify(value)).toString('base64url');
 
@@ -23,6 +27,8 @@ const makeToken = async (
 
 const validHeader = { alg: 'EdDSA', typ: 'JWT', kid: 'software-1' };
 const validPayload = {
+  iss: 'https://auth.accesscore.dev',
+  aud: 'accesscore',
   sub: 'user-1',
   sid: 'session-1',
   aal: 1,
@@ -81,13 +87,43 @@ describe('JwtVerifier', () => {
     expect(result.error).toBe('bad_signature');
   });
 
-  it('rejects an expired token', async () => {
+  it('rejects an expired token (beyond the clock-skew leeway)', async () => {
     const result = await verifier.verify(
-      await makeToken(validHeader, { ...validPayload, exp: nowSec - 1 }),
+      await makeToken(validHeader, { ...validPayload, exp: nowSec - 60 }),
     );
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toBe('expired');
+  });
+
+  it('rejects a token with no exp claim', async () => {
+    const noExp: Record<string, unknown> = { ...validPayload };
+    delete noExp.exp;
+    const result = await verifier.verify(await makeToken(validHeader, noExp));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe('expired');
+  });
+
+  it('rejects a token minted for a different issuer', async () => {
+    const result = await verifier.verify(
+      await makeToken(validHeader, { ...validPayload, iss: 'https://evil.example' }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe('untrusted_issuer');
+  });
+
+  it('rejects a token scoped to a different audience (confused-deputy defense)', async () => {
+    const result = await verifier.verify(
+      await makeToken(validHeader, { ...validPayload, aud: 'some-other-service' }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe('wrong_audience');
   });
 });

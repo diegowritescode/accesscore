@@ -11,6 +11,7 @@ export const envSchema = z.object({
   VAULT_TRANSIT_KEY: z.string().min(1).default('accesscore-signing'),
   JWT_ISSUER: z.string().min(1).default('https://auth.accesscore.dev'),
   JWT_AUDIENCE: z.string().min(1).default('accesscore'),
+  JWT_CLOCK_SKEW: z.coerce.number().int().nonnegative().default(30),
   ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(900),
   REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(1209600),
   REFRESH_GRACE_SECONDS: z.coerce.number().int().nonnegative().default(10),

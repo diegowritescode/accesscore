@@ -1,12 +1,13 @@
 import { Global, Module } from '@nestjs/common';
 import { Pool } from 'pg';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ENV } from '../config/env.module';
 import type { Env } from '../config/env';
-import * as schema from './schema';
 
 export const PG_POOL = Symbol('PG_POOL');
 export const DB = Symbol('DB');
+
+export type Database = NodePgDatabase<Record<string, never>>;
 
 @Global()
 @Module({
@@ -19,7 +20,7 @@ export const DB = Symbol('DB');
     {
       provide: DB,
       inject: [PG_POOL],
-      useFactory: (pool: Pool) => drizzle(pool, { schema }),
+      useFactory: (pool: Pool): Database => drizzle(pool),
     },
   ],
   exports: [PG_POOL, DB],

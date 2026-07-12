@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DB, type Database } from '../db/db.module';
 import { RegisterUserHandler, REGISTER_USER_HANDLER } from './application/register-user';
+import { VerifyEmailHandler, VERIFY_EMAIL_HANDLER } from './application/verify-email';
 import { CLOCK, type Clock } from './domain/ports/clock';
 import { HASHER, type Hasher } from './domain/ports/hasher';
 import { MAILER, type Mailer } from './domain/ports/mailer';
@@ -55,6 +56,17 @@ import { AuthController } from './interface/auth.controller';
         clock: Clock,
       ): RegisterUserHandler =>
         new RegisterUserHandler(users, verificationTokens, hasher, tokenGenerator, mailer, clock),
+    },
+    {
+      provide: VERIFY_EMAIL_HANDLER,
+      inject: [USERS_REPOSITORY, VERIFICATION_TOKENS_REPOSITORY, TOKEN_GENERATOR, CLOCK],
+      useFactory: (
+        users: UsersRepository,
+        verificationTokens: VerificationTokensRepository,
+        tokenGenerator: TokenGenerator,
+        clock: Clock,
+      ): VerifyEmailHandler =>
+        new VerifyEmailHandler(users, verificationTokens, tokenGenerator, clock),
     },
   ],
   exports: [HASHER, USERS_REPOSITORY],

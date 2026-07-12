@@ -13,15 +13,26 @@ export class DrizzleUsersRepository implements UsersRepository {
   async save(user: User): Promise<void> {
     const events = user.pullEvents();
     await this.db.transaction(async (tx) => {
-      await tx.insert(users).values({
-        id: user.id.value,
-        email: user.email.value,
-        passwordHash: user.passwordHash.value,
-        status: user.status,
-        emailVerifiedAt: user.emailVerifiedAt,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-      });
+      await tx
+        .insert(users)
+        .values({
+          id: user.id.value,
+          email: user.email.value,
+          passwordHash: user.passwordHash.value,
+          status: user.status,
+          emailVerifiedAt: user.emailVerifiedAt,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        })
+        .onConflictDoUpdate({
+          target: users.id,
+          set: {
+            status: user.status,
+            passwordHash: user.passwordHash.value,
+            emailVerifiedAt: user.emailVerifiedAt,
+            updatedAt: user.updatedAt,
+          },
+        });
       if (events.length > 0) {
         await tx.insert(outbox).values(
           events.map((event) => ({

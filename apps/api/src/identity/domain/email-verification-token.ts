@@ -31,6 +31,22 @@ export class EmailVerificationToken {
     });
   }
 
+  static reconstitute(props: EmailVerificationTokenProps): EmailVerificationToken {
+    return new EmailVerificationToken(props);
+  }
+
+  isExpired(now: Date): boolean {
+    return this.props.expiresAt.getTime() <= now.getTime();
+  }
+
+  isConsumed(): boolean {
+    return this.props.consumedAt !== null;
+  }
+
+  consume(now: Date): void {
+    this.props.consumedAt = now;
+  }
+
   get id(): string {
     return this.props.id;
   }

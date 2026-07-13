@@ -1,8 +1,21 @@
-import { type EntityRef, formatEntityRef, parseEntityRef } from './entity-ref';
+import {
+  assertWritableEntityRef,
+  type EntityRef,
+  formatEntityRef,
+  parseEntityRef,
+} from './entity-ref';
+import { isIdentifier } from './identifier';
 
 export type SubjectRef =
   | { readonly kind: 'subject'; readonly ref: EntityRef }
   | { readonly kind: 'userset'; readonly ref: EntityRef; readonly relation: string };
+
+export function assertWritableSubject(subject: SubjectRef): void {
+  assertWritableEntityRef(subject.ref);
+  if (subject.kind === 'userset' && !isIdentifier(subject.relation)) {
+    throw new Error(`invalid userset relation: ${subject.relation}`);
+  }
+}
 
 export function encodeSubject(subject: SubjectRef): string {
   const object = formatEntityRef(subject.ref);

@@ -18,6 +18,8 @@ const body = { action: 'document.read', resource: { type: 'document', id: 'doc-1
 
 const pdpReturning = (decision: Decision): PolicyDecisionPoint => ({
   check: () => Promise.resolve(decision),
+  batchCheck: (requests) => Promise.resolve(requests.map(() => decision)),
+  expand: () => Promise.resolve([]),
 });
 
 describe('AuthzController', () => {
@@ -36,11 +38,95 @@ describe('AuthzController', () => {
   it('fails closed with a 503 problem when the PDP errors', async () => {
     const failingPdp: PolicyDecisionPoint = {
       check: () => Promise.reject(new Error('store unavailable')),
+      batchCheck: () => Promise.reject(new Error('store unavailable')),
+      expand: () => Promise.reject(new Error('store unavailable')),
     };
     const controller = new AuthzController(failingPdp, clock);
 
     await expect(controller.check(token, body, '127.0.0.1')).rejects.toBeInstanceOf(
       ProblemException,
     );
+  });
+
+  it('maps each decision in a batch to a result', async () => {
+    const controller = new AuthzController(
+      pdpReturning({ effect: 'permit', reasons: [{ code: 'grant.direct', message: 'ok' }] }),
+      clock,
+    );
+
+    const response = await controller.batchCheck(token, { checks: [body, body] }, '127.0.0.1');
+
+    expect(response.results).toHaveLength(2);
+    expect(response.results[0]).toEqual({
+      effect: 'permit',
+      reasons: [{ code: 'grant.direct', message: 'ok' }],
+    });
+  });
+
+  it('rejects a batch with no checks as a 400 problem', async () => {
+    const controller = new AuthzController(pdpReturning({ effect: 'deny', reasons: [] }), clock);
+
+    await expect(controller.batchCheck(token, { checks: [] }, '127.0.0.1')).rejects.toBeInstanceOf(
+      ProblemException,
+    );
+  });
+
+  it('rejects a batch item with a malformed action as a 400 problem', async () => {
+    const controller = new AuthzController(pdpReturning({ effect: 'deny', reasons: [] }), clock);
+    const malformed = { checks: [{ action: 'not-an-action', resource: body.resource }] };
+
+    await expect(controller.batchCheck(token, malformed, '127.0.0.1')).rejects.toBeInstanceOf(
+      ProblemException,
+    );
+  });
+
+  it('fails a batch closed with a 503 problem when the PDP errors', async () => {
+    const failingPdp: PolicyDecisionPoint = {
+      check: () => Promise.reject(new Error('store unavailable')),
+      batchCheck: () => Promise.reject(new Error('store unavailable')),
+      expand: () => Promise.reject(new Error('store unavailable')),
+    };
+    const controller = new AuthzController(failingPdp, clock);
+
+    await expect(
+      controller.batchCheck(token, { checks: [body] }, '127.0.0.1'),
+    ).rejects.toBeInstanceOf(ProblemException);
+  });
+
+  it('returns the subjects the PDP expands for a relation', async () => {
+    const expanding: PolicyDecisionPoint = {
+      check: () => Promise.reject(new Error('unused')),
+      batchCheck: () => Promise.reject(new Error('unused')),
+      expand: () => Promise.resolve([{ type: 'user', id: 'alice' }]),
+    };
+    const controller = new AuthzController(expanding, clock);
+
+    const response = await controller.expand(token, {
+      resource: { type: 'document', id: 'doc-1' },
+      relation: 'viewer',
+    });
+
+    expect(response.subjects).toEqual([{ type: 'user', id: 'alice' }]);
+  });
+
+  it('rejects a malformed expand body as a 400 problem', async () => {
+    const controller = new AuthzController(pdpReturning({ effect: 'deny', reasons: [] }), clock);
+
+    await expect(
+      controller.expand(token, { resource: { type: 'document' } }),
+    ).rejects.toBeInstanceOf(ProblemException);
+  });
+
+  it('fails expand closed with a 503 problem when the PDP errors', async () => {
+    const failingPdp: PolicyDecisionPoint = {
+      check: () => Promise.reject(new Error('store unavailable')),
+      batchCheck: () => Promise.reject(new Error('store unavailable')),
+      expand: () => Promise.reject(new Error('store unavailable')),
+    };
+    const controller = new AuthzController(failingPdp, clock);
+
+    await expect(
+      controller.expand(token, { resource: { type: 'document', id: 'doc-1' }, relation: 'viewer' }),
+    ).rejects.toBeInstanceOf(ProblemException);
   });
 });

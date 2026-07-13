@@ -219,4 +219,65 @@ describe('PdpService', () => {
 
     expect(decision.effect).toBe('permit');
   });
+
+  it('returns one decision per request in a batch and logs each', async () => {
+    const { pdp, log } = build({
+      definition: namespaceDef(),
+      tuples: [tuple('viewer', { kind: 'subject', ref: alice })],
+      revision: 5,
+    });
+    const write = Action.of('document.write');
+
+    const decisions = await pdp.batchCheck([
+      { principal: principal(orgId.value), action: read, resource, context: fullContext },
+      { principal: principal(orgId.value), action: write, resource, context: fullContext },
+    ]);
+
+    expect(decisions.map((decision) => decision.effect)).toEqual(['permit', 'deny']);
+    expect(log.records).toHaveLength(2);
+  });
+
+  it('expands the direct members of a relation', async () => {
+    const bob: EntityRef = { type: 'user', id: 'bob' };
+    const { pdp } = build({
+      tuples: [
+        tuple('viewer', { kind: 'subject', ref: alice }),
+        tuple('viewer', { kind: 'subject', ref: bob }),
+      ],
+      revision: 2,
+    });
+
+    const members = await pdp.expand(principal(orgId.value), resource, 'viewer');
+
+    expect(members.map((member) => member.id).sort()).toEqual(['alice', 'bob']);
+  });
+
+  it('expands members through one userset level', async () => {
+    const { pdp } = build({
+      tuples: [
+        tuple('viewer', { kind: 'userset', ref: { type: 'group', id: 'eng' }, relation: 'member' }),
+        RelationTuple.write({
+          orgId,
+          object: { type: 'group', id: 'eng' },
+          relation: 'member',
+          subject: { kind: 'subject', ref: alice },
+          revision: Revision.fromValue(1),
+          createdAt: now,
+        }),
+      ],
+      revision: 2,
+    });
+
+    const members = await pdp.expand(principal(orgId.value), resource, 'viewer');
+
+    expect(members).toEqual([alice]);
+  });
+
+  it('expands to nothing for a principal with no organization', async () => {
+    const { pdp } = build({ tuples: [tuple('viewer', { kind: 'subject', ref: alice })] });
+
+    const members = await pdp.expand(principal(null), resource, 'viewer');
+
+    expect(members).toEqual([]);
+  });
 });

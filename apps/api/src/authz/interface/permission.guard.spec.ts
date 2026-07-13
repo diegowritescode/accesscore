@@ -20,10 +20,14 @@ const reflectorReturning = (value: RequiredPermission | undefined): Reflector =>
 
 const pdpReturning = (decision: Decision): PolicyDecisionPoint => ({
   check: () => Promise.resolve(decision),
+  batchCheck: () => Promise.resolve([]),
+  expand: () => Promise.resolve([]),
 });
 
 const failingPdp: PolicyDecisionPoint = {
   check: () => Promise.reject(new Error('pdp unavailable')),
+  batchCheck: () => Promise.reject(new Error('pdp unavailable')),
+  expand: () => Promise.reject(new Error('pdp unavailable')),
 };
 
 const clock: Clock = { now: () => new Date(0) };

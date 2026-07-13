@@ -50,3 +50,4 @@ jobs:
       - run: pnpm run build
       - run: pnpm --filter @accesscore/api run db:migrate
       - run: pnpm --filter @accesscore/api run coverage
+      - run: pnpm --filter @diegowritescode/accesscore-sdk run test

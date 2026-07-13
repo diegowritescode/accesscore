@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { Pool } from 'pg';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ENV } from '../config/env.module';
@@ -36,4 +36,10 @@ export type Executor = Database;
   ],
   exports: [PG_POOL, DB, UNIT_OF_WORK, REVISIONS_REPOSITORY],
 })
-export class DbModule {}
+export class DbModule implements OnApplicationShutdown {
+  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+
+  async onApplicationShutdown(): Promise<void> {
+    await this.pool.end();
+  }
+}

@@ -149,6 +149,59 @@ describe('PAP write API (e2e)', () => {
     expect(check.body.effect).toBe('permit');
   });
 
+  it('inherits access through a tuple_to_userset rewrite end-to-end (folder to document)', async () => {
+    const { userId, token } = await provisionOwner();
+
+    await request(server())
+      .put('/authz/namespaces/document')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        relations: ['viewer', 'parent'],
+        actions: { read: ['viewer'] },
+        rewrites: {
+          viewer: {
+            kind: 'union',
+            children: [
+              { kind: 'this' },
+              { kind: 'tupleToUserset', tupleset: 'parent', computedUserset: 'viewer' },
+            ],
+          },
+        },
+      })
+      .expect(200);
+
+    await request(server())
+      .post('/authz/tuples')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        object: { type: 'document', id: 'doc-1' },
+        relation: 'parent',
+        subject: { type: 'folder', id: 'f1' },
+      })
+      .expect(200);
+
+    const grant = await request(server())
+      .post('/authz/tuples')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        object: { type: 'folder', id: 'f1' },
+        relation: 'viewer',
+        subject: { type: 'user', id: userId.value },
+      })
+      .expect(200);
+
+    const check = await request(server())
+      .post('/authz/check')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        action: 'document.read',
+        resource: { type: 'document', id: 'doc-1' },
+        consistency_token: grant.body.consistency_token,
+      })
+      .expect(200);
+    expect(check.body.effect).toBe('permit');
+  });
+
   it('rejects an unsupported intersection rewrite with 400', async () => {
     const { token } = await provisionOwner();
     await request(server())

@@ -26,7 +26,7 @@ import { type NamespaceDefinitionsRepository } from '../domain/ports/namespace-d
 import { type RelationTupleStore } from '../domain/ports/relation-tuple-store';
 import { type RelationTuple } from '../domain/relation-tuple';
 import { TupleIndex } from '../domain/tuple-index';
-import { computedUsersetTargets } from '../domain/userset';
+import { type Userset } from '../domain/userset';
 
 const deny = (code: string, message: string): Decision => ({
   effect: 'deny',
@@ -135,43 +135,66 @@ export class PdpService implements PolicyDecisionPoint {
     registry: NamespaceRegistry,
     tx: Tx,
   ): Promise<RelationTuple[]> {
-    const visited = new Set<string>();
-    const loaded: RelationTuple[] = [];
-    let frontier: Array<{ object: EntityRef; relation: string; depth: number }> = relations.map(
-      (relation) => ({ object: resource, relation, depth: 0 }),
-    );
+    const rows = new Map<string, RelationTuple[]>();
+    const walked = new Set<string>();
 
-    while (frontier.length > 0) {
-      const next: Array<{ object: EntityRef; relation: string; depth: number }> = [];
-      for (const node of frontier) {
-        const key = `${formatEntityRef(node.object)}#${node.relation}`;
-        if (visited.has(key) || node.depth > MAX_USERSET_DEPTH) {
-          continue;
-        }
-        visited.add(key);
-        const rows = await this.tuples.listByObject(
-          { orgId, object: node.object, relation: node.relation },
-          tx,
-        );
-        loaded.push(...rows);
-        for (const target of computedUsersetTargets(
-          registry.rewritesFor(node.object.type, node.relation),
-        )) {
-          next.push({ object: node.object, relation: target, depth: node.depth });
-        }
-        for (const row of rows) {
-          if (row.subject.kind === 'userset') {
-            next.push({
-              object: row.subject.ref,
-              relation: row.subject.relation,
-              depth: node.depth + 1,
-            });
-          }
-        }
+    const rowsOf = async (object: EntityRef, relation: string): Promise<RelationTuple[]> => {
+      const key = `${formatEntityRef(object)}#${relation}`;
+      const cached = rows.get(key);
+      if (cached) {
+        return cached;
       }
-      frontier = next;
+      const loaded = await this.tuples.listByObject({ orgId, object, relation }, tx);
+      rows.set(key, loaded);
+      return loaded;
+    };
+
+    const walkRewrite = async (
+      object: EntityRef,
+      rewrite: Userset,
+      node: readonly RelationTuple[],
+      depth: number,
+    ): Promise<void> => {
+      switch (rewrite.kind) {
+        case 'this':
+          for (const tuple of node) {
+            if (tuple.subject.kind === 'userset') {
+              await walk(tuple.subject.ref, tuple.subject.relation, depth + 1);
+            }
+          }
+          return;
+        case 'computedUserset':
+          await walk(object, rewrite.relation, depth);
+          return;
+        case 'tupleToUserset':
+          for (const tuple of await rowsOf(object, rewrite.tupleset)) {
+            if (tuple.subject.kind === 'subject') {
+              await walk(tuple.subject.ref, rewrite.computedUserset, depth + 1);
+            }
+          }
+          return;
+        case 'union':
+          for (const child of rewrite.children) {
+            await walkRewrite(object, child, node, depth);
+          }
+          return;
+      }
+    };
+
+    const walk = async (object: EntityRef, relation: string, depth: number): Promise<void> => {
+      const key = `${formatEntityRef(object)}#${relation}`;
+      if (walked.has(key) || depth > MAX_USERSET_DEPTH) {
+        return;
+      }
+      walked.add(key);
+      const node = await rowsOf(object, relation);
+      await walkRewrite(object, registry.rewritesFor(object.type, relation), node, depth);
+    };
+
+    for (const relation of relations) {
+      await walk(resource, relation, 0);
     }
-    return loaded;
+    return [...rows.values()].flat();
   }
 
   private async log(

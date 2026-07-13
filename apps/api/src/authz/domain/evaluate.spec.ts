@@ -83,7 +83,13 @@ const aliasConfig = def(['owner', 'editor', 'viewer'], { read: ['viewer'] }, org
 });
 
 const inheritConfig = def(['viewer', 'parent'], { read: ['viewer'] }, orgA, 'document', {
-  viewer: { kind: 'tupleToUserset', tupleset: 'parent', computedUserset: 'viewer' },
+  viewer: {
+    kind: 'union',
+    children: [
+      { kind: 'this' },
+      { kind: 'tupleToUserset', tupleset: 'parent', computedUserset: 'viewer' },
+    ],
+  },
 });
 
 const folder: EntityRef = { type: 'folder', id: 'f1' };
@@ -154,7 +160,7 @@ describe('evaluate', () => {
     expect(decision.reasons[0]?.code).toBe('default_deny');
   });
 
-  it('does not yet resolve a tuple_to_userset rewrite (deferred to US-4.2)', () => {
+  it('permits via a tuple_to_userset rewrite (folder inheritance)', () => {
     const decision = evaluate(
       { orgId: orgA, subject: alice, action: read, resource },
       snap(inheritConfig, [
@@ -163,8 +169,26 @@ describe('evaluate', () => {
       ]),
     );
 
+    expect(decision.effect).toBe('permit');
+    const [reason] = decision.reasons;
+    expect(reason?.code).toBe('grant.tuple_to_userset');
+    expect(reason?.relation).toBe('viewer');
+    expect(reason?.path).toEqual([
+      'document:doc-1#parent@folder:f1',
+      'folder:f1#viewer@user:alice',
+    ]);
+  });
+
+  it('does not inherit across a tuple_to_userset hop into another org', () => {
+    const decision = evaluate(
+      { orgId: orgA, subject: alice, action: read, resource },
+      snap(inheritConfig, [
+        tuple(resource, 'parent', asSubject(folder)),
+        tuple(folder, 'viewer', asSubject(alice), orgB),
+      ]),
+    );
+
     expect(decision.effect).toBe('deny');
-    expect(decision.reasons[0]?.code).toBe('default_deny');
   });
 
   it('denies by default when no relationship grants the action', () => {
@@ -337,17 +361,20 @@ describe('expand', () => {
     expect(expand(orgA, resource, 'viewer', snapshot)).toContainEqual(alice);
   });
 
-  it('does not yet follow a tuple_to_userset rewrite (deferred to US-4.2)', () => {
+  it('expands a tuple_to_userset rewrite through the hierarchy', () => {
     const members = expand(
       orgA,
       resource,
       'viewer',
       snap(inheritConfig, [
+        tuple(resource, 'viewer', asSubject(bob)),
         tuple(resource, 'parent', asSubject(folder)),
         tuple(folder, 'viewer', asSubject(alice)),
       ]),
     );
 
-    expect(members).toEqual([]);
+    expect(members).toContainEqual(alice);
+    expect(members).toContainEqual(bob);
+    expect(members).toHaveLength(2);
   });
 });

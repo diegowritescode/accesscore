@@ -26,21 +26,27 @@ by integration/e2e counts. A per-run number would be misleading (unit alone leav
   Istanbul reports into `.nyc_output`, prints the summary, and runs `nyc check-coverage`.
 - Thresholds live in `apps/api/.nycrc.json` and are enforced in CI. They are a **ratchet**: set at
   a floor below the current number and only ever raised, never lowered.
-- Current core-logic coverage (merged, all three suites): **~95% lines / ~94.8% statements /
-  ~90.4% functions / ~85.9% branches** — above the CI gate floor (lines 90 / statements 90 /
-  functions 85 / branches 75). Suite sizes: 158 unit + 37 integration + 37 e2e (API) + 11 SDK.
+- Current core-logic coverage (merged, all three suites): **≈95% lines / ≈95% statements /
+  ≈91% functions / ≈87% branches** — above the CI gate floor (lines 90 / statements 90 /
+  functions 85 / branches 75), which is what CI actually enforces. Suite sizes are ≈215 unit +
+  37 integration + 53 e2e (API) + 11 SDK, and grow per slice.
 
 ## Property-based testing (the PDP)
 
-The authorization evaluator (Slice 3) is a **pure** function `(*tuple snapshot*, request) → Decision`
-with no I/O, precisely so it can be hammered with `fast-check`. The properties we assert:
+The authorization evaluator (Slices 3-4) is a **pure** function `(*tuple snapshot*, request) → Decision`
+with no I/O, precisely so it can be hammered with `fast-check`. The properties we assert today:
 
 - **Totality / fail-closed:** returns a `Decision` for every generated input; never throws; unknowns → deny.
-- **Deny-by-default & deny-override:** adding a matching `forbid` never flips a decision to allow.
-- **Determinism:** identical `(tuples, request, consistency token)` → identical decision.
+- **Deny-by-default & monotonicity:** unknowns deny; adding a tuple never flips a `permit` to a
+  `deny` (union-only today; `forbid`/deny-override arrive with ABAC in Slice 5).
+- **Determinism:** identical `(tuples, request)` → identical decision.
 - **Tenant isolation:** no resolution crosses `orgId` at any hop.
-- **Provenance (ADR-008):** no caller-supplied context field can flip a `deny` to a `permit`.
-- **Cycle safety:** cyclic tuple graphs terminate and deny.
+- **Context-invariance (ADR-008):** the evaluator takes no `context` parameter — invariance by
+  construction, guarded by a signature-lock test (the forgeable-context property lands with ABAC).
+- **Termination:** cyclic and deep graphs terminate; a walk truncated at the depth bound fails
+  closed (`walk_truncated`).
+- **Rewrite correctness:** `computed_userset` / `tuple_to_userset` / nested groups are total,
+  deterministic, and keep `check` and `expand` in agreement over arbitrary graphs.
 
 `fast-check` is wired now (see `email.property.spec.ts` for the pattern) so Slice 3 lands with
 property tests, not after.

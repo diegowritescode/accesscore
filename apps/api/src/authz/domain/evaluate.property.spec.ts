@@ -53,6 +53,19 @@ const tuples = fc.array(
   { maxLength: 12 },
 );
 
+const oneTuple = fc
+  .record({ object: entityRef, relation: identifier, subject: subjectRef })
+  .map(({ object, relation, subject }) =>
+    RelationTuple.write({
+      orgId,
+      object,
+      relation,
+      subject,
+      revision: Revision.fromValue(0),
+      createdAt: now,
+    }),
+  );
+
 const namespace: fc.Arbitrary<NamespaceDefinition> = fc
   .uniqueArray(identifier, { minLength: 1, maxLength: 4 })
   .chain((relations) =>
@@ -92,6 +105,18 @@ describe('evaluate (properties)', () => {
     );
   });
 
+  it('is monotonic under tuple addition: adding a tuple never removes a permit (union-only)', () => {
+    fc.assert(
+      fc.property(query, tuples, namespace, oneTuple, (q, ts, ns, extra) => {
+        const base = snapshotOf(ns, ts);
+        if (evaluate(q, base).effect !== 'permit') {
+          return;
+        }
+        expect(evaluate(q, snapshotOf(ns, [...ts, extra])).effect).toBe('permit');
+      }),
+    );
+  });
+
   it('is deterministic for identical inputs', () => {
     fc.assert(
       fc.property(query, tuples, namespace, (q, ts, ns) => {
@@ -109,7 +134,7 @@ describe('evaluate (properties)', () => {
     );
   });
 
-  it('only permits with a grant derivation path (deny-override structure)', () => {
+  it('only permits with a grant derivation path (permit provenance shape)', () => {
     fc.assert(
       fc.property(query, tuples, namespace, (q, ts, ns) => {
         const decision = evaluate(q, snapshotOf(ns, ts));

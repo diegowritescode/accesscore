@@ -2,6 +2,11 @@
 
 - **Status:** Accepted (2026-07-11) — revised after adversarial review
 - **Date:** 2026-07-11
+- **Impl note:** `current()` reads `MAX(revision)`, which is sound because `allocate()` holds the
+  advisory lock until commit, so allocation order equals commit order (no gap can be observed as a
+  high-water mark before its predecessors commit). A startup non-regression check that the serial
+  never moves backwards is deferred: a single-Postgres serial is monotonic by construction, so it
+  only matters under backup/restore or failover operations, which are a Governance-ring concern.
 
 ## Context
 

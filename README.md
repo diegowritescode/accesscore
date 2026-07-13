@@ -9,6 +9,10 @@ authentication and authorization to it through a typed SDK. It treats authorizat
 first-class engineering problem — correct, deterministic, explainable, consistent, and
 auditable — not a `role === 'admin'` check bolted onto a `users` table.
 
+> **Live:** **[auth.deviego.xyz](https://auth.deviego.xyz)** — try `GET /health`,
+> [`GET /.well-known/jwks.json`](https://auth.deviego.xyz/.well-known/jwks.json), or
+> `POST /authz/check` (see [`docs/api.md`](docs/api.md)). Deployed on a self-hosted Dokploy VPS.
+
 > **Status — building in vertical slices.** **Slices 0–3 are shipped** (identity, password
 > auth, the token platform, tenancy, and a working **PDP v1**) plus a **published client
 > SDK**. Authorization decisions run end to end today: a relationship-tuple store, namespace
@@ -164,10 +168,12 @@ Suite sizes today: **158 unit + 37 integration + 37 e2e** (API) and **11** SDK t
 
 `docker compose up` boots Postgres 16, Redis 7, and Vault 1.18 from a clean clone; migrations
 run via `pnpm --filter @accesscore/api db:migrate`; config is validated at boot and production
-refuses the software signer and the dev Vault token. **AccessCore is not yet deployed to a
-public URL** — a public deployment (VPS + Nginx + TLS, a persistent non-dev Vault, secret
-management) is a pending portfolio deliverable. What runs locally, and exactly what is required
-to go live, is in [`docs/deployment.md`](docs/deployment.md).
+refuses the software signer and the dev Vault token. **AccessCore is deployed at
+[auth.deviego.xyz](https://auth.deviego.xyz)** — a self-hosted [Dokploy](https://dokploy.com) VPS
+with managed Postgres + Redis, a Vault container, and the API built from
+[`apps/api/Dockerfile`](apps/api/Dockerfile) behind Let's Encrypt TLS. The step-by-step recipe is
+[`docs/deploy-dokploy.md`](docs/deploy-dokploy.md); the deployment model and local setup are in
+[`docs/deployment.md`](docs/deployment.md).
 
 ## Trade-offs
 

@@ -28,8 +28,13 @@ export class DrizzleNamespaceDefinitionsRepository implements NamespaceDefinitio
       });
   }
 
-  async findByNamespace(orgId: OrgId, namespace: string): Promise<NamespaceDefinition | null> {
-    const rows = await this.db
+  async findByNamespace(
+    orgId: OrgId,
+    namespace: string,
+    tx?: Tx,
+  ): Promise<NamespaceDefinition | null> {
+    const executor = (tx?.executor as Executor) ?? this.db;
+    const rows = await executor
       .select()
       .from(namespaceDefinitions)
       .where(

@@ -1,6 +1,7 @@
 import {
   bigint,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -9,6 +10,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { organizations } from '../../../tenancy/infrastructure/persistence/schema';
+import { type Reason } from '../../domain/decision';
 import { type NamespaceConfigData } from '../../domain/namespace-config';
 
 export const relationTuples = pgTable(
@@ -48,4 +50,21 @@ export const namespaceDefinitions = pgTable(
     primaryKey({ columns: [table.orgId, table.namespace] }),
     index('namespace_definitions_revision_idx').on(table.revision),
   ],
+);
+
+export const decisionLog = pgTable(
+  'decision_log',
+  {
+    id: uuid('id').primaryKey(),
+    orgId: uuid('org_id'),
+    subject: text('subject').notNull(),
+    action: text('action').notNull(),
+    resource: text('resource').notNull(),
+    effect: text('effect').notNull(),
+    reasons: jsonb('reasons').$type<Reason[]>().notNull(),
+    revisionUsed: bigint('revision_used', { mode: 'number' }).notNull(),
+    latencyMs: integer('latency_ms').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [index('decision_log_org_created_idx').on(table.orgId, table.createdAt)],
 );

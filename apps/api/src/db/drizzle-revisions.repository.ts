@@ -21,4 +21,12 @@ export class DrizzleRevisionsRepository implements RevisionsRepository {
     }
     return Revision.fromValue(row.revision);
   }
+
+  async current(tx: Tx): Promise<Revision> {
+    const executor = tx.executor as Executor;
+    const rows = await executor
+      .select({ value: sql<number>`COALESCE(MAX(${revisions.revision}), 0)` })
+      .from(revisions);
+    return Revision.fromValue(Number(rows[0]?.value ?? 0));
+  }
 }

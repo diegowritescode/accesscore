@@ -21,6 +21,10 @@ class RecordingRevisions implements RevisionsRepository {
     this.count += 1;
     return Promise.resolve(Revision.fromValue(this.count));
   }
+
+  current(): Promise<Revision> {
+    return Promise.resolve(Revision.fromValue(this.count));
+  }
 }
 
 class RecordingRepo implements NamespaceDefinitionsRepository {

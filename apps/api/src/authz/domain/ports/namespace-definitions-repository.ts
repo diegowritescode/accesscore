@@ -4,7 +4,7 @@ import { type NamespaceDefinition } from '../namespace-definition';
 
 export interface NamespaceDefinitionsRepository {
   save(definition: NamespaceDefinition, tx?: Tx): Promise<void>;
-  findByNamespace(orgId: OrgId, namespace: string): Promise<NamespaceDefinition | null>;
+  findByNamespace(orgId: OrgId, namespace: string, tx?: Tx): Promise<NamespaceDefinition | null>;
 }
 
 export const NAMESPACE_DEFINITIONS_REPOSITORY = Symbol('NAMESPACE_DEFINITIONS_REPOSITORY');

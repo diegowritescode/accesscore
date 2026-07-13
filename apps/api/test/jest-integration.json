@@ -10,7 +10,8 @@
     "!src/**/*.spec.ts",
     "!src/**/*.module.ts",
     "!src/main.ts",
-    "!src/migrate.ts"
+    "!src/migrate.ts",
+    "!src/seed.ts"
   ],
   "coverageDirectory": "coverage/int",
   "coverageReporters": ["json"],

@@ -13,13 +13,20 @@ import {
 import { ConsistencyToken } from '../domain/consistency-token';
 import { type Decision } from '../domain/decision';
 import { type EntityRef, formatEntityRef } from '../domain/entity-ref';
-import { evaluate, expand as expandMembers, type EvaluationSnapshot } from '../domain/evaluate';
+import {
+  evaluate,
+  expand as expandMembers,
+  type EvaluationSnapshot,
+  MAX_USERSET_DEPTH,
+} from '../domain/evaluate';
+import { NamespaceRegistry } from '../domain/namespace-registry';
 import { type BatchCheckRequest, type PolicyDecisionPoint } from '../domain/policy-decision-point';
 import { type DecisionLog } from '../domain/ports/decision-log';
 import { type NamespaceDefinitionsRepository } from '../domain/ports/namespace-definitions-repository';
 import { type RelationTupleStore } from '../domain/ports/relation-tuple-store';
 import { type RelationTuple } from '../domain/relation-tuple';
 import { TupleIndex } from '../domain/tuple-index';
+import { computedUsersetTargets } from '../domain/userset';
 
 const deny = (code: string, message: string): Decision => ({
   effect: 'deny',
@@ -75,9 +82,13 @@ export class PdpService implements PolicyDecisionPoint {
           };
         }
         const namespace = await this.namespaces.findByNamespace(orgId, resource.type, tx);
+        const registry = NamespaceRegistry.of(namespace ? [namespace] : []);
         const relations = namespace ? namespace.requiredRelationsFor(action) : [];
-        const tuples = await this.loadClosure(orgId, resource, relations, tx);
-        const snapshot: EvaluationSnapshot = { namespace, tuples: TupleIndex.of(orgId, tuples) };
+        const tuples = await this.loadClosure(orgId, resource, relations, registry, tx);
+        const snapshot: EvaluationSnapshot = {
+          namespaces: registry,
+          tuples: TupleIndex.of(orgId, tuples),
+        };
         return {
           decision: evaluate({ orgId, subject: principal.subject, action, resource }, snapshot),
           revisionUsed,
@@ -104,9 +115,11 @@ export class PdpService implements PolicyDecisionPoint {
     const orgId = OrgId.fromString(principal.orgId);
     return this.unitOfWork.withTransaction<EntityRef[]>(
       async (tx) => {
-        const tuples = await this.loadClosure(orgId, resource, [relation], tx);
+        const namespace = await this.namespaces.findByNamespace(orgId, resource.type, tx);
+        const registry = NamespaceRegistry.of(namespace ? [namespace] : []);
+        const tuples = await this.loadClosure(orgId, resource, [relation], registry, tx);
         const snapshot: EvaluationSnapshot = {
-          namespace: null,
+          namespaces: registry,
           tuples: TupleIndex.of(orgId, tuples),
         };
         return expandMembers(orgId, resource, relation, snapshot);
@@ -119,31 +132,46 @@ export class PdpService implements PolicyDecisionPoint {
     orgId: OrgId,
     resource: Resource,
     relations: readonly string[],
+    registry: NamespaceRegistry,
     tx: Tx,
   ): Promise<RelationTuple[]> {
-    const resourceTuples: RelationTuple[] = [];
-    for (const relation of relations) {
-      resourceTuples.push(
-        ...(await this.tuples.listByObject({ orgId, object: resource, relation }, tx)),
-      );
-    }
-    const usersets = new Map<string, { ref: EntityRef; relation: string }>();
-    for (const tuple of resourceTuples) {
-      if (tuple.subject.kind === 'userset') {
-        const key = `${formatEntityRef(tuple.subject.ref)}#${tuple.subject.relation}`;
-        usersets.set(key, { ref: tuple.subject.ref, relation: tuple.subject.relation });
-      }
-    }
-    const membershipTuples: RelationTuple[] = [];
-    for (const userset of usersets.values()) {
-      membershipTuples.push(
-        ...(await this.tuples.listByObject(
-          { orgId, object: userset.ref, relation: userset.relation },
+    const visited = new Set<string>();
+    const loaded: RelationTuple[] = [];
+    let frontier: Array<{ object: EntityRef; relation: string; depth: number }> = relations.map(
+      (relation) => ({ object: resource, relation, depth: 0 }),
+    );
+
+    while (frontier.length > 0) {
+      const next: Array<{ object: EntityRef; relation: string; depth: number }> = [];
+      for (const node of frontier) {
+        const key = `${formatEntityRef(node.object)}#${node.relation}`;
+        if (visited.has(key) || node.depth > MAX_USERSET_DEPTH) {
+          continue;
+        }
+        visited.add(key);
+        const rows = await this.tuples.listByObject(
+          { orgId, object: node.object, relation: node.relation },
           tx,
-        )),
-      );
+        );
+        loaded.push(...rows);
+        for (const target of computedUsersetTargets(
+          registry.rewritesFor(node.object.type, node.relation),
+        )) {
+          next.push({ object: node.object, relation: target, depth: node.depth });
+        }
+        for (const row of rows) {
+          if (row.subject.kind === 'userset') {
+            next.push({
+              object: row.subject.ref,
+              relation: row.subject.relation,
+              depth: node.depth + 1,
+            });
+          }
+        }
+      }
+      frontier = next;
     }
-    return [...resourceTuples, ...membershipTuples];
+    return loaded;
   }
 
   private async log(

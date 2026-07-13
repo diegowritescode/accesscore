@@ -4,15 +4,25 @@ import { Revision } from '../../shared/kernel/revision';
 import { Action } from './action';
 import { type AuthorizationQuery } from './authorization-query';
 import { type EntityRef } from './entity-ref';
-import { evaluate, expand } from './evaluate';
+import { evaluate, expand, type EvaluationSnapshot } from './evaluate';
 import { NamespaceConfig } from './namespace-config';
 import { NamespaceDefinition } from './namespace-definition';
+import { NamespaceRegistry } from './namespace-registry';
 import { RelationTuple } from './relation-tuple';
 import { type SubjectRef } from './subject-ref';
 import { TupleIndex } from './tuple-index';
 
 const orgId = OrgId.generate();
 const now = new Date('2026-07-12T00:00:00.000Z');
+
+const snapshotOf = (
+  namespace: NamespaceDefinition | null,
+  tuples: RelationTuple[],
+  org = orgId,
+): EvaluationSnapshot => ({
+  namespaces: NamespaceRegistry.of(namespace ? [namespace] : []),
+  tuples: TupleIndex.of(org, tuples),
+});
 
 const identifier = fc
   .array(fc.constantFrom(...'abcde'.split('')), { minLength: 1, maxLength: 3 })
@@ -76,7 +86,7 @@ describe('evaluate (properties)', () => {
   it('is total: returns permit or deny and never throws', () => {
     fc.assert(
       fc.property(query, tuples, fc.option(namespace, { nil: null }), (q, ts, ns) => {
-        const decision = evaluate(q, { namespace: ns, tuples: TupleIndex.of(orgId, ts) });
+        const decision = evaluate(q, snapshotOf(ns, ts));
         expect(['permit', 'deny']).toContain(decision.effect);
       }),
     );
@@ -85,7 +95,7 @@ describe('evaluate (properties)', () => {
   it('is deterministic for identical inputs', () => {
     fc.assert(
       fc.property(query, tuples, namespace, (q, ts, ns) => {
-        const snapshot = { namespace: ns, tuples: TupleIndex.of(orgId, ts) };
+        const snapshot = snapshotOf(ns, ts);
         expect(evaluate(q, snapshot)).toEqual(evaluate(q, snapshot));
       }),
     );
@@ -94,9 +104,7 @@ describe('evaluate (properties)', () => {
   it('denies by default when the snapshot holds no tuples', () => {
     fc.assert(
       fc.property(query, namespace, (q, ns) => {
-        expect(evaluate(q, { namespace: ns, tuples: TupleIndex.of(orgId, []) }).effect).toBe(
-          'deny',
-        );
+        expect(evaluate(q, snapshotOf(ns, [])).effect).toBe('deny');
       }),
     );
   });
@@ -104,7 +112,7 @@ describe('evaluate (properties)', () => {
   it('only permits with a grant derivation path (deny-override structure)', () => {
     fc.assert(
       fc.property(query, tuples, namespace, (q, ts, ns) => {
-        const decision = evaluate(q, { namespace: ns, tuples: TupleIndex.of(orgId, ts) });
+        const decision = evaluate(q, snapshotOf(ns, ts));
         if (decision.effect === 'permit') {
           const [reason] = decision.reasons;
           expect(reason?.code.startsWith('grant.')).toBe(true);
@@ -119,7 +127,7 @@ describe('evaluate (properties)', () => {
     const otherOrg = OrgId.generate();
     fc.assert(
       fc.property(query, tuples, namespace, (q, ts, ns) => {
-        const decision = evaluate(q, { namespace: ns, tuples: TupleIndex.of(otherOrg, ts) });
+        const decision = evaluate(q, snapshotOf(ns, ts, otherOrg));
         expect(decision.effect).toBe('deny');
       }),
     );
@@ -173,7 +181,7 @@ describe('evaluate (properties)', () => {
             action: Action.of('document.act'),
             resource: { type: 'document', id: 'doc' },
           },
-          { namespace: ns, tuples: TupleIndex.of(orgId, graph) },
+          snapshotOf(ns, graph),
         );
         expect(decision.effect).toBe('deny');
       }),
@@ -197,7 +205,7 @@ describe('evaluate (properties)', () => {
           revision: Revision.fromValue(1),
           createdAt: now,
         });
-        const snapshot = { namespace: ns, tuples: TupleIndex.of(orgId, ts) };
+        const snapshot = snapshotOf(ns, ts);
         const permitted = evaluate(q, snapshot).effect === 'permit';
         const inClosure = expand(orgId, q.resource, relation, snapshot).some(
           (ref) => ref.type === q.subject.type && ref.id === q.subject.id,

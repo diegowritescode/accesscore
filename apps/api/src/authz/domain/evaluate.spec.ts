@@ -5,9 +5,11 @@ import { type EntityRef } from './entity-ref';
 import { evaluate, expand, type EvaluationSnapshot } from './evaluate';
 import { NamespaceConfig } from './namespace-config';
 import { NamespaceDefinition } from './namespace-definition';
+import { NamespaceRegistry } from './namespace-registry';
 import { RelationTuple } from './relation-tuple';
 import { type SubjectRef } from './subject-ref';
 import { TupleIndex } from './tuple-index';
+import { type Userset } from './userset';
 
 const orgA = OrgId.generate();
 const orgB = OrgId.generate();
@@ -30,8 +32,9 @@ function def(
   actions: Record<string, string[]>,
   orgId = orgA,
   namespace = 'document',
+  rewrites?: Record<string, Userset>,
 ): NamespaceDefinition {
-  const config = NamespaceConfig.create({ relations, actions });
+  const config = NamespaceConfig.create({ relations, actions, rewrites });
   if (!config.ok) {
     throw new Error(`invalid test config: ${config.error}`);
   }
@@ -64,10 +67,26 @@ const snap = (
   namespace: NamespaceDefinition | null,
   tuples: RelationTuple[],
   orgId = orgA,
-): EvaluationSnapshot => ({ namespace, tuples: TupleIndex.of(orgId, tuples) });
+): EvaluationSnapshot => ({
+  namespaces: NamespaceRegistry.of(namespace ? [namespace] : []),
+  tuples: TupleIndex.of(orgId, tuples),
+});
 
 const readConfig = def(['owner', 'editor', 'viewer'], { read: ['viewer', 'editor', 'owner'] });
 const read = Action.of('document.read');
+
+const aliasConfig = def(['owner', 'editor', 'viewer'], { read: ['viewer'] }, orgA, 'document', {
+  viewer: {
+    kind: 'union',
+    children: [{ kind: 'this' }, { kind: 'computedUserset', relation: 'editor' }],
+  },
+});
+
+const inheritConfig = def(['viewer', 'parent'], { read: ['viewer'] }, orgA, 'document', {
+  viewer: { kind: 'tupleToUserset', tupleset: 'parent', computedUserset: 'viewer' },
+});
+
+const folder: EntityRef = { type: 'folder', id: 'f1' };
 
 describe('evaluate', () => {
   it('permits a direct relationship and explains the derivation', () => {
@@ -100,6 +119,52 @@ describe('evaluate', () => {
       'document:doc-1#editor@group:eng#member',
       'group:eng#member@user:alice',
     ]);
+  });
+
+  it('permits via a computed_userset rewrite (editor implies viewer)', () => {
+    const decision = evaluate(
+      { orgId: orgA, subject: alice, action: read, resource },
+      snap(aliasConfig, [tuple(resource, 'editor', asSubject(alice))]),
+    );
+
+    expect(decision.effect).toBe('permit');
+    const [reason] = decision.reasons;
+    expect(reason?.code).toBe('grant.computed_userset');
+    expect(reason?.relation).toBe('viewer');
+    expect(reason?.path).toEqual(['document:doc-1#editor@user:alice']);
+  });
+
+  it('still permits a direct tuple when the relation also has a computed_userset alias', () => {
+    const decision = evaluate(
+      { orgId: orgA, subject: alice, action: read, resource },
+      snap(aliasConfig, [tuple(resource, 'viewer', asSubject(alice))]),
+    );
+
+    expect(decision.effect).toBe('permit');
+    expect(decision.reasons[0]?.code).toBe('grant.direct');
+  });
+
+  it('denies when a union rewrite has no granting branch', () => {
+    const decision = evaluate(
+      { orgId: orgA, subject: bob, action: read, resource },
+      snap(aliasConfig, [tuple(resource, 'editor', asSubject(alice))]),
+    );
+
+    expect(decision.effect).toBe('deny');
+    expect(decision.reasons[0]?.code).toBe('default_deny');
+  });
+
+  it('does not yet resolve a tuple_to_userset rewrite (deferred to US-4.2)', () => {
+    const decision = evaluate(
+      { orgId: orgA, subject: alice, action: read, resource },
+      snap(inheritConfig, [
+        tuple(resource, 'parent', asSubject(folder)),
+        tuple(folder, 'viewer', asSubject(alice)),
+      ]),
+    );
+
+    expect(decision.effect).toBe('deny');
+    expect(decision.reasons[0]?.code).toBe('default_deny');
   });
 
   it('denies by default when no relationship grants the action', () => {
@@ -245,5 +310,44 @@ describe('expand', () => {
       'permit',
     );
     expect(expand(orgA, resource, 'editor', snapshot)).toContainEqual(alice);
+  });
+
+  it('expands a computed_userset alias to both direct and aliased members', () => {
+    const members = expand(
+      orgA,
+      resource,
+      'viewer',
+      snap(aliasConfig, [
+        tuple(resource, 'viewer', asSubject(bob)),
+        tuple(resource, 'editor', asSubject(alice)),
+      ]),
+    );
+
+    expect(members).toContainEqual(alice);
+    expect(members).toContainEqual(bob);
+    expect(members).toHaveLength(2);
+  });
+
+  it('agrees with a computed_userset permit', () => {
+    const snapshot = snap(aliasConfig, [tuple(resource, 'editor', asSubject(alice))]);
+
+    expect(evaluate({ orgId: orgA, subject: alice, action: read, resource }, snapshot).effect).toBe(
+      'permit',
+    );
+    expect(expand(orgA, resource, 'viewer', snapshot)).toContainEqual(alice);
+  });
+
+  it('does not yet follow a tuple_to_userset rewrite (deferred to US-4.2)', () => {
+    const members = expand(
+      orgA,
+      resource,
+      'viewer',
+      snap(inheritConfig, [
+        tuple(resource, 'parent', asSubject(folder)),
+        tuple(folder, 'viewer', asSubject(alice)),
+      ]),
+    );
+
+    expect(members).toEqual([]);
   });
 });

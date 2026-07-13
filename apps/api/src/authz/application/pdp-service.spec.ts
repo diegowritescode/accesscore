@@ -116,6 +116,43 @@ function aliasNamespaceDef(org = orgId): NamespaceDefinition {
   });
 }
 
+function inheritNamespaceDef(org = orgId): NamespaceDefinition {
+  const config = NamespaceConfig.create({
+    relations: ['viewer', 'parent'],
+    actions: { read: ['viewer'] },
+    rewrites: {
+      viewer: {
+        kind: 'union',
+        children: [
+          { kind: 'this' },
+          { kind: 'tupleToUserset', tupleset: 'parent', computedUserset: 'viewer' },
+        ],
+      },
+    },
+  });
+  if (!config.ok) {
+    throw new Error('invalid config');
+  }
+  return NamespaceDefinition.define({
+    orgId: org,
+    namespace: 'document',
+    config: config.value,
+    revision: Revision.fromValue(1),
+    createdAt: now,
+  });
+}
+
+function objectTuple(object: EntityRef, relation: string, subject: SubjectRef): RelationTuple {
+  return RelationTuple.write({
+    orgId,
+    object,
+    relation,
+    subject,
+    revision: Revision.fromValue(1),
+    createdAt: now,
+  });
+}
+
 function tuple(relation: string, subject: SubjectRef): RelationTuple {
   return RelationTuple.write({
     orgId,
@@ -266,6 +303,23 @@ describe('PdpService', () => {
     const members = await pdp.expand(principal(orgId.value), resource, 'viewer');
 
     expect(members.map((member) => member.id)).toEqual(['alice']);
+  });
+
+  it('resolves a grant through a tuple_to_userset rewrite (loads the parent hop)', async () => {
+    const folder: EntityRef = { type: 'folder', id: 'f1' };
+    const { pdp } = build({
+      definition: inheritNamespaceDef(),
+      tuples: [
+        objectTuple(resource, 'parent', { kind: 'subject', ref: folder }),
+        objectTuple(folder, 'viewer', { kind: 'subject', ref: alice }),
+      ],
+      revision: 8,
+    });
+
+    const decision = await pdp.check(principal(orgId.value), read, resource, fullContext);
+
+    expect(decision.effect).toBe('permit');
+    expect(decision.reasons[0]?.code).toBe('grant.tuple_to_userset');
   });
 
   it('returns one decision per request in a batch and logs each', async () => {

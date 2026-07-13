@@ -85,8 +85,27 @@ function deriveRewrite(
       const sub = derive(object, rewrite.relation, target, snapshot, depth, visited);
       return sub ? { code: 'grant.computed_userset', path: sub.path } : null;
     }
-    case 'tupleToUserset':
+    case 'tupleToUserset': {
+      for (const subject of snapshot.tuples.subjectsOf(object, rewrite.tupleset)) {
+        if (subject.kind === 'subject') {
+          const sub = derive(
+            subject.ref,
+            rewrite.computedUserset,
+            target,
+            snapshot,
+            depth + 1,
+            visited,
+          );
+          if (sub) {
+            return {
+              code: 'grant.tuple_to_userset',
+              path: [tupleKey(object, rewrite.tupleset, subject), ...sub.path],
+            };
+          }
+        }
+      }
       return null;
+    }
     case 'union': {
       for (const child of rewrite.children) {
         const grant = deriveRewrite(object, relation, child, target, snapshot, depth, visited);
@@ -180,8 +199,17 @@ function collectRewrite(
     }
     case 'computedUserset':
       return collectMembers(object, rewrite.relation, snapshot, depth, visited);
-    case 'tupleToUserset':
-      return [];
+    case 'tupleToUserset': {
+      const members: EntityRef[] = [];
+      for (const subject of snapshot.tuples.subjectsOf(object, rewrite.tupleset)) {
+        if (subject.kind === 'subject') {
+          members.push(
+            ...collectMembers(subject.ref, rewrite.computedUserset, snapshot, depth + 1, visited),
+          );
+        }
+      }
+      return members;
+    }
     case 'union':
       return rewrite.children.flatMap((child) =>
         collectRewrite(object, relation, child, snapshot, depth, visited),

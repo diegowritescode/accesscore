@@ -1,7 +1,8 @@
 import { type OrgId } from '../../shared/kernel/org-id';
 import { type Revision } from '../../shared/kernel/revision';
-import { type EntityRef, formatEntityRef } from './entity-ref';
-import { encodeSubject, type SubjectRef } from './subject-ref';
+import { assertWritableEntityRef, type EntityRef, formatEntityRef } from './entity-ref';
+import { isIdentifier } from './identifier';
+import { assertWritableSubject, encodeSubject, type SubjectRef } from './subject-ref';
 
 export interface RelationTupleProps {
   orgId: OrgId;
@@ -18,6 +19,11 @@ export class RelationTuple {
   private constructor(private readonly props: RelationTupleProps) {}
 
   static write(input: WriteRelationTupleInput): RelationTuple {
+    assertWritableEntityRef(input.object);
+    if (!isIdentifier(input.relation)) {
+      throw new Error(`invalid relation: ${input.relation}`);
+    }
+    assertWritableSubject(input.subject);
     return new RelationTuple({ ...input });
   }
 

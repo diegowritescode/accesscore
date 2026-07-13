@@ -46,4 +46,32 @@ describe('RelationTuple', () => {
       }).key(),
     ).toBe('document:doc-1#viewer@group:eng#member');
   });
+
+  it('rejects writing a tuple with unsafe references (delimiter smuggling)', () => {
+    const base = { orgId, relation: 'viewer', revision: Revision.fromValue(1), createdAt };
+
+    expect(() =>
+      RelationTuple.write({ ...base, object: { type: 'not a namespace', id: 'x' }, subject }),
+    ).toThrow();
+    expect(() =>
+      RelationTuple.write({ ...base, object: { type: 'document', id: 'a#b' }, subject }),
+    ).toThrow();
+    expect(() =>
+      RelationTuple.write({
+        ...base,
+        object,
+        subject: { kind: 'subject', ref: { type: 'user', id: 'a@b' } },
+      }),
+    ).toThrow();
+    expect(() =>
+      RelationTuple.write({ ...base, object, relation: 'not a relation', subject }),
+    ).toThrow();
+    expect(() =>
+      RelationTuple.write({
+        ...base,
+        object,
+        subject: { kind: 'userset', ref: { type: 'group', id: 'eng' }, relation: 'bad relation' },
+      }),
+    ).toThrow();
+  });
 });

@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/.nyc_output
+.git
+.github
+.husky
+.changeset
+*.log
+.env
+.env.*
+!.env.example

@@ -2,7 +2,14 @@
   "check-coverage": true,
   "all": false,
   "include": ["src/**/*.ts"],
-  "exclude": ["**/*.spec.ts", "**/*.module.ts", "**/*.dto.ts", "src/main.ts", "src/**/*.d.ts"],
+  "exclude": [
+    "**/*.spec.ts",
+    "**/*.module.ts",
+    "**/*.dto.ts",
+    "src/main.ts",
+    "src/migrate.ts",
+    "src/**/*.d.ts"
+  ],
   "reporter": ["text-summary", "text"],
   "lines": 90,
   "statements": 90,

@@ -212,6 +212,7 @@ pnpm install
 cp .env.example .env
 docker compose up -d            # Postgres 16, Redis 7, Vault 1.18 (dev mode)
 pnpm --filter @accesscore/api db:migrate
+pnpm --filter @accesscore/api seed  # optional: a demo authorization graph to explore (see Demo)
 pnpm --filter @accesscore/api dev   # NestJS API in watch mode on :3000
 ```
 
@@ -230,65 +231,57 @@ pnpm --filter @accesscore/api coverage   # merged unit+integration+e2e coverage 
 Contribution conventions and quality gates are in [`CONTRIBUTING.md`](CONTRIBUTING.md);
 community expectations in [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
 
-## Demo — the PDP over HTTP
+## Demo — the ReBAC engine over HTTP
 
-There is no screenshot yet: the visual **Authorization Playground** ships with the console in
-Slice 7. Until then the flow is exercisable with `curl`. The parts reachable **over HTTP today**
-are register → verify → login → `POST /authz/check`; authoring the authorization graph (org
-membership, namespace configs, relationship tuples) currently goes through the module's internal
-application writers, because the **admin/PAP HTTP API is planned, not shipped**. So a bare-curl
-call returns a `deny` for a principal with no grants — which is the honest, correct default.
+`pnpm --filter @accesscore/api seed` provisions a demo org, a `document` namespace with **userset
+rewrites**, and a relationship graph that exercises all three ReBAC mechanisms, then prints a demo
+login. It is idempotent, so it is safe to re-run.
+
+The seeded graph on `document:onboarding` — one document reachable three different ways:
+
+- **role aliasing** — the demo user is the `owner`; the namespace rewrites `owner ⇒ editor ⇒ viewer`
+  (`computed_userset`), so the owner can `read` without a direct `viewer` tuple.
+- **nested groups** — `user:bob` ∈ `group:eng-leads` ∈ `group:eng`, and `group:eng` is a `viewer` of
+  the document — resolved across two userset levels.
+- **hierarchy** — the document's `parent` is `folder:handbook`, and `user:carol` is a `viewer` of
+  that folder, so she inherits view on the document (`tuple_to_userset`).
 
 ```bash
-API=http://localhost:3000
+API=http://localhost:3000                       # or the live deploy
+pnpm --filter @accesscore/api seed              # local only; prints the demo credentials
 
-# 1. Register (202 Accepted; a verification email is "queued" — in dev the LogMailer only logs it)
-curl -sS -X POST "$API/auth/register" \
-  -H 'content-type: application/json' \
-  -d '{"email":"demo@example.com","password":"correct horse staple"}'
-# -> {"status":"accepted"}
-
-# 2. Verify email. In dev there is no real inbox and the token is not printed; read it from the
-#    DB (or, as the e2e tests do, activate the user directly) until an email transport lands:
-#    docker compose exec postgres psql -U accesscore -d accesscore \
-#      -c "UPDATE users SET status='active', email_verified_at=now() WHERE email='demo@example.com';"
-# (With a real token you would instead: curl -X POST "$API/auth/verify-email" -d '{"token":"<raw>"}')
-
-# 3. Log in -> access + refresh tokens
 TOKEN=$(curl -sS -X POST "$API/auth/login" \
   -H 'content-type: application/json' \
-  -d '{"email":"demo@example.com","password":"correct horse staple"}' | jq -r .access_token)
+  -d '{"email":"demo@accesscore.dev","password":"correct horse battery staple"}' | jq -r .access_token)
 
-# 4. Ask the PDP. With no org membership / tuples yet, the honest answer is a deny.
+# check: the owner can read — resolved through owner -> editor -> viewer
 curl -sS -X POST "$API/authz/check" \
   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-  -d '{"action":"document.read","resource":{"type":"document","id":"doc-1"}}'
-# -> {"effect":"deny","reasons":[{"code":"no_org_context","message":"..."}]}
-#    (or {"code":"default_deny"} once the caller is in an org but holds no matching relation)
+  -d '{"action":"document.read","resource":{"type":"document","id":"onboarding"}}'
+# -> {"effect":"permit","reasons":[{"code":"grant.computed_userset",
+#      "message":"Subject user:<you> holds viewer on document:onboarding."}]}
+
+# expand: who can view this document, resolved across every rewrite?
+curl -sS -X POST "$API/authz/expand" \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"resource":{"type":"document","id":"onboarding"},"relation":"viewer"}'
+# -> {"subjects":[
+#      {"type":"user","id":"bob"},        # nested groups: eng-leads < eng < document viewer
+#      {"type":"user","id":"<you>"},      # role aliasing: owner -> editor -> viewer
+#      {"type":"user","id":"carol"}       # hierarchy: folder:handbook viewer -> document viewer
+#    ]}
 ```
 
-Reaching a **`permit`** requires an org, a namespace, and a relationship tuple. Those are created
-through the internal writers (`TenancyService.provisionPersonalOrganization`,
-`NamespaceConfigWriter.define`, `RelationTupleWriter.write`) — the full end-to-end permit path is
-proven by `apps/api/test/require-permission.e2e-spec.ts`:
+Every `permit` carries its **derivation**: `reasons[].code` names the mechanism (`grant.direct` /
+`grant.userset` / `grant.computed_userset` / `grant.tuple_to_userset`) and, on a `check`,
+`reasons[].path` is the exact chain of tuples that granted it — the explainability that feeds the
+decision log and the future Authorization Playground.
 
-```ts
-await tenancy.provisionPersonalOrganization(userId);
-await configWriter.define({
-  orgId,
-  namespace: 'document',
-  config: { relations: ['viewer'], actions: { read: ['viewer'] } },
-});
-await tupleWriter.write({
-  orgId,
-  object: { type: 'document', id: 'doc-1' },
-  relation: 'viewer',
-  subject: { kind: 'subject', ref: { type: 'user', id: userId.value } },
-});
-// now check(document.read, document:doc-1) -> { effect: 'permit', reasons: [{ code: 'grant.direct', ... }] }
-```
-
-See [`docs/api.md`](docs/api.md) for the full HTTP surface, request/response shapes, and SDK usage.
+You can author the graph yourself over HTTP through the owner-gated **Policy Administration Point**
+(`PUT /authz/namespaces/:ns`, `POST`/`DELETE /authz/tuples`,
+[ADR-014](docs/adr/014-policy-administration-point.md)), and query it with `POST /authz/check`,
+`/authz/expand`, and `/authz/batch-check`. See [`docs/api.md`](docs/api.md) for the full surface and
+SDK usage.
 
 ## License
 

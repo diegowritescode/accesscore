@@ -22,6 +22,15 @@ import {
   type RelationTupleCommand,
   type RelationTupleWriter,
 } from '../application/relation-tuple-writer';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { namespaceDefinitionSchema, openApiSchema } from '../../shared/http/openapi-schema';
 import { type SubjectRef } from '../domain/subject-ref';
 import { PapAdminGuard } from './pap-admin.guard';
 import { defineNamespaceSchema, writeTupleSchema } from './pap.dto';
@@ -41,6 +50,8 @@ const badRequest = (detail?: string): ProblemException =>
 const noActiveOrg = (): ProblemException =>
   new ProblemException({ type: 'about:blank', title: 'No active organization', status: 403 });
 
+@ApiTags('pap')
+@ApiBearerAuth('access-token')
 @Controller('authz')
 @UseGuards(AccessTokenGuard, PapAdminGuard)
 export class PapController {
@@ -51,6 +62,12 @@ export class PapController {
 
   @Post('tuples')
   @HttpCode(200)
+  @ApiOperation({
+    summary: 'Write a relationship tuple',
+    description: 'Owner-gated. Upserts a tuple in the caller org and returns a consistency token.',
+  })
+  @ApiBody({ schema: openApiSchema(writeTupleSchema) })
+  @ApiResponse({ status: 200, description: 'The consistency token after the write.' })
   async writeTuple(
     @AuthToken() token: AuthTokenClaims,
     @Body() body: unknown,
@@ -61,6 +78,12 @@ export class PapController {
 
   @Delete('tuples')
   @HttpCode(200)
+  @ApiOperation({
+    summary: 'Revoke a relationship tuple',
+    description: 'Owner-gated. Deletes a tuple in the caller org and returns a consistency token.',
+  })
+  @ApiBody({ schema: openApiSchema(writeTupleSchema) })
+  @ApiResponse({ status: 200, description: 'The consistency token after the revoke.' })
   async revokeTuple(
     @AuthToken() token: AuthTokenClaims,
     @Body() body: unknown,
@@ -71,6 +94,15 @@ export class PapController {
 
   @Put('namespaces/:namespace')
   @HttpCode(200)
+  @ApiOperation({
+    summary: 'Define a namespace configuration',
+    description:
+      'Owner-gated. Upserts the relations, action bindings, and userset rewrites (this / ' +
+      'computed_userset / tuple_to_userset / union) for a namespace in the caller org.',
+  })
+  @ApiParam({ name: 'namespace', description: 'The namespace (object type) to define.' })
+  @ApiBody({ schema: namespaceDefinitionSchema })
+  @ApiResponse({ status: 200, description: 'The consistency token after the definition.' })
   async defineNamespace(
     @AuthToken() token: AuthTokenClaims,
     @Param('namespace') namespace: string,

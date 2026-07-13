@@ -10,6 +10,8 @@ module.exports = {
     '!main.ts',
     '!migrate.ts',
     '!seed.ts',
+    '!openapi.ts',
+    '!openapi-document.ts',
   ],
   coverageDirectory: '../coverage/unit',
   coverageReporters: ['json'],

@@ -1,5 +1,7 @@
 import { Body, Controller, HttpCode, Inject, Post } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ProblemException } from '../../shared/http/problem-details';
+import { openApiSchema } from '../../shared/http/openapi-schema';
 import { REGISTER_USER_HANDLER, type RegisterUserHandler } from '../application/register-user';
 import {
   REQUEST_PASSWORD_RESET_HANDLER,
@@ -11,6 +13,7 @@ import { forgotPasswordSchema, resetPasswordSchema } from './password-reset.dto'
 import { registerSchema } from './register.dto';
 import { verifyEmailSchema } from './verify-email.dto';
 
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -23,6 +26,8 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(202)
+  @ApiOperation({ summary: 'Register a new account (anti-enumeration; always 202)' })
+  @ApiBody({ schema: openApiSchema(registerSchema) })
   async register(@Body() body: unknown): Promise<{ status: string }> {
     const parsed = registerSchema.safeParse(body);
     if (!parsed.success) {
@@ -48,6 +53,8 @@ export class AuthController {
 
   @Post('verify-email')
   @HttpCode(200)
+  @ApiOperation({ summary: 'Verify an email with a single-use token' })
+  @ApiBody({ schema: openApiSchema(verifyEmailSchema) })
   async verifyEmail(@Body() body: unknown): Promise<{ status: string }> {
     const parsed = verifyEmailSchema.safeParse(body);
     if (!parsed.success) {
@@ -72,6 +79,8 @@ export class AuthController {
 
   @Post('forgot-password')
   @HttpCode(202)
+  @ApiOperation({ summary: 'Request a password reset (anti-enumeration; always 202)' })
+  @ApiBody({ schema: openApiSchema(forgotPasswordSchema) })
   async forgotPassword(@Body() body: unknown): Promise<{ status: string }> {
     const parsed = forgotPasswordSchema.safeParse(body);
     if (!parsed.success) {
@@ -88,6 +97,8 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(200)
+  @ApiOperation({ summary: 'Reset a password with a single-use token' })
+  @ApiBody({ schema: openApiSchema(resetPasswordSchema) })
   async resetPasswordEndpoint(@Body() body: unknown): Promise<{ status: string }> {
     const parsed = resetPasswordSchema.safeParse(body);
     if (!parsed.success) {

@@ -216,7 +216,8 @@ pnpm --filter @accesscore/api seed  # optional: a demo authorization graph to ex
 pnpm --filter @accesscore/api dev   # NestJS API in watch mode on :3000
 ```
 
-Health: `GET /health` (liveness), `GET /ready` (readiness — pings Postgres).
+Health: `GET /health` (liveness), `GET /ready` (readiness — pings Postgres). Interactive API
+reference (Scalar, rendered from the OpenAPI document): `GET /reference`.
 
 Development commands:
 

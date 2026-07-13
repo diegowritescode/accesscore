@@ -11,9 +11,11 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UserId } from '../../shared/kernel/user-id';
 import { ProblemException } from '../../shared/http/problem-details';
+import { openApiSchema } from '../../shared/http/openapi-schema';
 import {
   LIST_SESSIONS_HANDLER,
   type ListSessionsHandler,
@@ -41,6 +43,7 @@ const invalidCredentials = (): ProblemException =>
 const invalidGrant = (): ProblemException =>
   new ProblemException({ type: 'about:blank', title: 'Invalid refresh token', status: 401 });
 
+@ApiTags('auth')
 @Controller('auth')
 export class AuthnController {
   constructor(
@@ -54,6 +57,8 @@ export class AuthnController {
   @Post('login')
   @HttpCode(200)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Log in for an access + refresh token pair' })
+  @ApiBody({ schema: openApiSchema(loginSchema) })
   async loginEndpoint(
     @Body() body: unknown,
     @Headers('user-agent') userAgent: string | undefined,
@@ -80,6 +85,8 @@ export class AuthnController {
   @Post('refresh')
   @HttpCode(200)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Rotate a refresh token (reuse detection revokes the family)' })
+  @ApiBody({ schema: openApiSchema(refreshSchema) })
   async refreshEndpoint(@Body() body: unknown): Promise<TokenResponse> {
     const parsed = refreshSchema.safeParse(body);
     if (!parsed.success) {
@@ -97,6 +104,8 @@ export class AuthnController {
   @Post('logout')
   @HttpCode(204)
   @UseGuards(AccessTokenGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Log out the current session' })
   async logout(@AuthToken() token: AuthTokenClaims): Promise<void> {
     await this.sessions.terminateSession(token.sid);
   }
@@ -104,12 +113,16 @@ export class AuthnController {
   @Post('logout-all')
   @HttpCode(204)
   @UseGuards(AccessTokenGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Log out every session for the user' })
   async logoutAll(@AuthToken() token: AuthTokenClaims): Promise<void> {
     await this.sessions.terminateAllForUser(UserId.fromString(token.sub));
   }
 
   @Get('sessions')
   @UseGuards(AccessTokenGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'List the active sessions/devices for the user' })
   async listUserSessions(
     @AuthToken() token: AuthTokenClaims,
   ): Promise<{ sessions: SessionView[] }> {
@@ -119,6 +132,8 @@ export class AuthnController {
   @Delete('sessions/:id')
   @HttpCode(204)
   @UseGuards(AccessTokenGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Revoke one of the caller own sessions' })
   async revokeUserSession(
     @AuthToken() token: AuthTokenClaims,
     @Param('id') id: string,

@@ -11,7 +11,9 @@
     "!src/**/*.module.ts",
     "!src/main.ts",
     "!src/migrate.ts",
-    "!src/seed.ts"
+    "!src/seed.ts",
+    "!src/openapi.ts",
+    "!src/openapi-document.ts"
   ],
   "coverageDirectory": "coverage/e2e",
   "coverageReporters": ["json"],

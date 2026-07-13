@@ -6,6 +6,8 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { ENV } from './config/env.module';
 import type { Env } from './config/env';
+import { buildOpenApiDocument } from './openapi-document';
+import { mountApiReference } from './openapi';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -13,6 +15,7 @@ async function bootstrap(): Promise<void> {
   app.use(helmet());
   app.useBodyParser('json', { limit: '32kb' });
   app.enableShutdownHooks();
+  mountApiReference(app, buildOpenApiDocument(app));
   const env = app.get<Env>(ENV);
   await app.listen(env.PORT);
   Logger.log(`AccessCore API listening on :${env.PORT}`, 'Bootstrap');

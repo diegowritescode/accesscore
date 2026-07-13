@@ -17,6 +17,8 @@ import {
   POLICY_DECISION_POINT,
   type PolicyDecisionPoint,
 } from '../domain/policy-decision-point';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { openApiSchema } from '../../shared/http/openapi-schema';
 import { batchCheckSchema, type CheckDto, checkSchema, expandSchema } from './check.dto';
 import { PapAdminGuard } from './pap-admin.guard';
 
@@ -40,6 +42,8 @@ const toResponse = (decision: Decision): CheckResponse => ({
   reasons: decision.reasons.map((reason) => ({ code: reason.code, message: reason.message })),
 });
 
+@ApiTags('authz')
+@ApiBearerAuth('access-token')
 @Controller('authz')
 export class AuthzController {
   constructor(
@@ -50,6 +54,16 @@ export class AuthzController {
   @Post('check')
   @HttpCode(200)
   @UseGuards(AccessTokenGuard)
+  @ApiOperation({
+    summary: 'Check one authorization decision',
+    description:
+      'Resolves whether the authenticated principal may perform the action on the resource, ' +
+      'walking the ReBAC graph (direct, computed_userset, tuple_to_userset, nested groups). ' +
+      'Returns permit/deny with explainable reason codes; optionally consistency-gated by a zookie.',
+  })
+  @ApiBody({ schema: openApiSchema(checkSchema) })
+  @ApiResponse({ status: 200, description: 'The decision, with reason codes.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
   async check(
     @AuthToken() token: AuthTokenClaims,
     @Body() body: unknown,
@@ -72,6 +86,14 @@ export class AuthzController {
   @Post('batch-check')
   @HttpCode(200)
   @UseGuards(AccessTokenGuard)
+  @ApiOperation({
+    summary: 'Check many decisions against one snapshot',
+    description:
+      'Evaluates up to 50 queries against a single consistent snapshot in one round-trip, ' +
+      'each gated and logged independently. Results are index-aligned with the request.',
+  })
+  @ApiBody({ schema: openApiSchema(batchCheckSchema) })
+  @ApiResponse({ status: 200, description: 'One decision per query, in order.' })
   async batchCheck(
     @AuthToken() token: AuthTokenClaims,
     @Body() body: unknown,
@@ -93,6 +115,14 @@ export class AuthzController {
   @Post('expand')
   @HttpCode(200)
   @UseGuards(AccessTokenGuard, PapAdminGuard)
+  @ApiOperation({
+    summary: 'Expand a relation to its resolved members',
+    description:
+      'Owner-gated. Returns the full set of subjects that hold the relation on the resource, ' +
+      'resolved across every userset rewrite (role aliasing, nested groups, hierarchy).',
+  })
+  @ApiBody({ schema: openApiSchema(expandSchema) })
+  @ApiResponse({ status: 200, description: 'The resolved subject closure.' })
   async expand(
     @AuthToken() token: AuthTokenClaims,
     @Body() body: unknown,

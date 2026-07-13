@@ -1,5 +1,7 @@
 # Deploying AccessCore on Dokploy
 
+> **Live instance:** [auth.deviego.xyz](https://auth.deviego.xyz), deployed with exactly this recipe.
+
 A concrete recipe for a self-hosted [Dokploy](https://dokploy.com) instance. Four resources in
 one Dokploy **project** (so they share the internal network): managed **Postgres**, managed
 **Redis**, a **Vault** container (internal only), and the **API** built from

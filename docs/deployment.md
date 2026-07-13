@@ -1,9 +1,9 @@
 # AccessCore — Deployment
 
-> **Not yet deployed to a public URL.** AccessCore runs end to end **locally** and in **CI**
-> today; a public deployment is a pending portfolio deliverable. This document describes the
-> target deployment, exactly what boots from a clean clone, and what is still required to go
-> live. No live URL is claimed because none exists yet.
+> **Deployed at [auth.deviego.xyz](https://auth.deviego.xyz)** — a self-hosted
+> [Dokploy](https://dokploy.com) VPS. This document describes the deployment model and what boots
+> from a clean clone; the concrete, reproducible Dokploy recipe is in
+> [`deploy-dokploy.md`](deploy-dokploy.md). Some hardening items remain (see the end of this doc).
 
 ## Runtime dependencies
 

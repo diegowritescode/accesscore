@@ -357,6 +357,106 @@ describe('PdpService', () => {
     expect(log.records).toHaveLength(2);
   });
 
+  it('returns no decisions for an empty batch', async () => {
+    const { pdp } = build({ definition: namespaceDef() });
+
+    expect(await pdp.batchCheck([])).toEqual([]);
+  });
+
+  it('terminates loadClosure on a cyclic group graph and denies', async () => {
+    const g0: EntityRef = { type: 'group', id: 'g0' };
+    const g1: EntityRef = { type: 'group', id: 'g1' };
+    const { pdp } = build({
+      definition: namespaceDef(),
+      tuples: [
+        tuple('viewer', { kind: 'userset', ref: g0, relation: 'member' }),
+        objectTuple(g0, 'member', { kind: 'userset', ref: g1, relation: 'member' }),
+        objectTuple(g1, 'member', { kind: 'userset', ref: g0, relation: 'member' }),
+      ],
+      revision: 4,
+    });
+
+    const decision = await pdp.check(principal(orgId.value), read, resource, fullContext);
+
+    expect(decision.effect).toBe('deny');
+  });
+
+  it('batchCheck reads the revision once and shares the closure across queries', async () => {
+    const tuples = new FakeTuples([tuple('viewer', { kind: 'subject', ref: alice })]);
+    const revisions = new FakeRevisions(5);
+    const currentSpy = jest.spyOn(revisions, 'current');
+    const listSpy = jest.spyOn(tuples, 'listByObject');
+    const log = new RecordingDecisionLog();
+    const pdp = new PdpService(
+      new FakeNamespaces(namespaceDef()),
+      tuples,
+      revisions,
+      log,
+      new ImmediateUnitOfWork(),
+      clock,
+    );
+
+    const decisions = await pdp.batchCheck([
+      { principal: principal(orgId.value), action: read, resource, context: fullContext },
+      { principal: principal(orgId.value), action: read, resource, context: fullContext },
+    ]);
+
+    expect(decisions.map((decision) => decision.effect)).toEqual(['permit', 'permit']);
+    expect(currentSpy).toHaveBeenCalledTimes(1);
+    const viewerLoads = listSpy.mock.calls.filter(
+      ([query]) => query.object.type === 'document' && query.relation === 'viewer',
+    );
+    expect(viewerLoads).toHaveLength(1);
+    expect(log.records).toHaveLength(2);
+  });
+
+  it('batchCheck gates each query on consistency independently', async () => {
+    const { pdp } = build({
+      definition: namespaceDef(),
+      tuples: [tuple('viewer', { kind: 'subject', ref: alice })],
+      revision: 5,
+    });
+    const aheadToken = ConsistencyToken.fromRevision(Revision.fromValue(10)).encode();
+
+    const decisions = await pdp.batchCheck([
+      { principal: principal(orgId.value), action: read, resource, context: fullContext },
+      {
+        principal: principal(orgId.value),
+        action: read,
+        resource,
+        context: { ...fullContext, consistency: { mode: 'at-least', token: aheadToken } },
+      },
+    ]);
+
+    expect(decisions[0]?.effect).toBe('permit');
+    expect(decisions[1]?.effect).toBe('deny');
+    expect(decisions[1]?.reasons[0]?.code).toBe('consistency_unavailable');
+  });
+
+  it('batchCheck yields the same decisions as individual checks', async () => {
+    const bob: EntityRef = { type: 'user', id: 'bob' };
+    const options = {
+      definition: namespaceDef(),
+      tuples: [tuple('viewer', { kind: 'subject', ref: alice })],
+      revision: 5,
+    };
+    const batch = await build(options).pdp.batchCheck([
+      { principal: principal(orgId.value, alice), action: read, resource, context: fullContext },
+      { principal: principal(orgId.value, bob), action: read, resource, context: fullContext },
+    ]);
+    const solo = build(options);
+    const soloAlice = await solo.pdp.check(
+      principal(orgId.value, alice),
+      read,
+      resource,
+      fullContext,
+    );
+    const soloBob = await solo.pdp.check(principal(orgId.value, bob), read, resource, fullContext);
+
+    expect(batch.map((decision) => decision.effect)).toEqual([soloAlice.effect, soloBob.effect]);
+    expect(batch.map((decision) => decision.effect)).toEqual(['permit', 'deny']);
+  });
+
   it('expands the direct members of a relation', async () => {
     const bob: EntityRef = { type: 'user', id: 'bob' };
     const { pdp } = build({

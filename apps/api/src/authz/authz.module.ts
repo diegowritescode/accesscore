@@ -26,6 +26,7 @@ import { DrizzleDecisionLog } from './infrastructure/persistence/drizzle-decisio
 import { DrizzleNamespaceDefinitionsRepository } from './infrastructure/persistence/drizzle-namespace-definitions.repository';
 import { DrizzleRelationTupleStore } from './infrastructure/persistence/drizzle-relation-tuple.store';
 import { AuthzController } from './interface/authz.controller';
+import { PermissionGuard } from './interface/permission.guard';
 
 @Module({
   imports: [AuthnModule],
@@ -33,6 +34,7 @@ import { AuthzController } from './interface/authz.controller';
   providers: [
     { provide: CLOCK, useClass: SystemClock },
     AccessTokenGuard,
+    PermissionGuard,
     {
       provide: RELATION_TUPLE_STORE,
       inject: [DB],

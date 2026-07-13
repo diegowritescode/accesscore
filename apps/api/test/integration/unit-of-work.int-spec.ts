@@ -52,4 +52,14 @@ describe('UnitOfWork + revisions changelog (integration)', () => {
     expect(new Set([a.value, b.value])).toEqual(new Set([1, 2]));
     expect(await count()).toBe(2);
   });
+
+  it('reports the committed high-water mark via current() after concurrent commits', async () => {
+    await Promise.all([
+      uow.withTransaction((tx) => revisions.allocate(tx)),
+      uow.withTransaction((tx) => revisions.allocate(tx)),
+    ]);
+
+    const highWater = await uow.withTransaction((tx) => revisions.current(tx));
+    expect(highWater.value).toBe(2);
+  });
 });

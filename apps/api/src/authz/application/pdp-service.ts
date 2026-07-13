@@ -22,8 +22,6 @@ import { type RelationTupleStore } from '../domain/ports/relation-tuple-store';
 import { type RelationTuple } from '../domain/relation-tuple';
 import { TupleIndex } from '../domain/tuple-index';
 
-export const PDP_SERVICE = Symbol('PDP_SERVICE');
-
 const deny = (code: string, message: string): Decision => ({
   effect: 'deny',
   reasons: [{ code, message }],
@@ -68,7 +66,7 @@ export class PdpService implements PolicyDecisionPoint {
     const result = await this.unitOfWork.withTransaction<EvaluationResult>(
       async (tx) => {
         const revisionUsed = await this.revisions.current(tx);
-        if (requiredRevision && revisionUsed.value < requiredRevision.value) {
+        if (requiredRevision && !revisionUsed.isAtLeast(requiredRevision)) {
           return {
             decision: deny(
               'consistency_unavailable',

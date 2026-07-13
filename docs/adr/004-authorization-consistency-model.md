@@ -21,8 +21,13 @@ The mechanism below fixes that.
   policies, **and** namespace configs — advance a single global revision whose order equals
   **commit** order. Mechanism: writes record into a `revisions` changelog under a
   **transaction-scoped advisory lock**, so revision assignment is serialized and its order
-  matches commit order. We do **not** read "latest" as `max(revision)`. (Throughput-bounded but
-  correct at this scale — a documented trade-off; commit-timestamp/`xmin` snapshotting is the
+  matches commit order. The lock is held **until the writing transaction commits**, so a higher
+  revision can never become visible while a lower one is still uncommitted — which is precisely
+  what makes reading the committed high-water mark as `max(revision)` **safe here** (the
+  naive-sequence hazard above applies only _without_ this lock). The advisory lock is therefore
+  **load-bearing**: dropping it would reintroduce the allocation-vs-commit gap. A read that needs
+  "at least as fresh as revision R" verifies the committed high-water mark ≥ R. (Throughput-bounded
+  but correct at this scale — a documented trade-off; commit-timestamp/`xmin` snapshotting is the
   escape hatch if the lock ever becomes a bottleneck.)
 - **Consistency tokens ("zookies").** A write returns the new revision. `check()` accepts a
   token meaning **"evaluate against data at least as fresh as this revision."**
@@ -56,7 +61,9 @@ The mechanism below fixes that.
 
 ## Alternatives considered
 
-- **Sequence `max(revision)`** — rejected: allocation order ≠ commit order (the original bug).
+- **A bare sequence read as `max(revision)`** (without the advisory lock) — rejected: allocation
+  order ≠ commit order (the original bug). Note the accepted design still reads `max(revision)`,
+  but only because the transaction-scoped advisory lock makes allocation order equal commit order.
 - **Always fully consistent, no caching** — rejected: the PDP is on every request's hot path.
 - **Commit-timestamp / `xmin` snapshotting** — viable and more concurrent; kept as the escape
   hatch if the advisory-lock throughput ceiling is hit.

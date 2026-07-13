@@ -1,5 +1,13 @@
 # AccessCore — Architecture
 
+> **Implementation status.** This document describes the **target architecture**. Shipped today
+> (Slices 0–3): `identity`, `authn` (tokens/JWKS/sessions/revocation), `tenancy`, and the **authz
+> PDP v1** — relationship-tuple store, namespace + action→relation config, the pure evaluator +
+> `expand`, the async-orchestrated `check` with a consistency token, a **synchronous** decision
+> log, and the `@RequirePermission` PEP. **Not yet built** (planned in later slices/rings and
+> flagged inline below): the outbox **relay/publisher**, OpenTelemetry, ABAC conditions &
+> `forbid`s, the PAP HTTP API, MFA/OIDC/federation, and the admin console.
+
 ## Architectural style
 
 Modular monolith with **Hexagonal / Ports & Adapters** and **DDD tactical patterns**. One
@@ -149,9 +157,11 @@ ADRs:
   context-dependent decisions not cached by relation alone.
 - **Tenancy** ([ADR-007](adr/007-tenancy-model.md)) — global identity + per-org membership;
   `orgId` enforced at every traversal hop.
-- **UnitOfWork port** — Drizzle's `tx` never leaks into application ports; **async decision
-  logging** off the hot path; an explicit **credential port** between `identity` and `authn`.
+- **UnitOfWork port** — Drizzle's `tx` never leaks into application ports; an explicit
+  **credential port** between `identity` and `authn`. _(v1 writes the decision log **synchronously**
+  after the read transaction; moving it off the hot path via the outbox relay is planned.)_
 - **Keys** ([ADR-009](adr/009-key-management-and-cryptography.md)) — `Signer`/`KeyStore` port;
   non-exportable KMS/HSM signing (Vault Transit reference), envelope encryption, dual-control on
   privileged ops.
-- **Outbox relay** — `FOR UPDATE SKIP LOCKED` + idempotent consumers.
+- **Outbox relay** _(planned)_ — the write-side outbox exists; the relay/publisher
+  (`FOR UPDATE SKIP LOCKED` + idempotent consumers) lands with EventBridge (spine phase 3).

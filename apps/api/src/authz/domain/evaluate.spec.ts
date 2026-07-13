@@ -202,6 +202,28 @@ describe('evaluate', () => {
     expect(decision.effect).toBe('deny');
   });
 
+  it('fails closed (documented) when a diamond visits a node deep-first before a shallow path', () => {
+    const grp = (id: string): EntityRef => ({ type: 'group', id });
+    const member = (id: string): SubjectRef => userset(grp(id), 'member');
+    const tuples: RelationTuple[] = [tuple(resource, 'viewer', member('A0'))];
+    for (let i = 0; i < 8; i += 1) {
+      tuples.push(tuple(grp(`A${i}`), 'member', member(`A${i + 1}`)));
+    }
+    tuples.push(tuple(grp('A8'), 'member', member('X')));
+    tuples.push(tuple(grp('X'), 'member', member('Y')));
+    tuples.push(tuple(grp('Y'), 'member', asSubject(alice)));
+    tuples.push(tuple(resource, 'viewer', member('B0')));
+    tuples.push(tuple(grp('B0'), 'member', member('X')));
+
+    const decision = evaluate(
+      { orgId: orgA, subject: alice, action: read, resource },
+      snap(readConfig, tuples),
+    );
+
+    expect(decision.effect).toBe('deny');
+    expect(decision.reasons.map((reason) => reason.code)).toContain('walk_truncated');
+  });
+
   it('denies by default when no relationship grants the action', () => {
     const decision = evaluate(
       { orgId: orgA, subject: alice, action: read, resource },

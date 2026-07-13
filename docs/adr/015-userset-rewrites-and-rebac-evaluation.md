@@ -373,6 +373,15 @@ did not give.
   (Alternative below explains why we still prefer this).
 - **Deep legitimate hierarchies fail-closed at the cap.** Above 10 combined hops a grant is denied;
   mitigated by the generous cap and the advisory `walk_truncated` reason for observability.
+- **Shared-visited pruning can miss a grant on a depth-diamond (fail-closed).** The traversal's
+  `visited` set is shared across `union` branches and never cleared. A node first reached deep
+  (truncating its subtree at the cap) and later reachable by a shallower path is pruned on the
+  shallow visit, so a grant the shallow path still had depth budget to prove is missed — a
+  false-negative → deny. It is safe (it can only ever deny, never permit), requires a ≥10-deep
+  diamond no realistic namespace approaches, and is already surfaced by `walk_truncated`. We keep
+  the O(nodes) global `visited` (path-scoped detection risks exponential re-exploration, and a
+  depth-aware fix would also have to span the closure loader) and pin the boundary with a
+  regression test rather than build a memoizer nothing will trigger.
 - **`tupleToUserset.computedUserset` is unvalidated at write time** (cross-namespace); a typo
   silently yields no grant, discoverable only at eval/test time or via the future analyzer/playground
   — until the namespace-set validator (Slice 7) lands.

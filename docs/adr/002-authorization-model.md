@@ -3,6 +3,11 @@
 - **Status:** Accepted (2026-07-11)
 - **Date:** 2026-07-11
 - **This is the defining decision of AccessCore.**
+- **Delivery:** the ReBAC core + the RBAC-over-ReBAC unification shipped in Slices 3-4
+  ([ADR-011](011-pdp-core-location.md)/[ADR-012](012-pdp-evaluation-algorithm.md)/[ADR-015](015-userset-rewrites-and-rebac-evaluation.md));
+  the ABAC layer (policy-DSL conditions, deny-override, permission boundaries, org guardrails) is
+  scheduled for Slice 5. This ADR describes the target engine; `docs/architecture.md` tracks the
+  per-slice status.
 
 ## Context
 

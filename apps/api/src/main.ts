@@ -9,6 +9,7 @@ import type { Env } from './config/env';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.set('trust proxy', 1);
   app.use(helmet());
   app.useBodyParser('json', { limit: '32kb' });
   app.enableShutdownHooks();

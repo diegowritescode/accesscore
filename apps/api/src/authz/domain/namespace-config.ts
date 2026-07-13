@@ -11,7 +11,10 @@ export type NamespaceConfigError =
   | 'unknown_relation'
   | 'unknown_rewrite_relation'
   | 'invalid_rewrite'
+  | 'rewrite_too_deep'
   | 'cyclic_computed_userset';
+
+const MAX_REWRITE_DEPTH = 32;
 
 export interface NamespaceConfigData {
   relations: string[];
@@ -22,7 +25,11 @@ export interface NamespaceConfigData {
 function validateUserset(
   node: Userset,
   relations: ReadonlySet<string>,
+  depth = 0,
 ): Result<void, NamespaceConfigError> {
+  if (depth > MAX_REWRITE_DEPTH) {
+    return err('rewrite_too_deep');
+  }
   switch (node.kind) {
     case 'this':
       return ok(undefined);
@@ -39,7 +46,7 @@ function validateUserset(
     case 'union':
       if (node.children.length === 0) return err('invalid_rewrite');
       for (const child of node.children) {
-        const result = validateUserset(child, relations);
+        const result = validateUserset(child, relations, depth + 1);
         if (!result.ok) return result;
       }
       return ok(undefined);

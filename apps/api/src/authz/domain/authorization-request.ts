@@ -1,15 +1,13 @@
 import { type EntityRef } from './entity-ref';
 
+export { Action } from './action';
+
 export interface Principal {
   readonly subject: EntityRef;
   readonly orgId: string | null;
   readonly assuranceLevel: number;
   readonly sessionId: string;
   readonly authenticatedAt: Date;
-}
-
-export interface Action {
-  readonly name: string;
 }
 
 export type Resource = EntityRef;

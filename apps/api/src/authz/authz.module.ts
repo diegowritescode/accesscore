@@ -7,10 +7,19 @@ import {
   type RevisionsRepository,
 } from '../shared/persistence/revisions-repository';
 import { UNIT_OF_WORK, type UnitOfWork } from '../shared/persistence/unit-of-work';
+import {
+  NAMESPACE_CONFIG_WRITER,
+  NamespaceConfigWriter,
+} from './application/namespace-config-writer';
 import { RELATION_TUPLE_WRITER, RelationTupleWriter } from './application/relation-tuple-writer';
 import { DefaultDenyPolicyDecisionPoint } from './domain/default-deny-pdp';
 import { POLICY_DECISION_POINT } from './domain/policy-decision-point';
+import {
+  NAMESPACE_DEFINITIONS_REPOSITORY,
+  type NamespaceDefinitionsRepository,
+} from './domain/ports/namespace-definitions-repository';
 import { RELATION_TUPLE_STORE, type RelationTupleStore } from './domain/ports/relation-tuple-store';
+import { DrizzleNamespaceDefinitionsRepository } from './infrastructure/persistence/drizzle-namespace-definitions.repository';
 import { DrizzleRelationTupleStore } from './infrastructure/persistence/drizzle-relation-tuple.store';
 
 @Module({
@@ -32,7 +41,30 @@ import { DrizzleRelationTupleStore } from './infrastructure/persistence/drizzle-
         clock: Clock,
       ): RelationTupleWriter => new RelationTupleWriter(tuples, revisions, unitOfWork, clock),
     },
+    {
+      provide: NAMESPACE_DEFINITIONS_REPOSITORY,
+      inject: [DB],
+      useFactory: (db: Database): DrizzleNamespaceDefinitionsRepository =>
+        new DrizzleNamespaceDefinitionsRepository(db),
+    },
+    {
+      provide: NAMESPACE_CONFIG_WRITER,
+      inject: [NAMESPACE_DEFINITIONS_REPOSITORY, REVISIONS_REPOSITORY, UNIT_OF_WORK, CLOCK],
+      useFactory: (
+        definitions: NamespaceDefinitionsRepository,
+        revisions: RevisionsRepository,
+        unitOfWork: UnitOfWork,
+        clock: Clock,
+      ): NamespaceConfigWriter =>
+        new NamespaceConfigWriter(definitions, revisions, unitOfWork, clock),
+    },
   ],
-  exports: [POLICY_DECISION_POINT, RELATION_TUPLE_STORE, RELATION_TUPLE_WRITER],
+  exports: [
+    POLICY_DECISION_POINT,
+    RELATION_TUPLE_STORE,
+    RELATION_TUPLE_WRITER,
+    NAMESPACE_DEFINITIONS_REPOSITORY,
+    NAMESPACE_CONFIG_WRITER,
+  ],
 })
 export class AuthzModule {}

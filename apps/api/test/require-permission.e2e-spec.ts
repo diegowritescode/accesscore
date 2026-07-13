@@ -14,6 +14,7 @@ import { OrgId } from '../src/shared/kernel/org-id';
 import { UserId } from '../src/shared/kernel/user-id';
 import { TENANCY_SERVICE, type TenancyService } from '../src/tenancy/application/tenancy-service';
 import { AppModule } from '../src/app.module';
+import { ProtectedResourceFixtureModule } from './support/protected-resource.fixture';
 
 const DATABASE_URL =
   process.env.DATABASE_URL ?? 'postgres://accesscore:accesscore@localhost:5432/accesscore';
@@ -34,7 +35,9 @@ describe('@RequirePermission PEP (e2e)', () => {
   beforeAll(async () => {
     process.env.DATABASE_URL ??= DATABASE_URL;
     process.env.SIGNER_DRIVER = 'software';
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule, ProtectedResourceFixtureModule],
+    }).compile();
     app = moduleRef.createNestApplication();
     await app.init();
     tenancy = app.get<TenancyService>(TENANCY_SERVICE, { strict: false });
@@ -85,7 +88,7 @@ describe('@RequirePermission PEP (e2e)', () => {
   };
 
   it('rejects an unauthenticated request with 401', async () => {
-    await request(server()).get('/authz/documents/doc-1').expect(401);
+    await request(server()).get('/example/documents/doc-1').expect(401);
   });
 
   it('forbids (403) a caller lacking the required relation and logs the decision', async () => {
@@ -93,7 +96,7 @@ describe('@RequirePermission PEP (e2e)', () => {
     await defineDocumentNamespace(orgId);
 
     await request(server())
-      .get('/authz/documents/doc-1')
+      .get('/example/documents/doc-1')
       .set('Authorization', `Bearer ${token}`)
       .expect(403);
 
@@ -112,7 +115,7 @@ describe('@RequirePermission PEP (e2e)', () => {
     });
 
     const response = await request(server())
-      .get('/authz/documents/doc-1')
+      .get('/example/documents/doc-1')
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
 

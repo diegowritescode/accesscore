@@ -1,15 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  Inject,
-  Ip,
-  Param,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, HttpCode, Inject, Ip, Post, UseGuards } from '@nestjs/common';
 import { AccessTokenGuard, type AuthTokenClaims } from '../../authn/interface/access-token.guard';
 import { AuthToken } from '../../authn/interface/auth-token.decorator';
 import { ProblemException } from '../../shared/http/problem-details';
@@ -19,7 +9,6 @@ import { type ConsistencyRequirement, type Principal } from '../domain/authoriza
 import { ConsistencyToken } from '../domain/consistency-token';
 import { POLICY_DECISION_POINT, type PolicyDecisionPoint } from '../domain/policy-decision-point';
 import { checkSchema } from './check.dto';
-import { RequirePermission, resourceFromParam } from './require-permission.decorator';
 
 interface CheckResponse {
   effect: string;
@@ -82,11 +71,5 @@ export class AuthzController {
       effect: decision.effect,
       reasons: decision.reasons.map((reason) => ({ code: reason.code, message: reason.message })),
     };
-  }
-
-  @Get('documents/:id')
-  @RequirePermission('document.read', resourceFromParam('document', 'id'))
-  readDocument(@Param('id') id: string): { document: { id: string } } {
-    return { document: { id } };
   }
 }

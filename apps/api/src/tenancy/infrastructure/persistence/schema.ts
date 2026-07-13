@@ -20,6 +20,7 @@ export const memberships = pgTable(
       .notNull()
       .references(() => organizations.id),
     status: text('status').notNull().default('active'),
+    role: text('role').notNull().default('member'),
     joinedAt: timestamp('joined_at', { withTimezone: true }).notNull(),
   },
   (table) => [

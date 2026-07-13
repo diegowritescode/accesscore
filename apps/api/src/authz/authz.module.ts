@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthnModule } from '../authn/authn.module';
 import { AccessTokenGuard } from '../authn/interface/access-token.guard';
+import { TenancyModule } from '../tenancy/tenancy.module';
 import { DB, type Database } from '../db/db.module';
 import { CLOCK, type Clock } from '../shared/kernel/clock';
 import { SystemClock } from '../shared/kernel/system-clock';
@@ -26,15 +27,18 @@ import { DrizzleDecisionLog } from './infrastructure/persistence/drizzle-decisio
 import { DrizzleNamespaceDefinitionsRepository } from './infrastructure/persistence/drizzle-namespace-definitions.repository';
 import { DrizzleRelationTupleStore } from './infrastructure/persistence/drizzle-relation-tuple.store';
 import { AuthzController } from './interface/authz.controller';
+import { PapAdminGuard } from './interface/pap-admin.guard';
+import { PapController } from './interface/pap.controller';
 import { PermissionGuard } from './interface/permission.guard';
 
 @Module({
-  imports: [AuthnModule],
-  controllers: [AuthzController],
+  imports: [AuthnModule, TenancyModule],
+  controllers: [AuthzController, PapController],
   providers: [
     { provide: CLOCK, useClass: SystemClock },
     AccessTokenGuard,
     PermissionGuard,
+    PapAdminGuard,
     {
       provide: RELATION_TUPLE_STORE,
       inject: [DB],

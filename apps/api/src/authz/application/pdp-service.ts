@@ -13,9 +13,8 @@ import {
 import { ConsistencyToken } from '../domain/consistency-token';
 import { type Decision } from '../domain/decision';
 import { type EntityRef, formatEntityRef } from '../domain/entity-ref';
-import { evaluate, type EvaluationSnapshot } from '../domain/evaluate';
-import { type NamespaceDefinition } from '../domain/namespace-definition';
-import { type PolicyDecisionPoint } from '../domain/policy-decision-point';
+import { evaluate, expand as expandMembers, type EvaluationSnapshot } from '../domain/evaluate';
+import { type BatchCheckRequest, type PolicyDecisionPoint } from '../domain/policy-decision-point';
 import { type DecisionLog } from '../domain/ports/decision-log';
 import { type NamespaceDefinitionsRepository } from '../domain/ports/namespace-definitions-repository';
 import { type RelationTupleStore } from '../domain/ports/relation-tuple-store';
@@ -76,7 +75,8 @@ export class PdpService implements PolicyDecisionPoint {
           };
         }
         const namespace = await this.namespaces.findByNamespace(orgId, resource.type, tx);
-        const tuples = await this.loadTuples(orgId, resource, action, namespace, tx);
+        const relations = namespace ? namespace.requiredRelationsFor(action) : [];
+        const tuples = await this.loadClosure(orgId, resource, relations, tx);
         const snapshot: EvaluationSnapshot = { namespace, tuples: TupleIndex.of(orgId, tuples) };
         return {
           decision: evaluate({ orgId, subject: principal.subject, action, resource }, snapshot),
@@ -89,18 +89,40 @@ export class PdpService implements PolicyDecisionPoint {
     return this.log(startedAt, orgId, principal, action, resource, result);
   }
 
-  private async loadTuples(
-    orgId: OrgId,
-    resource: Resource,
-    action: Action,
-    namespace: NamespaceDefinition | null,
-    tx: Tx,
-  ): Promise<RelationTuple[]> {
-    if (!namespace) {
+  batchCheck(requests: readonly BatchCheckRequest[]): Promise<Decision[]> {
+    return Promise.all(
+      requests.map((request) =>
+        this.check(request.principal, request.action, request.resource, request.context),
+      ),
+    );
+  }
+
+  async expand(principal: Principal, resource: Resource, relation: string): Promise<EntityRef[]> {
+    if (!principal.orgId) {
       return [];
     }
+    const orgId = OrgId.fromString(principal.orgId);
+    return this.unitOfWork.withTransaction<EntityRef[]>(
+      async (tx) => {
+        const tuples = await this.loadClosure(orgId, resource, [relation], tx);
+        const snapshot: EvaluationSnapshot = {
+          namespace: null,
+          tuples: TupleIndex.of(orgId, tuples),
+        };
+        return expandMembers(orgId, resource, relation, snapshot);
+      },
+      { readOnly: true, isolationLevel: 'repeatable read' },
+    );
+  }
+
+  private async loadClosure(
+    orgId: OrgId,
+    resource: Resource,
+    relations: readonly string[],
+    tx: Tx,
+  ): Promise<RelationTuple[]> {
     const resourceTuples: RelationTuple[] = [];
-    for (const relation of namespace.requiredRelationsFor(action)) {
+    for (const relation of relations) {
       resourceTuples.push(
         ...(await this.tuples.listByObject({ orgId, object: resource, relation }, tx)),
       );

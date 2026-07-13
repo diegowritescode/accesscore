@@ -60,16 +60,32 @@ export class AuthzController {
       sessionId: token.sid,
     };
 
-    const decision = await this.pdp.check(
-      principal,
-      action.value,
-      { type: parsed.data.resource.type, id: parsed.data.resource.id },
-      { ip: ip || 'unknown', requestId: randomUUID(), requestedAt: this.clock.now(), consistency },
-    );
+    try {
+      const decision = await this.pdp.check(
+        principal,
+        action.value,
+        { type: parsed.data.resource.type, id: parsed.data.resource.id },
+        {
+          ip: ip || 'unknown',
+          requestId: randomUUID(),
+          requestedAt: this.clock.now(),
+          consistency,
+        },
+      );
 
-    return {
-      effect: decision.effect,
-      reasons: decision.reasons.map((reason) => ({ code: reason.code, message: reason.message })),
-    };
+      return {
+        effect: decision.effect,
+        reasons: decision.reasons.map((reason) => ({
+          code: reason.code,
+          message: reason.message,
+        })),
+      };
+    } catch {
+      throw new ProblemException({
+        type: 'about:blank',
+        title: 'Authorization service unavailable',
+        status: 503,
+      });
+    }
   }
 }

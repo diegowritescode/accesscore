@@ -19,6 +19,7 @@ import {
   type EvaluationSnapshot,
   MAX_USERSET_DEPTH,
 } from '../domain/evaluate';
+import { type NamespaceDefinition } from '../domain/namespace-definition';
 import { NamespaceRegistry } from '../domain/namespace-registry';
 import { type BatchCheckRequest, type PolicyDecisionPoint } from '../domain/policy-decision-point';
 import { type DecisionLog } from '../domain/ports/decision-log';
@@ -38,6 +39,13 @@ interface EvaluationResult {
   readonly revisionUsed: Revision;
 }
 
+interface EvaluationContext {
+  readonly tx: Tx;
+  readonly revisionUsed: Revision;
+  readonly namespaces: Map<string, NamespaceDefinition | null>;
+  readonly tuples: Map<string, RelationTuple[]>;
+}
+
 export class PdpService implements PolicyDecisionPoint {
   constructor(
     private readonly namespaces: NamespaceDefinitionsRepository,
@@ -55,55 +63,55 @@ export class PdpService implements PolicyDecisionPoint {
     context: RequestContext,
   ): Promise<Decision> {
     const startedAt = this.clock.now();
-
-    if (!principal.orgId) {
-      return this.log(startedAt, null, principal, action, resource, {
-        decision: deny('no_org_context', 'The principal is not scoped to an organization.'),
-        revisionUsed: Revision.fromValue(0),
-      });
-    }
-
-    const orgId = OrgId.fromString(principal.orgId);
-    const requiredRevision =
-      context.consistency.mode === 'at-least'
-        ? ConsistencyToken.decode(context.consistency.token).revision
-        : null;
-
+    const orgId = principal.orgId ? OrgId.fromString(principal.orgId) : null;
     const result = await this.unitOfWork.withTransaction<EvaluationResult>(
+      async (tx) =>
+        this.evaluateWithin(principal, action, resource, context, await this.openContext(tx)),
+      { readOnly: true, isolationLevel: 'repeatable read' },
+    );
+    return this.log(startedAt, orgId, principal, action, resource, result);
+  }
+
+  async batchCheck(requests: readonly BatchCheckRequest[]): Promise<Decision[]> {
+    if (requests.length === 0) {
+      return [];
+    }
+    const evaluated = await this.unitOfWork.withTransaction(
       async (tx) => {
-        const revisionUsed = await this.revisions.current(tx);
-        if (requiredRevision && !revisionUsed.isAtLeast(requiredRevision)) {
-          return {
-            decision: deny(
-              'consistency_unavailable',
-              'The store has not caught up to the requested consistency token.',
-            ),
-            revisionUsed,
-          };
+        const context = await this.openContext(tx);
+        const pending: Array<{
+          startedAt: Date;
+          orgId: OrgId | null;
+          request: BatchCheckRequest;
+          result: EvaluationResult;
+        }> = [];
+        for (const request of requests) {
+          const startedAt = this.clock.now();
+          const orgId = request.principal.orgId ? OrgId.fromString(request.principal.orgId) : null;
+          const result = await this.evaluateWithin(
+            request.principal,
+            request.action,
+            request.resource,
+            request.context,
+            context,
+          );
+          pending.push({ startedAt, orgId, request, result });
         }
-        const namespace = await this.namespaces.findByNamespace(orgId, resource.type, tx);
-        const registry = NamespaceRegistry.of(namespace ? [namespace] : []);
-        const relations = namespace ? namespace.requiredRelationsFor(action) : [];
-        const tuples = await this.loadClosure(orgId, resource, relations, registry, tx);
-        const snapshot: EvaluationSnapshot = {
-          namespaces: registry,
-          tuples: TupleIndex.of(orgId, tuples),
-        };
-        return {
-          decision: evaluate({ orgId, subject: principal.subject, action, resource }, snapshot),
-          revisionUsed,
-        };
+        return pending;
       },
       { readOnly: true, isolationLevel: 'repeatable read' },
     );
 
-    return this.log(startedAt, orgId, principal, action, resource, result);
-  }
-
-  batchCheck(requests: readonly BatchCheckRequest[]): Promise<Decision[]> {
     return Promise.all(
-      requests.map((request) =>
-        this.check(request.principal, request.action, request.resource, request.context),
+      evaluated.map((entry) =>
+        this.log(
+          entry.startedAt,
+          entry.orgId,
+          entry.request.principal,
+          entry.request.action,
+          entry.request.resource,
+          entry.result,
+        ),
       ),
     );
   }
@@ -115,9 +123,10 @@ export class PdpService implements PolicyDecisionPoint {
     const orgId = OrgId.fromString(principal.orgId);
     return this.unitOfWork.withTransaction<EntityRef[]>(
       async (tx) => {
-        const namespace = await this.namespaces.findByNamespace(orgId, resource.type, tx);
+        const context = await this.openContext(tx);
+        const namespace = await this.cachedNamespace(orgId, resource.type, context);
         const registry = NamespaceRegistry.of(namespace ? [namespace] : []);
-        const tuples = await this.loadClosure(orgId, resource, [relation], registry, tx);
+        const tuples = await this.loadClosure(orgId, resource, [relation], registry, context);
         const snapshot: EvaluationSnapshot = {
           namespaces: registry,
           tuples: TupleIndex.of(orgId, tuples),
@@ -128,24 +137,94 @@ export class PdpService implements PolicyDecisionPoint {
     );
   }
 
+  private async openContext(tx: Tx): Promise<EvaluationContext> {
+    return {
+      tx,
+      revisionUsed: await this.revisions.current(tx),
+      namespaces: new Map<string, NamespaceDefinition | null>(),
+      tuples: new Map<string, RelationTuple[]>(),
+    };
+  }
+
+  private async evaluateWithin(
+    principal: Principal,
+    action: Action,
+    resource: Resource,
+    request: RequestContext,
+    context: EvaluationContext,
+  ): Promise<EvaluationResult> {
+    if (!principal.orgId) {
+      return {
+        decision: deny('no_org_context', 'The principal is not scoped to an organization.'),
+        revisionUsed: Revision.fromValue(0),
+      };
+    }
+    const requiredRevision =
+      request.consistency.mode === 'at-least'
+        ? ConsistencyToken.decode(request.consistency.token).revision
+        : null;
+    if (requiredRevision && !context.revisionUsed.isAtLeast(requiredRevision)) {
+      return {
+        decision: deny(
+          'consistency_unavailable',
+          'The store has not caught up to the requested consistency token.',
+        ),
+        revisionUsed: context.revisionUsed,
+      };
+    }
+    const orgId = OrgId.fromString(principal.orgId);
+    const namespace = await this.cachedNamespace(orgId, resource.type, context);
+    const registry = NamespaceRegistry.of(namespace ? [namespace] : []);
+    const relations = namespace ? namespace.requiredRelationsFor(action) : [];
+    const tuples = await this.loadClosure(orgId, resource, relations, registry, context);
+    const snapshot: EvaluationSnapshot = {
+      namespaces: registry,
+      tuples: TupleIndex.of(orgId, tuples),
+    };
+    return {
+      decision: evaluate({ orgId, subject: principal.subject, action, resource }, snapshot),
+      revisionUsed: context.revisionUsed,
+    };
+  }
+
+  private async cachedNamespace(
+    orgId: OrgId,
+    type: string,
+    context: EvaluationContext,
+  ): Promise<NamespaceDefinition | null> {
+    const key = `${orgId.value}:${type}`;
+    const cached = context.namespaces.get(key);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const namespace = await this.namespaces.findByNamespace(orgId, type, context.tx);
+    context.namespaces.set(key, namespace);
+    return namespace;
+  }
+
   private async loadClosure(
     orgId: OrgId,
     resource: Resource,
     relations: readonly string[],
     registry: NamespaceRegistry,
-    tx: Tx,
+    context: EvaluationContext,
   ): Promise<RelationTuple[]> {
-    const rows = new Map<string, RelationTuple[]>();
+    const local = new Map<string, RelationTuple[]>();
     const walked = new Set<string>();
 
     const rowsOf = async (object: EntityRef, relation: string): Promise<RelationTuple[]> => {
-      const key = `${formatEntityRef(object)}#${relation}`;
-      const cached = rows.get(key);
-      if (cached) {
-        return cached;
+      const node = `${formatEntityRef(object)}#${relation}`;
+      const localHit = local.get(node);
+      if (localHit) {
+        return localHit;
       }
-      const loaded = await this.tuples.listByObject({ orgId, object, relation }, tx);
-      rows.set(key, loaded);
+      const cacheKey = `${orgId.value}:${node}`;
+      let loaded = context.tuples.get(cacheKey);
+      if (!loaded) {
+        loaded = await this.tuples.listByObject({ orgId, object, relation }, context.tx);
+        context.tuples.set(cacheKey, loaded);
+      }
+      local.set(node, loaded);
       return loaded;
     };
 
@@ -194,7 +273,7 @@ export class PdpService implements PolicyDecisionPoint {
     for (const relation of relations) {
       await walk(resource, relation, 0);
     }
-    return [...rows.values()].flat();
+    return [...local.values()].flat();
   }
 
   private async log(

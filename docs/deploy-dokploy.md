@@ -61,6 +61,12 @@ VAULT_TOKEN = <the VAULT_DEV_ROOT_TOKEN_ID you set>
 > (they live ~15 min anyway). This is fine for a portfolio deployment. A hardened setup would run
 > a **sealed, persistent** Vault (raft storage + unseal) — more operational overhead.
 
+> **Least-privilege token (optional hardening).** The API auto-provisions the transit engine and
+> signing key on first sign, which needs a privileged token — hence the root token above. For a
+> stricter posture, mount `transit` and create the signing key out-of-band once, then run the API
+> with a `VAULT_TOKEN` bound to a Transit-only policy (`sign`/`verify`/`rotate` on the key; no
+> `sys/mounts`) so the running process is not a Vault admin.
+
 ## 5. API (from this repo, public + TLS)
 
 **Applications → Create → GitHub**, repo `diegowritescode/accesscore`, branch `main`.

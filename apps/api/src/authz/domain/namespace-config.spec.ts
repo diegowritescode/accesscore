@@ -132,6 +132,21 @@ describe('NamespaceConfig', () => {
     expect(result.error).toBe(expected);
   });
 
+  it('rejects a rewrite tree nested beyond the depth cap', () => {
+    let tree: Userset = { kind: 'this' };
+    for (let i = 0; i < 40; i += 1) {
+      tree = { kind: 'union', children: [tree] };
+    }
+    const result = NamespaceConfig.create({
+      relations: ['viewer'],
+      actions: {},
+      rewrites: { viewer: tree },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe('rewrite_too_deep');
+  });
+
   it('allows a tuple_to_userset whose computed relation is not local (cross-namespace)', () => {
     const result = NamespaceConfig.create({
       relations: ['parent'],

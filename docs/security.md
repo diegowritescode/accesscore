@@ -98,9 +98,18 @@ enforced in code today, and what is scheduled, so the doc never overclaims:
   detection** revoking the family + TTL-bounded access-token blocklist; per-IP rate limiting
   (global default plus a tighter budget on `login`/`refresh`); `helmet` security headers; request
   body-size limit and DTO length caps; **fail-fast config guards** (production refuses the
-  software signer and the dev default Vault token); non-exportable Vault Transit signing keys.
-- **Scheduled — Slice 3 (PDP):** object-level authorization (IDOR/BOLA prevention),
-  deny-override evaluation, consistency tokens, and the decision log.
+  software signer and the dev default Vault token); non-exportable Vault Transit signing keys;
+  **object-level authorization** via the PDP (`@RequirePermission`, IDOR/BOLA prevention); ReBAC
+  relationship evaluation (userset rewrites, nested groups) with **consistency tokens** and an
+  append-only **decision log**; `orgId` tenant isolation at every graph hop; per-IP throttling
+  resolves the client address through a single trusted proxy hop.
+- **Scheduled — Slice 5 (PDP v3, ABAC):** deny-override evaluation, policy-DSL conditions,
+  permission boundaries, and org guardrails (the DSL/caching rows in the target model above).
+- **Known residuals (accepted for the current demo):** `forgot-password` closes the status/body
+  enumeration oracle (generic `202`) but not the timing side-channel; constant-time dispatch is
+  deferred to the async outbox path. The live API authenticates to Vault with a privileged
+  (dev-mode) token — least-privilege via a Transit-scoped policy token is documented in
+  `deploy-dokploy.md`.
 - **Scheduled — Slice 6 (hardening):** per-account brute-force **lockout** with backoff, and the
   **tamper-evident audit** hash chain (per-org monotonic sequence + signed checkpoints). Both are
   designed above and tracked as portfolio deliverables; they are deliberately deferred, not

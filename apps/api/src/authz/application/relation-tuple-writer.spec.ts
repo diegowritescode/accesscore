@@ -35,6 +35,10 @@ class RecordingRevisions implements RevisionsRepository {
     this.seenTx.push(tx);
     return Promise.resolve(Revision.fromValue(this.next++));
   }
+
+  current(): Promise<Revision> {
+    return Promise.resolve(Revision.fromValue(this.next - 1));
+  }
 }
 
 class RecordingStore implements RelationTupleStore {

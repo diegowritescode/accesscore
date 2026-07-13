@@ -71,6 +71,13 @@
       "when": 1783900146254,
       "tag": "0009_friendly_maggott",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783903299811,
+      "tag": "0010_mean_the_captain",
+      "breakpoints": true
     }
   ]
 }

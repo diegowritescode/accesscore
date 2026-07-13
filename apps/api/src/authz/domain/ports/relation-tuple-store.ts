@@ -20,7 +20,7 @@ export interface ObjectRelationQuery {
 export interface RelationTupleStore {
   upsert(tuple: RelationTuple, tx?: Tx): Promise<void>;
   delete(key: RelationTupleKey, tx?: Tx): Promise<number>;
-  listByObject(query: ObjectRelationQuery): Promise<RelationTuple[]>;
+  listByObject(query: ObjectRelationQuery, tx?: Tx): Promise<RelationTuple[]>;
 }
 
 export const RELATION_TUPLE_STORE = Symbol('RELATION_TUPLE_STORE');

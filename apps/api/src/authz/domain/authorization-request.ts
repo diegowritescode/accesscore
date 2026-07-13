@@ -7,7 +7,7 @@ export interface Principal {
   readonly orgId: string | null;
   readonly assuranceLevel: number;
   readonly sessionId: string;
-  readonly authenticatedAt: Date;
+  readonly authenticatedAt?: Date;
 }
 
 export type Resource = EntityRef;

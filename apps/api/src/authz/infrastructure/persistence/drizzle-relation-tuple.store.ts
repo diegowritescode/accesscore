@@ -56,8 +56,9 @@ export class DrizzleRelationTupleStore implements RelationTupleStore {
     return result.rowCount ?? 0;
   }
 
-  async listByObject(query: ObjectRelationQuery): Promise<RelationTuple[]> {
-    const rows = await this.db
+  async listByObject(query: ObjectRelationQuery, tx?: Tx): Promise<RelationTuple[]> {
+    const executor = (tx?.executor as Executor) ?? this.db;
+    const rows = await executor
       .select()
       .from(relationTuples)
       .where(

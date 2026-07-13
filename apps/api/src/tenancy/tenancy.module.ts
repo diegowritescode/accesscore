@@ -8,6 +8,7 @@ import {
   MEMBERSHIPS_REPOSITORY,
   type MembershipsRepository,
 } from './domain/ports/memberships-repository';
+import { ORG_ROLE_READER } from './domain/ports/org-role-reader';
 import {
   ORGANIZATIONS_REPOSITORY,
   type OrganizationsRepository,
@@ -40,7 +41,8 @@ import { DrizzleOrganizationsRepository } from './infrastructure/persistence/dri
         clock: Clock,
       ): TenancyService => new TenancyService(organizations, memberships, unitOfWork, clock),
     },
+    { provide: ORG_ROLE_READER, useExisting: MEMBERSHIPS_REPOSITORY },
   ],
-  exports: [TENANCY_SERVICE, ORGANIZATIONS_REPOSITORY, MEMBERSHIPS_REPOSITORY],
+  exports: [TENANCY_SERVICE, ORGANIZATIONS_REPOSITORY, MEMBERSHIPS_REPOSITORY, ORG_ROLE_READER],
 })
 export class TenancyModule {}

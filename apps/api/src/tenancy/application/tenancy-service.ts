@@ -29,7 +29,7 @@ export class TenancyService {
     await this.unitOfWork.withTransaction(async (tx) => {
       await this.organizations.create(organization, tx);
       await this.memberships.create(
-        { id: randomUUID(), userId, orgId, status: 'active', joinedAt: now },
+        { id: randomUUID(), userId, orgId, status: 'active', role: 'owner', joinedAt: now },
         tx,
       );
     });

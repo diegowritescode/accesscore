@@ -188,6 +188,93 @@ describe('evaluate (properties)', () => {
     );
   });
 
+  it('is total, deterministic, and check/expand-agreeing under rewrites', () => {
+    const config = NamespaceConfig.create({
+      relations: ['viewer', 'editor', 'parent'],
+      actions: { read: ['viewer'] },
+      rewrites: {
+        viewer: {
+          kind: 'union',
+          children: [
+            { kind: 'this' },
+            { kind: 'computedUserset', relation: 'editor' },
+            { kind: 'tupleToUserset', tupleset: 'parent', computedUserset: 'viewer' },
+          ],
+        },
+      },
+    });
+    if (!config.ok) {
+      throw new Error(`unexpected invalid config: ${config.error}`);
+    }
+    const ns = NamespaceDefinition.define({
+      orgId,
+      namespace: 'document',
+      config: config.value,
+      revision: Revision.fromValue(1),
+      createdAt: now,
+    });
+
+    const containerType = fc.constantFrom('document', 'folder');
+    const rewriteRelation = fc.constantFrom('viewer', 'editor', 'parent');
+    const rewriteSubject: fc.Arbitrary<SubjectRef> = fc.oneof(
+      fc.record({ type: fc.constant('user'), id: identifier }).map((ref) => ({
+        kind: 'subject' as const,
+        ref,
+      })),
+      fc.record({ type: containerType, id: identifier }).map((ref) => ({
+        kind: 'subject' as const,
+        ref,
+      })),
+      fc
+        .record({ type: containerType, id: identifier, relation: rewriteRelation })
+        .map(({ type, id, relation }) => ({
+          kind: 'userset' as const,
+          ref: { type, id },
+          relation,
+        })),
+    );
+    const rewriteTuples = fc.array(
+      fc
+        .record({
+          object: fc.record({ type: containerType, id: identifier }),
+          relation: rewriteRelation,
+          subject: rewriteSubject,
+        })
+        .map(({ object, relation, subject }) =>
+          RelationTuple.write({
+            orgId,
+            object,
+            relation,
+            subject,
+            revision: Revision.fromValue(0),
+            createdAt: now,
+          }),
+        ),
+      { maxLength: 16 },
+    );
+    const readQuery: fc.Arbitrary<AuthorizationQuery> = fc
+      .record({ subjectId: identifier, resourceId: identifier })
+      .map(({ subjectId, resourceId }) => ({
+        orgId,
+        subject: { type: 'user', id: subjectId },
+        action: Action.of('document.read'),
+        resource: { type: 'document', id: resourceId },
+      }));
+
+    fc.assert(
+      fc.property(readQuery, rewriteTuples, (q, ts) => {
+        const snapshot = snapshotOf(ns, ts);
+        const decision = evaluate(q, snapshot);
+        expect(['permit', 'deny']).toContain(decision.effect);
+        expect(evaluate(q, snapshot)).toEqual(decision);
+        const inClosure = expand(orgId, q.resource, 'viewer', snapshot).some(
+          (ref) => ref.type === q.subject.type && ref.id === q.subject.id,
+        );
+        expect(decision.effect === 'permit').toBe(inClosure);
+      }),
+    );
+  });
+
   it('agrees with expand for the required relation', () => {
     fc.assert(
       fc.property(query, tuples, identifier, (q, ts, relation) => {

@@ -7,7 +7,7 @@ import { encodeSubject, type SubjectRef } from './subject-ref';
 import { type TupleIndex } from './tuple-index';
 import { type Userset } from './userset';
 
-export const MAX_USERSET_DEPTH = 1;
+export const MAX_USERSET_DEPTH = 10;
 
 export interface EvaluationSnapshot {
   readonly namespaces: NamespaceRegistry;
@@ -17,6 +17,10 @@ export interface EvaluationSnapshot {
 interface Grant {
   readonly code: string;
   readonly path: string[];
+}
+
+interface WalkState {
+  truncated: boolean;
 }
 
 function deny(reasons: Reason[]): Decision {
@@ -46,6 +50,7 @@ function deriveThis(
   snapshot: EvaluationSnapshot,
   depth: number,
   visited: Set<string>,
+  state: WalkState,
 ): Grant | null {
   const subjects = snapshot.tuples.subjectsOf(object, relation);
   for (const subject of subjects) {
@@ -53,16 +58,19 @@ function deriveThis(
       return { code: 'grant.direct', path: [tupleKey(object, relation, subject)] };
     }
   }
-  if (depth < MAX_USERSET_DEPTH) {
-    for (const subject of subjects) {
-      if (subject.kind === 'userset') {
-        const sub = derive(subject.ref, subject.relation, target, snapshot, depth + 1, visited);
-        if (sub) {
-          return {
-            code: 'grant.userset',
-            path: [tupleKey(object, relation, subject), ...sub.path],
-          };
-        }
+  for (const subject of subjects) {
+    if (subject.kind === 'userset') {
+      const sub = derive(
+        subject.ref,
+        subject.relation,
+        target,
+        snapshot,
+        depth + 1,
+        visited,
+        state,
+      );
+      if (sub) {
+        return { code: 'grant.userset', path: [tupleKey(object, relation, subject), ...sub.path] };
       }
     }
   }
@@ -77,12 +85,13 @@ function deriveRewrite(
   snapshot: EvaluationSnapshot,
   depth: number,
   visited: Set<string>,
+  state: WalkState,
 ): Grant | null {
   switch (rewrite.kind) {
     case 'this':
-      return deriveThis(object, relation, target, snapshot, depth, visited);
+      return deriveThis(object, relation, target, snapshot, depth, visited, state);
     case 'computedUserset': {
-      const sub = derive(object, rewrite.relation, target, snapshot, depth, visited);
+      const sub = derive(object, rewrite.relation, target, snapshot, depth, visited, state);
       return sub ? { code: 'grant.computed_userset', path: sub.path } : null;
     }
     case 'tupleToUserset': {
@@ -95,6 +104,7 @@ function deriveRewrite(
             snapshot,
             depth + 1,
             visited,
+            state,
           );
           if (sub) {
             return {
@@ -108,7 +118,16 @@ function deriveRewrite(
     }
     case 'union': {
       for (const child of rewrite.children) {
-        const grant = deriveRewrite(object, relation, child, target, snapshot, depth, visited);
+        const grant = deriveRewrite(
+          object,
+          relation,
+          child,
+          target,
+          snapshot,
+          depth,
+          visited,
+          state,
+        );
         if (grant) return grant;
       }
       return null;
@@ -123,14 +142,19 @@ function derive(
   snapshot: EvaluationSnapshot,
   depth: number,
   visited: Set<string>,
+  state: WalkState,
 ): Grant | null {
+  if (depth > MAX_USERSET_DEPTH) {
+    state.truncated = true;
+    return null;
+  }
   const current = nodeKey(object, relation);
-  if (visited.has(current) || depth > MAX_USERSET_DEPTH) {
+  if (visited.has(current)) {
     return null;
   }
   visited.add(current);
   const rewrite = snapshot.namespaces.rewritesFor(object.type, relation);
-  return deriveRewrite(object, relation, rewrite, target, snapshot, depth, visited);
+  return deriveRewrite(object, relation, rewrite, target, snapshot, depth, visited, state);
 }
 
 export function evaluate(query: AuthorizationQuery, snapshot: EvaluationSnapshot): Decision {
@@ -158,8 +182,9 @@ export function evaluate(query: AuthorizationQuery, snapshot: EvaluationSnapshot
     ]);
   }
 
+  const state: WalkState = { truncated: false };
   for (const relation of required) {
-    const grant = derive(query.resource, relation, query.subject, snapshot, 0, new Set());
+    const grant = derive(query.resource, relation, query.subject, snapshot, 0, new Set(), state);
     if (grant) {
       return permit([
         {
@@ -172,7 +197,16 @@ export function evaluate(query: AuthorizationQuery, snapshot: EvaluationSnapshot
     }
   }
 
-  return deny([{ code: 'default_deny', message: 'No grant path resolved; denied by default.' }]);
+  const reasons: Reason[] = [
+    { code: 'default_deny', message: 'No grant path resolved; denied by default.' },
+  ];
+  if (state.truncated) {
+    reasons.push({
+      code: 'walk_truncated',
+      message: `Traversal stopped at the depth bound (${MAX_USERSET_DEPTH}); a deeper relationship may exist.`,
+    });
+  }
+  return deny(reasons);
 }
 
 function collectRewrite(
@@ -189,7 +223,7 @@ function collectRewrite(
       for (const subject of snapshot.tuples.subjectsOf(object, relation)) {
         if (subject.kind === 'subject') {
           members.push(subject.ref);
-        } else if (depth < MAX_USERSET_DEPTH) {
+        } else {
           members.push(
             ...collectMembers(subject.ref, subject.relation, snapshot, depth + 1, visited),
           );
@@ -224,8 +258,11 @@ function collectMembers(
   depth: number,
   visited: Set<string>,
 ): EntityRef[] {
+  if (depth > MAX_USERSET_DEPTH) {
+    return [];
+  }
   const current = nodeKey(object, relation);
-  if (visited.has(current) || depth > MAX_USERSET_DEPTH) {
+  if (visited.has(current)) {
     return [];
   }
   visited.add(current);

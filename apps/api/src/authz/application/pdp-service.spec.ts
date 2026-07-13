@@ -322,6 +322,24 @@ describe('PdpService', () => {
     expect(decision.reasons[0]?.code).toBe('grant.tuple_to_userset');
   });
 
+  it('resolves a grant through nested groups beyond one level', async () => {
+    const g0: EntityRef = { type: 'group', id: 'g0' };
+    const g1: EntityRef = { type: 'group', id: 'g1' };
+    const { pdp } = build({
+      definition: namespaceDef(),
+      tuples: [
+        tuple('viewer', { kind: 'userset', ref: g0, relation: 'member' }),
+        objectTuple(g0, 'member', { kind: 'userset', ref: g1, relation: 'member' }),
+        objectTuple(g1, 'member', { kind: 'subject', ref: alice }),
+      ],
+      revision: 9,
+    });
+
+    const decision = await pdp.check(principal(orgId.value), read, resource, fullContext);
+
+    expect(decision.effect).toBe('permit');
+  });
+
   it('returns one decision per request in a batch and logs each', async () => {
     const { pdp, log } = build({
       definition: namespaceDef(),

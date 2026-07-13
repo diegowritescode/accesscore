@@ -2,7 +2,7 @@ import { OrgId } from '../../shared/kernel/org-id';
 import { Revision } from '../../shared/kernel/revision';
 import { Action } from './action';
 import { type EntityRef } from './entity-ref';
-import { evaluate, expand, type EvaluationSnapshot } from './evaluate';
+import { evaluate, expand, type EvaluationSnapshot, MAX_USERSET_DEPTH } from './evaluate';
 import { NamespaceConfig } from './namespace-config';
 import { NamespaceDefinition } from './namespace-definition';
 import { NamespaceRegistry } from './namespace-registry';
@@ -93,6 +93,17 @@ const inheritConfig = def(['viewer', 'parent'], { read: ['viewer'] }, orgA, 'doc
 });
 
 const folder: EntityRef = { type: 'folder', id: 'f1' };
+
+const memberOf = (id: string): SubjectRef => userset({ type: 'group', id }, 'member');
+
+function groupChain(length: number): RelationTuple[] {
+  const chain: RelationTuple[] = [tuple(resource, 'viewer', memberOf('g0'))];
+  for (let i = 0; i < length - 1; i += 1) {
+    chain.push(tuple({ type: 'group', id: `g${i}` }, 'member', memberOf(`g${i + 1}`)));
+  }
+  chain.push(tuple({ type: 'group', id: `g${length - 1}` }, 'member', asSubject(alice)));
+  return chain;
+}
 
 describe('evaluate', () => {
   it('permits a direct relationship and explains the derivation', () => {
@@ -252,7 +263,7 @@ describe('evaluate', () => {
     expect(decision.reasons[0]?.code).toBe('default_deny');
   });
 
-  it('does not grant through a nested userset (v1 depth is one level)', () => {
+  it('grants through nested usersets beyond one level (bounded depth)', () => {
     const groupA: EntityRef = { type: 'group', id: 'a' };
     const groupB: EntityRef = { type: 'group', id: 'b' };
     const decision = evaluate(
@@ -264,7 +275,27 @@ describe('evaluate', () => {
       ]),
     );
 
+    expect(decision.effect).toBe('permit');
+    expect(decision.reasons[0]?.code).toBe('grant.userset');
+  });
+
+  it('grants through a nested-group chain reaching exactly the depth bound', () => {
+    const decision = evaluate(
+      { orgId: orgA, subject: alice, action: read, resource },
+      snap(readConfig, groupChain(MAX_USERSET_DEPTH)),
+    );
+
+    expect(decision.effect).toBe('permit');
+  });
+
+  it('fails closed and flags walk_truncated beyond the depth bound', () => {
+    const decision = evaluate(
+      { orgId: orgA, subject: alice, action: read, resource },
+      snap(readConfig, groupChain(MAX_USERSET_DEPTH + 1)),
+    );
+
     expect(decision.effect).toBe('deny');
+    expect(decision.reasons.map((reason) => reason.code)).toContain('walk_truncated');
   });
 
   it('terminates and denies on a cyclic userset graph', () => {

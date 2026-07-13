@@ -93,6 +93,29 @@ function namespaceDef(org = orgId): NamespaceDefinition {
   });
 }
 
+function aliasNamespaceDef(org = orgId): NamespaceDefinition {
+  const config = NamespaceConfig.create({
+    relations: ['editor', 'viewer'],
+    actions: { read: ['viewer'] },
+    rewrites: {
+      viewer: {
+        kind: 'union',
+        children: [{ kind: 'this' }, { kind: 'computedUserset', relation: 'editor' }],
+      },
+    },
+  });
+  if (!config.ok) {
+    throw new Error('invalid config');
+  }
+  return NamespaceDefinition.define({
+    orgId: org,
+    namespace: 'document',
+    config: config.value,
+    revision: Revision.fromValue(1),
+    createdAt: now,
+  });
+}
+
 function tuple(relation: string, subject: SubjectRef): RelationTuple {
   return RelationTuple.write({
     orgId,
@@ -218,6 +241,31 @@ describe('PdpService', () => {
     const decision = await pdp.check(principal(orgId.value), read, resource, fullContext);
 
     expect(decision.effect).toBe('permit');
+  });
+
+  it('resolves a grant through a computed_userset rewrite (loads the aliased relation)', async () => {
+    const { pdp } = build({
+      definition: aliasNamespaceDef(),
+      tuples: [tuple('editor', { kind: 'subject', ref: alice })],
+      revision: 7,
+    });
+
+    const decision = await pdp.check(principal(orgId.value), read, resource, fullContext);
+
+    expect(decision.effect).toBe('permit');
+    expect(decision.reasons[0]?.code).toBe('grant.computed_userset');
+  });
+
+  it('expands a computed_userset alias to its members', async () => {
+    const { pdp } = build({
+      definition: aliasNamespaceDef(),
+      tuples: [tuple('editor', { kind: 'subject', ref: alice })],
+      revision: 2,
+    });
+
+    const members = await pdp.expand(principal(orgId.value), resource, 'viewer');
+
+    expect(members.map((member) => member.id)).toEqual(['alice']);
   });
 
   it('returns one decision per request in a batch and logs each', async () => {

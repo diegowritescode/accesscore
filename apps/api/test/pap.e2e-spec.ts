@@ -109,6 +109,59 @@ describe('PAP write API (e2e)', () => {
     expect(check.body.effect).toBe('permit');
   });
 
+  it('resolves a computed_userset rewrite end-to-end (editor implies viewer)', async () => {
+    const { userId, token } = await provisionOwner();
+
+    await request(server())
+      .put('/authz/namespaces/document')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        relations: ['editor', 'viewer'],
+        actions: { read: ['viewer'] },
+        rewrites: {
+          viewer: {
+            kind: 'union',
+            children: [{ kind: 'this' }, { kind: 'computedUserset', relation: 'editor' }],
+          },
+        },
+      })
+      .expect(200);
+
+    const write = await request(server())
+      .post('/authz/tuples')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        object: { type: 'document', id: 'doc-1' },
+        relation: 'editor',
+        subject: { type: 'user', id: userId.value },
+      })
+      .expect(200);
+
+    const check = await request(server())
+      .post('/authz/check')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        action: 'document.read',
+        resource: { type: 'document', id: 'doc-1' },
+        consistency_token: write.body.consistency_token,
+      })
+      .expect(200);
+    expect(check.body.effect).toBe('permit');
+  });
+
+  it('rejects an unsupported intersection rewrite with 400', async () => {
+    const { token } = await provisionOwner();
+    await request(server())
+      .put('/authz/namespaces/document')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        relations: ['editor', 'viewer'],
+        actions: { read: ['viewer'] },
+        rewrites: { viewer: { kind: 'intersection', children: [{ kind: 'this' }] } },
+      })
+      .expect(400);
+  });
+
   it('lets an owner revoke a tuple, flipping a later check back to deny', async () => {
     const { userId, token } = await provisionOwner();
     await request(server())

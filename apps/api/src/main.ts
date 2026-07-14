@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import './load-env-file';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';

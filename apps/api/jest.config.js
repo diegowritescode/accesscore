@@ -8,6 +8,7 @@ module.exports = {
     '!**/*.spec.ts',
     '!**/*.module.ts',
     '!main.ts',
+    '!load-env-file.ts',
     '!migrate.ts',
     '!seed.ts',
     '!openapi.ts',

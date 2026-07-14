@@ -10,6 +10,7 @@
     "!src/**/*.spec.ts",
     "!src/**/*.module.ts",
     "!src/main.ts",
+    "!src/load-env-file.ts",
     "!src/migrate.ts",
     "!src/seed.ts",
     "!src/openapi.ts",

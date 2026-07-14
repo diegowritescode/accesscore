@@ -209,7 +209,7 @@ _(Consistency tokens and `expand` already shipped in v1; Slice 4 is the remainin
 ```bash
 corepack enable                 # or ensure pnpm 9.x is installed
 pnpm install
-cp .env.example .env
+cp apps/api/.env.example apps/api/.env   # the API loads this at startup
 docker compose up -d            # Postgres 16, Redis 7, Vault 1.18 (dev mode)
 pnpm --filter @accesscore/api db:migrate
 pnpm --filter @accesscore/api seed  # optional: a demo authorization graph to explore (see Demo)

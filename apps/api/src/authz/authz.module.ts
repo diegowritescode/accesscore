@@ -98,6 +98,7 @@ import { PermissionGuard } from './interface/permission.guard';
       inject: [
         NAMESPACE_DEFINITIONS_REPOSITORY,
         RELATION_TUPLE_STORE,
+        POLICIES_REPOSITORY,
         REVISIONS_REPOSITORY,
         DECISION_LOG,
         UNIT_OF_WORK,
@@ -106,12 +107,13 @@ import { PermissionGuard } from './interface/permission.guard';
       useFactory: (
         namespaces: NamespaceDefinitionsRepository,
         tuples: RelationTupleStore,
+        policies: PoliciesRepository,
         revisions: RevisionsRepository,
         decisionLog: DecisionLog,
         unitOfWork: UnitOfWork,
         clock: Clock,
       ): PdpService =>
-        new PdpService(namespaces, tuples, revisions, decisionLog, unitOfWork, clock),
+        new PdpService(namespaces, tuples, policies, revisions, decisionLog, unitOfWork, clock),
     },
   ],
   exports: [

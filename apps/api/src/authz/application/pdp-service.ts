@@ -21,9 +21,12 @@ import {
 } from '../domain/evaluate';
 import { type NamespaceDefinition } from '../domain/namespace-definition';
 import { NamespaceRegistry } from '../domain/namespace-registry';
+import { decide } from '../domain/policy/decide';
+import { type EvaluationContext as PolicyContext } from '../domain/policy/evaluation-context';
 import { type BatchCheckRequest, type PolicyDecisionPoint } from '../domain/policy-decision-point';
 import { type DecisionLog } from '../domain/ports/decision-log';
 import { type NamespaceDefinitionsRepository } from '../domain/ports/namespace-definitions-repository';
+import { type PoliciesRepository } from '../domain/ports/policies-repository';
 import { type RelationTupleStore } from '../domain/ports/relation-tuple-store';
 import { type RelationTuple } from '../domain/relation-tuple';
 import { TupleIndex } from '../domain/tuple-index';
@@ -50,6 +53,7 @@ export class PdpService implements PolicyDecisionPoint {
   constructor(
     private readonly namespaces: NamespaceDefinitionsRepository,
     private readonly tuples: RelationTupleStore,
+    private readonly policies: PoliciesRepository,
     private readonly revisions: RevisionsRepository,
     private readonly decisionLog: DecisionLog,
     private readonly unitOfWork: UnitOfWork,
@@ -181,8 +185,20 @@ export class PdpService implements PolicyDecisionPoint {
       namespaces: registry,
       tuples: TupleIndex.of(orgId, tuples),
     };
+    const rebac = evaluate({ orgId, subject: principal.subject, action, resource }, snapshot);
+    const applicable = await this.policies.listByTarget(
+      orgId,
+      resource.type,
+      action.verb,
+      context.tx,
+    );
+    const policyContext: PolicyContext = {
+      principal: { aal: principal.assuranceLevel, authTime: principal.authenticatedAt ?? null },
+      env: { ip: request.ip, now: this.clock.now() },
+      resource: {},
+    };
     return {
-      decision: evaluate({ orgId, subject: principal.subject, action, resource }, snapshot),
+      decision: decide(rebac, applicable, policyContext),
       revisionUsed: context.revisionUsed,
     };
   }
@@ -253,9 +269,14 @@ export class PdpService implements PolicyDecisionPoint {
           }
           return;
         case 'union':
+        case 'intersection':
           for (const child of rewrite.children) {
             await walkRewrite(object, child, node, depth);
           }
+          return;
+        case 'exclusion':
+          await walkRewrite(object, rewrite.base, node, depth);
+          await walkRewrite(object, rewrite.subtract, node, depth);
           return;
       }
     };

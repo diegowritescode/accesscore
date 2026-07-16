@@ -16,6 +16,9 @@ import {
   type RelationTupleStore,
 } from '../domain/ports/relation-tuple-store';
 import { type NamespaceDefinitionsRepository } from '../domain/ports/namespace-definitions-repository';
+import { type PoliciesRepository } from '../domain/ports/policies-repository';
+import { type Condition } from '../domain/policy/condition';
+import { ANY_ACTION, type Policy } from '../domain/policy/policy';
 import { RelationTuple } from '../domain/relation-tuple';
 import { type SubjectRef } from '../domain/subject-ref';
 import { PdpService } from './pdp-service';
@@ -73,6 +76,25 @@ class RecordingDecisionLog implements DecisionLog {
   record(entry: DecisionLogRecord): Promise<void> {
     this.records.push(entry);
     return Promise.resolve();
+  }
+}
+
+class FakePolicies implements PoliciesRepository {
+  constructor(private readonly policies: Policy[] = []) {}
+  upsert(): Promise<void> {
+    return Promise.resolve();
+  }
+  deleteById(): Promise<boolean> {
+    return Promise.resolve(false);
+  }
+  listByTarget(_orgId: OrgId, resourceType: string, action: string): Promise<Policy[]> {
+    return Promise.resolve(
+      this.policies.filter(
+        (policy) =>
+          policy.resourceType === resourceType &&
+          (policy.action === action || policy.action === ANY_ACTION),
+      ),
+    );
   }
 }
 
@@ -185,12 +207,14 @@ const fullContext: RequestContext = {
 function build(options: {
   definition?: NamespaceDefinition | null;
   tuples?: RelationTuple[];
+  policies?: Policy[];
   revision?: number;
 }): { pdp: PdpService; log: RecordingDecisionLog } {
   const log = new RecordingDecisionLog();
   const pdp = new PdpService(
     new FakeNamespaces(options.definition ?? null),
     new FakeTuples(options.tuples ?? []),
+    new FakePolicies(options.policies ?? []),
     new FakeRevisions(options.revision ?? 0),
     log,
     new ImmediateUnitOfWork(),
@@ -218,6 +242,45 @@ describe('PdpService', () => {
     expect(record?.resource).toBe('document:1');
     expect(record?.revisionUsed.value).toBe(5);
     expect(record?.orgId?.value).toBe(orgId.value);
+  });
+
+  it('lets a forbid policy override a relationship permit, gated by the trusted context', async () => {
+    const forbid: Policy = {
+      id: 'require-mfa',
+      orgId,
+      effect: 'forbid',
+      resourceType: 'document',
+      action: 'read',
+      condition: {
+        kind: 'cmp',
+        op: 'lt',
+        left: { kind: 'attr', path: 'principal.aal' },
+        right: { kind: 'lit', value: 2 },
+      } satisfies Condition,
+      revision: Revision.fromValue(0),
+    };
+    const { pdp } = build({
+      definition: namespaceDef(),
+      tuples: [tuple('viewer', { kind: 'subject', ref: alice })],
+      policies: [forbid],
+    });
+
+    const lowAssurance = await pdp.check(
+      { ...principal(orgId.value), assuranceLevel: 1 },
+      read,
+      resource,
+      fullContext,
+    );
+    expect(lowAssurance.effect).toBe('deny');
+    expect(lowAssurance.reasons[0]?.code).toBe('forbid_matched');
+
+    const stepped = await pdp.check(
+      { ...principal(orgId.value), assuranceLevel: 3 },
+      read,
+      resource,
+      fullContext,
+    );
+    expect(stepped.effect).toBe('permit');
   });
 
   it('denies by default when nothing grants the action, and logs it', async () => {
@@ -390,6 +453,7 @@ describe('PdpService', () => {
     const pdp = new PdpService(
       new FakeNamespaces(namespaceDef()),
       tuples,
+      new FakePolicies(),
       revisions,
       log,
       new ImmediateUnitOfWork(),

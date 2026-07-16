@@ -171,63 +171,98 @@ describe('evaluate', () => {
     expect(decision.reasons[0]?.code).toBe('default_deny');
   });
 
-  it('denies (deferred to US-5.3) an intersection rewrite the evaluator does not yet resolve', () => {
-    const config = def(['viewer'], { read: ['viewer'] }, orgA, 'document', {
-      viewer: { kind: 'intersection', children: [{ kind: 'this' }] },
-    });
-    const decision = evaluate(
-      { orgId: orgA, subject: alice, action: read, resource },
-      snap(config, [tuple(resource, 'viewer', asSubject(alice))]),
-    );
+  const intersectionConfig = def(
+    ['editor', 'auditor', 'viewer'],
+    { read: ['viewer'] },
+    orgA,
+    'document',
+    {
+      viewer: {
+        kind: 'intersection',
+        children: [
+          { kind: 'computedUserset', relation: 'editor' },
+          { kind: 'computedUserset', relation: 'auditor' },
+        ],
+      },
+    },
+  );
 
-    expect(decision.effect).toBe('deny');
-    expect(decision.reasons[0]?.code).toBe('default_deny');
-  });
-
-  it('denies (deferred to US-5.3) an exclusion rewrite the evaluator does not yet resolve', () => {
-    const config = def(['viewer', 'suspended'], { read: ['viewer'] }, orgA, 'document', {
+  const exclusionConfig = def(
+    ['editor', 'suspended', 'viewer'],
+    { read: ['viewer'] },
+    orgA,
+    'document',
+    {
       viewer: {
         kind: 'exclusion',
-        base: { kind: 'this' },
+        base: { kind: 'computedUserset', relation: 'editor' },
         subtract: { kind: 'computedUserset', relation: 'suspended' },
       },
-    });
-    const decision = evaluate(
-      { orgId: orgA, subject: alice, action: read, resource },
-      snap(config, [tuple(resource, 'viewer', asSubject(alice))]),
-    );
+    },
+  );
 
-    expect(decision.effect).toBe('deny');
+  it('permits an intersection only when every operand grants', () => {
+    const both = evaluate(
+      { orgId: orgA, subject: alice, action: read, resource },
+      snap(intersectionConfig, [
+        tuple(resource, 'editor', asSubject(alice)),
+        tuple(resource, 'auditor', asSubject(alice)),
+      ]),
+    );
+    expect(both.effect).toBe('permit');
+    expect(both.reasons[0]?.code).toBe('grant.intersection');
+
+    const one = evaluate(
+      { orgId: orgA, subject: alice, action: read, resource },
+      snap(intersectionConfig, [tuple(resource, 'editor', asSubject(alice))]),
+    );
+    expect(one.effect).toBe('deny');
   });
 
-  it('expand yields no members (deferred to US-5.3) for intersection and exclusion rewrites', () => {
-    const iConfig = def(['viewer'], { read: ['viewer'] }, orgA, 'document', {
-      viewer: { kind: 'intersection', children: [{ kind: 'this' }] },
-    });
-    expect(
-      expand(
-        orgA,
-        resource,
-        'viewer',
-        snap(iConfig, [tuple(resource, 'viewer', asSubject(alice))]),
-      ),
-    ).toEqual([]);
+  it('permits an exclusion only when the base grants and the subtracted set does not', () => {
+    const included = evaluate(
+      { orgId: orgA, subject: alice, action: read, resource },
+      snap(exclusionConfig, [tuple(resource, 'editor', asSubject(alice))]),
+    );
+    expect(included.effect).toBe('permit');
+    expect(included.reasons[0]?.code).toBe('grant.exclusion');
 
-    const eConfig = def(['viewer', 'suspended'], { read: ['viewer'] }, orgA, 'document', {
-      viewer: {
-        kind: 'exclusion',
-        base: { kind: 'this' },
-        subtract: { kind: 'computedUserset', relation: 'suspended' },
-      },
-    });
-    expect(
-      expand(
-        orgA,
-        resource,
-        'viewer',
-        snap(eConfig, [tuple(resource, 'viewer', asSubject(alice))]),
-      ),
-    ).toEqual([]);
+    const excluded = evaluate(
+      { orgId: orgA, subject: alice, action: read, resource },
+      snap(exclusionConfig, [
+        tuple(resource, 'editor', asSubject(alice)),
+        tuple(resource, 'suspended', asSubject(alice)),
+      ]),
+    );
+    expect(excluded.effect).toBe('deny');
+  });
+
+  it('expands intersection to the set intersection and exclusion to the set difference', () => {
+    const both = expand(
+      orgA,
+      resource,
+      'viewer',
+      snap(intersectionConfig, [
+        tuple(resource, 'editor', asSubject(alice)),
+        tuple(resource, 'editor', asSubject(bob)),
+        tuple(resource, 'auditor', asSubject(alice)),
+      ]),
+    );
+    expect(both).toContainEqual(alice);
+    expect(both).not.toContainEqual(bob);
+
+    const diff = expand(
+      orgA,
+      resource,
+      'viewer',
+      snap(exclusionConfig, [
+        tuple(resource, 'editor', asSubject(alice)),
+        tuple(resource, 'editor', asSubject(bob)),
+        tuple(resource, 'suspended', asSubject(bob)),
+      ]),
+    );
+    expect(diff).toContainEqual(alice);
+    expect(diff).not.toContainEqual(bob);
   });
 
   it('permits via a tuple_to_userset rewrite (folder inheritance)', () => {

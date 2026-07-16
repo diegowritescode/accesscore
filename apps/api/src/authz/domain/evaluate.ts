@@ -132,9 +132,64 @@ function deriveRewrite(
       }
       return null;
     }
-    case 'intersection':
-    case 'exclusion':
-      return null;
+    case 'intersection': {
+      const path: string[] = [];
+      for (const child of rewrite.children) {
+        const childState: WalkState = { truncated: false };
+        const grant = deriveRewrite(
+          object,
+          relation,
+          child,
+          target,
+          snapshot,
+          depth,
+          new Set(),
+          childState,
+        );
+        if (childState.truncated) {
+          state.truncated = true;
+          return null;
+        }
+        if (!grant) return null;
+        path.push(...grant.path);
+      }
+      return { code: 'grant.intersection', path };
+    }
+    case 'exclusion': {
+      const baseState: WalkState = { truncated: false };
+      const base = deriveRewrite(
+        object,
+        relation,
+        rewrite.base,
+        target,
+        snapshot,
+        depth,
+        new Set(),
+        baseState,
+      );
+      if (baseState.truncated) {
+        state.truncated = true;
+        return null;
+      }
+      if (!base) return null;
+      const subtractState: WalkState = { truncated: false };
+      const subtract = deriveRewrite(
+        object,
+        relation,
+        rewrite.subtract,
+        target,
+        snapshot,
+        depth,
+        new Set(),
+        subtractState,
+      );
+      if (subtractState.truncated) {
+        state.truncated = true;
+        return null;
+      }
+      if (subtract) return null;
+      return { code: 'grant.exclusion', path: base.path };
+    }
   }
 }
 
@@ -251,9 +306,29 @@ function collectRewrite(
       return rewrite.children.flatMap((child) =>
         collectRewrite(object, relation, child, snapshot, depth, visited),
       );
-    case 'intersection':
-    case 'exclusion':
-      return [];
+    case 'intersection': {
+      let members: EntityRef[] | null = null;
+      for (const child of rewrite.children) {
+        const childMembers = collectRewrite(object, relation, child, snapshot, depth, new Set());
+        members =
+          members === null
+            ? childMembers
+            : members.filter((member) => childMembers.some((other) => refEquals(other, member)));
+      }
+      return members ?? [];
+    }
+    case 'exclusion': {
+      const base = collectRewrite(object, relation, rewrite.base, snapshot, depth, new Set());
+      const subtract = collectRewrite(
+        object,
+        relation,
+        rewrite.subtract,
+        snapshot,
+        depth,
+        new Set(),
+      );
+      return base.filter((member) => !subtract.some((other) => refEquals(other, member)));
+    }
   }
 }
 

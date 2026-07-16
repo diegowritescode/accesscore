@@ -105,9 +105,10 @@ VAULT_TOKEN = <the VAULT_DEV_ROOT_TOKEN_ID you set>
 | `JWT_ISSUER`             | `https://<your-domain>`                       |
 | `JWT_AUDIENCE`           | `accesscore` (or your choice)                 |
 
-The remaining knobs (`ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL`, `JWKS_CACHE_MAX_AGE`,
+The remaining knobs (`LOG_LEVEL`, `ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL`, `JWKS_CACHE_MAX_AGE`,
 `THROTTLE_*`, `JWT_CLOCK_SKEW`) have production-safe defaults — see
-[`.env.example`](../.env.example). Boot-time validation **fails fast** with a clear message if
+[`.env.example`](../.env.example). The API emits **structured JSON logs** with a per-request
+correlation id (`x-request-id`, echoed on the response) and a redacted `Authorization` header. Boot-time validation **fails fast** with a clear message if
 `NODE_ENV=production` and `SIGNER_DRIVER` isn't `vault` or `VAULT_TOKEN` is the dev default.
 
 Deploy. Dokploy builds the image; the container **migrates the database, then starts** the API.

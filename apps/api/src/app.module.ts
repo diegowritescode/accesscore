@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { LoggerModule } from 'nestjs-pino';
 import { AuthnModule } from './authn/authn.module';
 import { AuthzModule } from './authz/authz.module';
 import { ENV } from './config/env.module';
@@ -16,6 +18,30 @@ import { TenancyModule } from './tenancy/tenancy.module';
 @Module({
   imports: [
     EnvModule,
+    LoggerModule.forRootAsync({
+      inject: [ENV],
+      useFactory: (env: Env) => ({
+        pinoHttp: {
+          level: env.LOG_LEVEL,
+          genReqId: (req, res) => {
+            const header = req.headers['x-request-id'];
+            const id = (Array.isArray(header) ? header[0] : header) ?? randomUUID();
+            res.setHeader('x-request-id', id);
+            return id;
+          },
+          redact: {
+            paths: ['req.headers.authorization', 'req.headers.cookie'],
+            censor: '[redacted]',
+          },
+          autoLogging: {
+            ignore: (req) => {
+              const path = (req.url ?? '').split('?')[0];
+              return path === '/health' || path === '/ready' || path === '/reference';
+            },
+          },
+        },
+      }),
+    }),
     DbModule,
     RedisModule,
     HealthModule,

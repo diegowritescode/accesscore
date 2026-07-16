@@ -52,3 +52,47 @@ export interface SimulateInput {
   resource: EntityInput;
   policies?: PolicyOverlay[];
 }
+
+export interface NamespaceSummary {
+  namespace: string;
+  relations: string[];
+  actions: string[];
+  revision: number;
+}
+
+export interface NamespaceDetail {
+  namespace: string;
+  relations: string[];
+  actions: Record<string, string[]>;
+  rewrites: Record<string, unknown>;
+  revision: number;
+}
+
+export interface TupleSubject {
+  type: string;
+  id: string;
+  relation?: string;
+}
+
+export interface TupleView {
+  object: { type: string; id: string };
+  relation: string;
+  subject: TupleSubject;
+  revision: number;
+}
+
+export interface PolicyView {
+  id: string;
+  effect: PolicyEffect;
+  resourceType: string;
+  action: string;
+  condition: unknown;
+  revision: number;
+}
+
+export interface CheckAsInput {
+  subject: EntityInput;
+  action: string;
+  resource: EntityInput;
+  aal?: number;
+}

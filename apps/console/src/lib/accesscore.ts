@@ -1,4 +1,5 @@
 export const AC_TOKEN_COOKIE = 'ac_token';
+export const AC_USER_COOKIE = 'ac_user';
 
 export const ACCESSCORE_API_URL = (
   process.env.ACCESSCORE_API_URL ?? 'https://auth.deviego.xyz'

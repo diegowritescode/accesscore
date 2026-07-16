@@ -1,6 +1,11 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { AC_TOKEN_COOKIE, callAccessCore, tokenCookieOptions } from '@/lib/accesscore';
+import {
+  AC_TOKEN_COOKIE,
+  AC_USER_COOKIE,
+  callAccessCore,
+  tokenCookieOptions,
+} from '@/lib/accesscore';
 
 export async function POST(): Promise<NextResponse> {
   const store = await cookies();
@@ -16,5 +21,6 @@ export async function POST(): Promise<NextResponse> {
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set(AC_TOKEN_COOKIE, '', tokenCookieOptions(0));
+  response.cookies.set(AC_USER_COOKIE, '', tokenCookieOptions(0));
   return response;
 }

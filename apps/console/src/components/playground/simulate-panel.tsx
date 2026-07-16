@@ -204,7 +204,7 @@ export function SimulatePanel() {
                 className={cn(
                   'flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium',
                   outcome.data.changed
-                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                    ? 'border-warn/30 bg-warn-soft text-warn'
                     : 'border-line bg-surface-2 text-muted',
                 )}
               >
@@ -212,7 +212,7 @@ export function SimulatePanel() {
                   aria-hidden
                   className={cn(
                     'h-2 w-2 rounded-full',
-                    outcome.data.changed ? 'bg-amber-400' : 'bg-muted',
+                    outcome.data.changed ? 'bg-warn' : 'bg-muted',
                   )}
                 />
                 {outcome.data.changed

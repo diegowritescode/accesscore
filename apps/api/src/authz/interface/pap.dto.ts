@@ -36,6 +36,8 @@ const usersetSchema: z.ZodType<Userset> = z.lazy(() =>
       computedUserset: identifier,
     }),
     z.object({ kind: z.literal('union'), children: z.array(usersetSchema).min(1) }),
+    z.object({ kind: z.literal('intersection'), children: z.array(usersetSchema).min(1) }),
+    z.object({ kind: z.literal('exclusion'), base: usersetSchema, subtract: usersetSchema }),
   ]),
 );
 

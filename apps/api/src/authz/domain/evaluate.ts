@@ -132,6 +132,9 @@ function deriveRewrite(
       }
       return null;
     }
+    case 'intersection':
+    case 'exclusion':
+      return null;
   }
 }
 
@@ -248,6 +251,9 @@ function collectRewrite(
       return rewrite.children.flatMap((child) =>
         collectRewrite(object, relation, child, snapshot, depth, visited),
       );
+    case 'intersection':
+    case 'exclusion':
+      return [];
   }
 }
 

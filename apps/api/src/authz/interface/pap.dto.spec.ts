@@ -27,11 +27,27 @@ describe('defineNamespaceSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts intersection and exclusion rewrites (ABAC structural algebra)', () => {
+    const result = defineNamespaceSchema.safeParse({
+      relations: ['editor', 'suspended', 'viewer'],
+      actions: { read: ['viewer'] },
+      rewrites: {
+        viewer: {
+          kind: 'exclusion',
+          base: { kind: 'computedUserset', relation: 'editor' },
+          subtract: { kind: 'computedUserset', relation: 'suspended' },
+        },
+        editor: { kind: 'intersection', children: [{ kind: 'this' }] },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
   it.each([
-    ['an unsupported intersection node', { kind: 'intersection', children: [{ kind: 'this' }] }],
-    ['an unsupported exclusion node', { kind: 'exclusion' }],
     ['an unknown node kind', { kind: 'nonsense' }],
     ['an empty union', { kind: 'union', children: [] }],
+    ['an empty intersection', { kind: 'intersection', children: [] }],
+    ['an exclusion missing operands', { kind: 'exclusion' }],
     ['a non-identifier relation', { kind: 'computedUserset', relation: 'not valid' }],
   ])('rejects %s', (_label, tree) => {
     const result = defineNamespaceSchema.safeParse({

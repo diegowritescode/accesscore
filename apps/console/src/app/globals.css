@@ -1,0 +1,42 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ink: #090d15;
+  --color-surface: #111826;
+  --color-surface-2: #172033;
+  --color-line: #232d42;
+  --color-line-strong: #33405c;
+  --color-muted: #93a0b8;
+  --color-fg: #e8edf6;
+  --color-brand: #6366f1;
+  --color-brand-strong: #818cf8;
+  --color-permit: #34d399;
+  --color-permit-ink: #052e21;
+  --color-deny: #fb7185;
+  --color-deny-ink: #3f0d18;
+
+  --font-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-ink);
+    color: var(--color-fg);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--color-brand) 40%, transparent);
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--color-brand-strong);
+    outline-offset: 2px;
+  }
+}

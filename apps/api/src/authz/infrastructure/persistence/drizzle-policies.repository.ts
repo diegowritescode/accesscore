@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { type Database, type Executor } from '../../../db/db.module';
 import { OrgId } from '../../../shared/kernel/org-id';
 import { Revision } from '../../../shared/kernel/revision';
@@ -61,6 +61,16 @@ export class DrizzlePoliciesRepository implements PoliciesRepository {
           inArray(policies.action, [action, ANY_ACTION]),
         ),
       );
+    return rows.map((row) => this.toDomain(row));
+  }
+
+  async listByOrg(orgId: OrgId, tx?: Tx): Promise<Policy[]> {
+    const executor = (tx?.executor as Executor) ?? this.db;
+    const rows = await executor
+      .select()
+      .from(policies)
+      .where(eq(policies.orgId, orgId.value))
+      .orderBy(asc(policies.resourceType), asc(policies.action), asc(policies.id));
     return rows.map((row) => this.toDomain(row));
   }
 

@@ -58,6 +58,10 @@ class RecordingStore implements RelationTupleStore {
   listByObject(_query: ObjectRelationQuery): Promise<RelationTuple[]> {
     return Promise.resolve([]);
   }
+
+  list(): Promise<RelationTuple[]> {
+    return Promise.resolve([]);
+  }
 }
 
 describe('RelationTupleWriter', () => {

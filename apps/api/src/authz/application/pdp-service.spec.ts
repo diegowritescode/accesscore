@@ -49,6 +49,9 @@ class FakeNamespaces implements NamespaceDefinitionsRepository {
   findByNamespace(): Promise<NamespaceDefinition | null> {
     return Promise.resolve(this.definition);
   }
+  listByOrg(): Promise<NamespaceDefinition[]> {
+    return Promise.resolve(this.definition ? [this.definition] : []);
+  }
 }
 
 class FakeTuples implements RelationTupleStore {
@@ -68,6 +71,9 @@ class FakeTuples implements RelationTupleStore {
           t.relation === query.relation,
       ),
     );
+  }
+  list(): Promise<RelationTuple[]> {
+    return Promise.resolve(this.tuples);
   }
 }
 
@@ -95,6 +101,9 @@ class FakePolicies implements PoliciesRepository {
           (policy.action === action || policy.action === ANY_ACTION),
       ),
     );
+  }
+  listByOrg(): Promise<Policy[]> {
+    return Promise.resolve(this.policies);
   }
 }
 

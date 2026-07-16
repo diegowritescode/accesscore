@@ -6,6 +6,7 @@ export interface PoliciesRepository {
   upsert(policy: Policy, tx?: Tx): Promise<void>;
   deleteById(orgId: OrgId, id: string, tx?: Tx): Promise<boolean>;
   listByTarget(orgId: OrgId, resourceType: string, action: string, tx?: Tx): Promise<Policy[]>;
+  listByOrg(orgId: OrgId, tx?: Tx): Promise<Policy[]>;
 }
 
 export const POLICIES_REPOSITORY = Symbol('POLICIES_REPOSITORY');

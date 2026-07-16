@@ -25,6 +25,7 @@ import { parseCondition } from '../domain/policy/condition';
 import { type Policy } from '../domain/policy/policy';
 import {
   batchCheckSchema,
+  checkAsSchema,
   type CheckDto,
   checkSchema,
   expandSchema,
@@ -218,6 +219,60 @@ export class AuthzController {
         live: toResponse(result.live),
         changed: result.changed,
       };
+    } catch {
+      throw unavailable();
+    }
+  }
+
+  @Post('check-as')
+  @HttpCode(200)
+  @UseGuards(AccessTokenGuard, PapAdminGuard)
+  @ApiOperation({
+    summary: 'Check a decision as an arbitrary subject',
+    description:
+      'Owner-gated and read-only. Evaluates whether the given subject may perform the action on ' +
+      'the resource, without the caller acting as that subject. Writes no decision log and ' +
+      'allocates no revision — a directory-exploration tool, not an enforcement path.',
+  })
+  @ApiBody({ schema: openApiSchema(checkAsSchema) })
+  @ApiResponse({ status: 200, description: 'The decision for the requested subject.' })
+  async checkAs(
+    @AuthToken() token: AuthTokenClaims,
+    @Body() body: unknown,
+    @Ip() ip: string,
+  ): Promise<CheckResponse> {
+    const parsed = checkAsSchema.safeParse(body);
+    if (!parsed.success || !token.org) {
+      throw badRequest();
+    }
+    const action = Action.create(parsed.data.action);
+    if (!action.ok) {
+      throw badRequest();
+    }
+    let consistency: ConsistencyRequirement = { mode: 'full' };
+    if (parsed.data.consistency_token !== undefined) {
+      try {
+        ConsistencyToken.decode(parsed.data.consistency_token);
+      } catch {
+        throw badRequest();
+      }
+      consistency = { mode: 'at-least', token: parsed.data.consistency_token };
+    }
+    const principal: Principal = {
+      subject: { type: parsed.data.subject.type, id: parsed.data.subject.id },
+      orgId: token.org,
+      assuranceLevel: parsed.data.aal ?? 1,
+      sessionId: token.sid,
+    };
+    try {
+      const result = await this.pdp.simulate(
+        principal,
+        action.value,
+        { type: parsed.data.resource.type, id: parsed.data.resource.id },
+        this.contextOf(ip, consistency),
+        null,
+      );
+      return toResponse(result.decision);
     } catch {
       throw unavailable();
     }

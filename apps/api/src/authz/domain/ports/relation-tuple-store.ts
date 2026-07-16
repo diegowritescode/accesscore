@@ -17,10 +17,21 @@ export interface ObjectRelationQuery {
   readonly relation: string;
 }
 
+export interface TupleFilter {
+  readonly orgId: OrgId;
+  readonly namespace?: string;
+  readonly objectId?: string;
+  readonly relation?: string;
+  readonly subject?: SubjectRef;
+  readonly limit: number;
+  readonly offset: number;
+}
+
 export interface RelationTupleStore {
   upsert(tuple: RelationTuple, tx?: Tx): Promise<void>;
   delete(key: RelationTupleKey, tx?: Tx): Promise<number>;
   listByObject(query: ObjectRelationQuery, tx?: Tx): Promise<RelationTuple[]>;
+  list(filter: TupleFilter, tx?: Tx): Promise<RelationTuple[]>;
 }
 
 export const RELATION_TUPLE_STORE = Symbol('RELATION_TUPLE_STORE');

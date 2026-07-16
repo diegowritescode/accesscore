@@ -12,6 +12,7 @@ import {
 import { organizations } from '../../../tenancy/infrastructure/persistence/schema';
 import { type Reason } from '../../domain/decision';
 import { type NamespaceConfigData } from '../../domain/namespace-config';
+import { type Condition } from '../../domain/policy/condition';
 
 export const relationTuples = pgTable(
   'relation_tuples',
@@ -49,6 +50,26 @@ export const namespaceDefinitions = pgTable(
   (table) => [
     primaryKey({ columns: [table.orgId, table.namespace] }),
     index('namespace_definitions_revision_idx').on(table.revision),
+  ],
+);
+
+export const policies = pgTable(
+  'policies',
+  {
+    id: text('id').primaryKey(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id),
+    effect: text('effect').notNull(),
+    resourceType: text('resource_type').notNull(),
+    action: text('action').notNull(),
+    condition: jsonb('condition').$type<Condition>().notNull(),
+    revision: bigint('revision', { mode: 'number' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('policies_target_idx').on(table.orgId, table.resourceType, table.action),
+    index('policies_revision_idx').on(table.revision),
   ],
 );
 

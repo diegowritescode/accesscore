@@ -17,6 +17,7 @@ import {
   NAMESPACE_CONFIG_WRITER,
   type NamespaceConfigWriter,
 } from '../application/namespace-config-writer';
+import { POLICY_WRITER, type PolicyWriter } from '../application/policy-writer';
 import {
   RELATION_TUPLE_WRITER,
   type RelationTupleCommand,
@@ -30,10 +31,14 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { namespaceDefinitionSchema, openApiSchema } from '../../shared/http/openapi-schema';
+import {
+  namespaceDefinitionSchema,
+  openApiSchema,
+  policyDefinitionSchema,
+} from '../../shared/http/openapi-schema';
 import { type SubjectRef } from '../domain/subject-ref';
 import { PapAdminGuard } from './pap-admin.guard';
-import { defineNamespaceSchema, writeTupleSchema } from './pap.dto';
+import { defineNamespaceSchema, writePolicySchema, writeTupleSchema } from './pap.dto';
 
 interface TokenResponse {
   consistency_token: string;
@@ -58,6 +63,7 @@ export class PapController {
   constructor(
     @Inject(RELATION_TUPLE_WRITER) private readonly tuples: RelationTupleWriter,
     @Inject(NAMESPACE_CONFIG_WRITER) private readonly namespaces: NamespaceConfigWriter,
+    @Inject(POLICY_WRITER) private readonly policies: PolicyWriter,
   ) {}
 
   @Post('tuples')
@@ -124,6 +130,62 @@ export class PapController {
       throw badRequest(result.error);
     }
     return { consistency_token: result.value.encode() };
+  }
+
+  @Put('policies/:id')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Write an ABAC policy',
+    description:
+      'Owner-gated. Upserts a permit/forbid policy keyed by id in the caller org and returns a ' +
+      'consistency token. The condition is validated (type-check, node caps, CIDR) at write time.',
+  })
+  @ApiParam({ name: 'id', description: 'The policy identifier (unique within the org).' })
+  @ApiBody({ schema: policyDefinitionSchema })
+  @ApiResponse({ status: 200, description: 'The consistency token after the write.' })
+  async writePolicy(
+    @AuthToken() token: AuthTokenClaims,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<TokenResponse> {
+    if (!token.org) {
+      throw noActiveOrg();
+    }
+    const parsed = writePolicySchema.safeParse(body);
+    if (!parsed.success) {
+      throw badRequest();
+    }
+    const result = await this.policies.write({
+      orgId: OrgId.fromString(token.org),
+      id,
+      effect: parsed.data.effect,
+      resourceType: parsed.data.resourceType,
+      action: parsed.data.action,
+      condition: parsed.data.condition,
+    });
+    if (!result.ok) {
+      throw badRequest(result.error);
+    }
+    return { consistency_token: result.value.encode() };
+  }
+
+  @Delete('policies/:id')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Delete an ABAC policy',
+    description: 'Owner-gated. Deletes a policy in the caller org and returns a consistency token.',
+  })
+  @ApiParam({ name: 'id', description: 'The policy identifier to delete.' })
+  @ApiResponse({ status: 200, description: 'The consistency token after the delete.' })
+  async deletePolicy(
+    @AuthToken() token: AuthTokenClaims,
+    @Param('id') id: string,
+  ): Promise<TokenResponse> {
+    if (!token.org) {
+      throw noActiveOrg();
+    }
+    const zookie = await this.policies.delete(OrgId.fromString(token.org), id);
+    return { consistency_token: zookie.encode() };
   }
 
   private toCommand(token: AuthTokenClaims, body: unknown): RelationTupleCommand {

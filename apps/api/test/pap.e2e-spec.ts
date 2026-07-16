@@ -33,7 +33,7 @@ describe('PAP write API (e2e)', () => {
 
   beforeEach(async () => {
     await pool.query(
-      'TRUNCATE TABLE decision_log, relation_tuples, namespace_definitions, memberships, organizations, refresh_tokens, token_families, sessions, email_verification_tokens, outbox, users RESTART IDENTITY CASCADE',
+      'TRUNCATE TABLE decision_log, relation_tuples, namespace_definitions, policies, memberships, organizations, refresh_tokens, token_families, sessions, email_verification_tokens, outbox, users RESTART IDENTITY CASCADE',
     );
   });
 
@@ -326,5 +326,75 @@ describe('PAP write API (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ actions: { read: ['viewer'] } })
       .expect(400);
+  });
+
+  const validPolicy = {
+    effect: 'permit',
+    resourceType: 'document',
+    action: 'read',
+    condition: {
+      kind: 'cmp',
+      op: 'ge',
+      left: { kind: 'attr', path: 'principal.aal' },
+      right: { kind: 'lit', value: 1 },
+    },
+  };
+
+  it('lets an owner write a policy and returns a consistency token', async () => {
+    const { token } = await provisionOwner();
+    const write = await request(server())
+      .put('/authz/policies/require-mfa')
+      .set('Authorization', `Bearer ${token}`)
+      .send(validPolicy)
+      .expect(200);
+    expect(typeof write.body.consistency_token).toBe('string');
+  });
+
+  it('rejects a policy with a malformed condition with 400', async () => {
+    const { token } = await provisionOwner();
+    await request(server())
+      .put('/authz/policies/require-mfa')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        ...validPolicy,
+        condition: {
+          kind: 'cmp',
+          op: 'gt',
+          left: { kind: 'attr', path: 'env.ip' },
+          right: { kind: 'lit', value: 1 },
+        },
+      })
+      .expect(400);
+  });
+
+  it('lets an owner delete a policy and returns a consistency token', async () => {
+    const { token } = await provisionOwner();
+    await request(server())
+      .put('/authz/policies/require-mfa')
+      .set('Authorization', `Bearer ${token}`)
+      .send(validPolicy)
+      .expect(200);
+
+    const remove = await request(server())
+      .delete('/authz/policies/require-mfa')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(typeof remove.body.consistency_token).toBe('string');
+  });
+
+  it('forbids (403) a non-owner member from writing a policy', async () => {
+    const owner = await provisionOwner();
+    const member = await registerActive();
+    await pool.query(
+      "INSERT INTO memberships (id, user_id, org_id, status, role, joined_at) VALUES ($1, $2, $3, 'active', 'member', now())",
+      [randomUUID(), member.value, owner.orgId.value],
+    );
+    const memberToken = await login(member);
+
+    await request(server())
+      .put('/authz/policies/require-mfa')
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send(validPolicy)
+      .expect(403);
   });
 });

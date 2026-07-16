@@ -2,10 +2,10 @@
 
 - **Status:** Accepted (2026-07-13)
 - **Date:** 2026-07-13
-- **Implementation: deferred.** v1 ships the ReBAC + RBAC core (Slices 3-4). This ABAC layer is
-  designed and accepted but **not yet built** — it is backlogged (milestone #5, US-5.0–5.5), to be
-  implemented in a later AccessCore iteration. It is recorded now so that [ADR-002](002-authorization-model.md)'s
-  hybrid model is fully designed and reviewable end-to-end.
+- **Implementation: in progress (Slice 5, milestone #5).** The ReBAC + RBAC core shipped in Slices 3-4;
+  this ABAC layer is now being built US by US (US-5.0 onward). US-5.0 lands the model, the condition AST,
+  the trusted-context types, and enables the `intersection` / `exclusion` `Userset` nodes; the evaluator,
+  policy store, and deny-override follow in US-5.1–5.5.
 - The sequel to [ADR-015](015-userset-rewrites-and-rebac-evaluation.md): it wraps the pure,
   context-free ReBAC evaluator with the ABAC pillar [ADR-002](002-authorization-model.md) promised —
   a Cedar-inspired `permit`/`forbid` policy layer with `when`/`unless` conditions and IAM-style

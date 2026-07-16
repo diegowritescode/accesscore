@@ -44,12 +44,18 @@ function validateUserset(
       if (!relations.has(node.tupleset)) return err('unknown_rewrite_relation');
       return ok(undefined);
     case 'union':
+    case 'intersection':
       if (node.children.length === 0) return err('invalid_rewrite');
       for (const child of node.children) {
         const result = validateUserset(child, relations, depth + 1);
         if (!result.ok) return result;
       }
       return ok(undefined);
+    case 'exclusion': {
+      const base = validateUserset(node.base, relations, depth + 1);
+      if (!base.ok) return base;
+      return validateUserset(node.subtract, relations, depth + 1);
+    }
   }
 }
 

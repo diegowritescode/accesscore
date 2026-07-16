@@ -171,6 +171,65 @@ describe('evaluate', () => {
     expect(decision.reasons[0]?.code).toBe('default_deny');
   });
 
+  it('denies (deferred to US-5.3) an intersection rewrite the evaluator does not yet resolve', () => {
+    const config = def(['viewer'], { read: ['viewer'] }, orgA, 'document', {
+      viewer: { kind: 'intersection', children: [{ kind: 'this' }] },
+    });
+    const decision = evaluate(
+      { orgId: orgA, subject: alice, action: read, resource },
+      snap(config, [tuple(resource, 'viewer', asSubject(alice))]),
+    );
+
+    expect(decision.effect).toBe('deny');
+    expect(decision.reasons[0]?.code).toBe('default_deny');
+  });
+
+  it('denies (deferred to US-5.3) an exclusion rewrite the evaluator does not yet resolve', () => {
+    const config = def(['viewer', 'suspended'], { read: ['viewer'] }, orgA, 'document', {
+      viewer: {
+        kind: 'exclusion',
+        base: { kind: 'this' },
+        subtract: { kind: 'computedUserset', relation: 'suspended' },
+      },
+    });
+    const decision = evaluate(
+      { orgId: orgA, subject: alice, action: read, resource },
+      snap(config, [tuple(resource, 'viewer', asSubject(alice))]),
+    );
+
+    expect(decision.effect).toBe('deny');
+  });
+
+  it('expand yields no members (deferred to US-5.3) for intersection and exclusion rewrites', () => {
+    const iConfig = def(['viewer'], { read: ['viewer'] }, orgA, 'document', {
+      viewer: { kind: 'intersection', children: [{ kind: 'this' }] },
+    });
+    expect(
+      expand(
+        orgA,
+        resource,
+        'viewer',
+        snap(iConfig, [tuple(resource, 'viewer', asSubject(alice))]),
+      ),
+    ).toEqual([]);
+
+    const eConfig = def(['viewer', 'suspended'], { read: ['viewer'] }, orgA, 'document', {
+      viewer: {
+        kind: 'exclusion',
+        base: { kind: 'this' },
+        subtract: { kind: 'computedUserset', relation: 'suspended' },
+      },
+    });
+    expect(
+      expand(
+        orgA,
+        resource,
+        'viewer',
+        snap(eConfig, [tuple(resource, 'viewer', asSubject(alice))]),
+      ),
+    ).toEqual([]);
+  });
+
   it('permits via a tuple_to_userset rewrite (folder inheritance)', () => {
     const decision = evaluate(
       { orgId: orgA, subject: alice, action: read, resource },

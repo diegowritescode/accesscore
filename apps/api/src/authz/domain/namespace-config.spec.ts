@@ -45,6 +45,21 @@ describe('NamespaceConfig', () => {
     expect(NamespaceConfig.create(rewriteData).ok).toBe(true);
   });
 
+  it('accepts intersection and exclusion rewrites (structural algebra)', () => {
+    const result = NamespaceConfig.create({
+      relations: ['editor', 'suspended', 'viewer'],
+      actions: { read: ['viewer'] },
+      rewrites: {
+        viewer: {
+          kind: 'exclusion',
+          base: { kind: 'computedUserset', relation: 'editor' },
+          subtract: { kind: 'computedUserset', relation: 'suspended' },
+        },
+      },
+    });
+    expect(result.ok).toBe(true);
+  });
+
   it.each<[NamespaceConfigData, NamespaceConfigError]>([
     [{ relations: [], actions: {} }, 'empty_relations'],
     [{ relations: ['own er'], actions: {} }, 'invalid_relation'],
@@ -120,6 +135,55 @@ describe('NamespaceConfig', () => {
         actions: {},
         rewrites: {
           viewer: { kind: 'computedUserset', relation: 'editor' },
+          editor: { kind: 'computedUserset', relation: 'viewer' },
+        },
+      },
+      'cyclic_computed_userset',
+    ],
+    [
+      {
+        relations: ['viewer'],
+        actions: {},
+        rewrites: {
+          viewer: {
+            kind: 'intersection',
+            children: [{ kind: 'computedUserset', relation: 'ghost' }],
+          },
+        },
+      },
+      'unknown_rewrite_relation',
+    ],
+    [
+      {
+        relations: ['viewer'],
+        actions: {},
+        rewrites: {
+          viewer: {
+            kind: 'exclusion',
+            base: { kind: 'this' },
+            subtract: { kind: 'computedUserset', relation: 'ghost' },
+          },
+        },
+      },
+      'unknown_rewrite_relation',
+    ],
+    [
+      {
+        relations: ['viewer'],
+        actions: {},
+        rewrites: { viewer: { kind: 'intersection', children: [] } },
+      },
+      'invalid_rewrite',
+    ],
+    [
+      {
+        relations: ['viewer', 'editor'],
+        actions: {},
+        rewrites: {
+          viewer: {
+            kind: 'intersection',
+            children: [{ kind: 'computedUserset', relation: 'editor' }],
+          },
           editor: { kind: 'computedUserset', relation: 'viewer' },
         },
       },

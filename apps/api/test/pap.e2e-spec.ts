@@ -202,15 +202,34 @@ describe('PAP write API (e2e)', () => {
     expect(check.body.effect).toBe('permit');
   });
 
-  it('rejects an unsupported intersection rewrite with 400', async () => {
+  it('accepts an intersection rewrite (ABAC structural algebra)', async () => {
     const { token } = await provisionOwner();
     await request(server())
       .put('/authz/namespaces/document')
       .set('Authorization', `Bearer ${token}`)
       .send({
-        relations: ['editor', 'viewer'],
+        relations: ['editor', 'suspended', 'viewer'],
         actions: { read: ['viewer'] },
-        rewrites: { viewer: { kind: 'intersection', children: [{ kind: 'this' }] } },
+        rewrites: {
+          viewer: {
+            kind: 'exclusion',
+            base: { kind: 'computedUserset', relation: 'editor' },
+            subtract: { kind: 'computedUserset', relation: 'suspended' },
+          },
+        },
+      })
+      .expect(200);
+  });
+
+  it('still rejects a malformed rewrite with 400', async () => {
+    const { token } = await provisionOwner();
+    await request(server())
+      .put('/authz/namespaces/document')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        relations: ['viewer'],
+        actions: { read: ['viewer'] },
+        rewrites: { viewer: { kind: 'intersection', children: [] } },
       })
       .expect(400);
   });

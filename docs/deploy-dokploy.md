@@ -23,11 +23,21 @@ gives same-project services an internal hostname you'll wire into the API's env.
 
 ## 2. Postgres (managed)
 
-**Databases → Postgres 16.** Set a database name, user, and a strong password; deploy. From its
-page, note the **internal** host and build:
+**Databases → Postgres 16.** Set a database name, user, and a strong password; deploy. From its page,
+note the **internal** host. The owner connection string becomes `MIGRATION_DATABASE_URL` (runs DDL
+migrations). Then create the least-privilege runtime role once
+([ADR-018](adr/018-least-privilege-db-role.md)):
+
+```sql
+CREATE ROLE accesscore_app LOGIN PASSWORD '<strong-app-password>';
+```
+
+The app connects as that non-owner role (migration 0012 grants it the minimum and forbids
+`UPDATE`/`DELETE` on the append-only `decision_log`/`revisions`):
 
 ```
-DATABASE_URL = postgres://<user>:<password>@<internal-host>:5432/<database>
+MIGRATION_DATABASE_URL = postgres://<owner>:<password>@<internal-host>:5432/<database>
+DATABASE_URL           = postgres://accesscore_app:<app-password>@<internal-host>:5432/<database>
 ```
 
 ## 3. Redis (managed)
@@ -81,18 +91,19 @@ VAULT_TOKEN = <the VAULT_DEV_ROOT_TOKEN_ID you set>
 
 ### Environment
 
-| Variable            | Value                                         |
-| ------------------- | --------------------------------------------- |
-| `NODE_ENV`          | `production`                                  |
-| `PORT`              | `3000`                                        |
-| `DATABASE_URL`      | from step 2                                   |
-| `REDIS_URL`         | from step 3                                   |
-| `SIGNER_DRIVER`     | `vault`                                       |
-| `VAULT_ADDR`        | from step 4                                   |
-| `VAULT_TOKEN`       | from step 4 (not the dev default)             |
-| `VAULT_TRANSIT_KEY` | `accesscore-signing` (optional; this default) |
-| `JWT_ISSUER`        | `https://<your-domain>`                       |
-| `JWT_AUDIENCE`      | `accesscore` (or your choice)                 |
+| Variable                 | Value                                         |
+| ------------------------ | --------------------------------------------- |
+| `NODE_ENV`               | `production`                                  |
+| `PORT`                   | `3000`                                        |
+| `DATABASE_URL`           | the `accesscore_app` role (step 2)            |
+| `MIGRATION_DATABASE_URL` | the owner role (step 2)                       |
+| `REDIS_URL`              | from step 3                                   |
+| `SIGNER_DRIVER`          | `vault`                                       |
+| `VAULT_ADDR`             | from step 4                                   |
+| `VAULT_TOKEN`            | from step 4 (not the dev default)             |
+| `VAULT_TRANSIT_KEY`      | `accesscore-signing` (optional; this default) |
+| `JWT_ISSUER`             | `https://<your-domain>`                       |
+| `JWT_AUDIENCE`           | `accesscore` (or your choice)                 |
 
 The remaining knobs (`ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL`, `JWKS_CACHE_MAX_AGE`,
 `THROTTLE_*`, `JWT_CLOCK_SKEW`) have production-safe defaults — see

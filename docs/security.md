@@ -102,7 +102,9 @@ enforced in code today, and what is scheduled, so the doc never overclaims:
   **object-level authorization** via the PDP (`@RequirePermission`, IDOR/BOLA prevention); ReBAC
   relationship evaluation (userset rewrites, nested groups) with **consistency tokens** and an
   append-only **decision log**; `orgId` tenant isolation at every graph hop; per-IP throttling
-  resolves the client address through a single trusted proxy hop.
+  resolves the client address through a single trusted proxy hop. The API connects as a
+  **least-privilege, non-owner DB role** so the append-only `decision_log`/`revisions` cannot be
+  `UPDATE`/`DELETE`d at runtime ([ADR-018](adr/018-least-privilege-db-role.md)).
 - **Scheduled — Slice 5 (PDP v3, ABAC):** deny-override evaluation, policy-DSL conditions,
   permission boundaries, and org guardrails (the DSL/caching rows in the target model above).
 - **Known residuals (accepted for the current demo):** `forgot-password` closes the status/body

@@ -85,6 +85,13 @@
       "when": 1783930016950,
       "tag": "0011_sour_zarda",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784185638525,
+      "tag": "0012_least_privilege_role",
+      "breakpoints": true
     }
   ]
 }

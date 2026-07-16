@@ -14,6 +14,7 @@ import { type EntityRef } from '../../src/authz/domain/entity-ref';
 import { type NamespaceConfigData } from '../../src/authz/domain/namespace-config';
 import { DrizzleDecisionLog } from '../../src/authz/infrastructure/persistence/drizzle-decision-log';
 import { DrizzleNamespaceDefinitionsRepository } from '../../src/authz/infrastructure/persistence/drizzle-namespace-definitions.repository';
+import { DrizzlePoliciesRepository } from '../../src/authz/infrastructure/persistence/drizzle-policies.repository';
 import { DrizzleRelationTupleStore } from '../../src/authz/infrastructure/persistence/drizzle-relation-tuple.store';
 import { DrizzleRevisionsRepository } from '../../src/db/drizzle-revisions.repository';
 import { DrizzleUnitOfWork } from '../../src/db/drizzle-unit-of-work';
@@ -38,9 +39,18 @@ describe('authz check orchestration (integration)', () => {
   const namespaces = new DrizzleNamespaceDefinitionsRepository(db);
   const revisions = new DrizzleRevisionsRepository();
   const uow = new DrizzleUnitOfWork(db);
+  const policies = new DrizzlePoliciesRepository(db);
   const tupleWriter = new RelationTupleWriter(tuples, revisions, uow, clock);
   const configWriter = new NamespaceConfigWriter(namespaces, revisions, uow, clock);
-  const pdp = new PdpService(namespaces, tuples, revisions, new DrizzleDecisionLog(db), uow, clock);
+  const pdp = new PdpService(
+    namespaces,
+    tuples,
+    policies,
+    revisions,
+    new DrizzleDecisionLog(db),
+    uow,
+    clock,
+  );
 
   const orgA = OrgId.generate();
   const orgB = OrgId.generate();

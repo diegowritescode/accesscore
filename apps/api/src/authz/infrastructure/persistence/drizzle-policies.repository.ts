@@ -1,10 +1,10 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { type Database, type Executor } from '../../../db/db.module';
 import { OrgId } from '../../../shared/kernel/org-id';
 import { Revision } from '../../../shared/kernel/revision';
 import { type Tx } from '../../../shared/persistence/unit-of-work';
 import { type PoliciesRepository } from '../../domain/ports/policies-repository';
-import { type Policy, type PolicyEffect } from '../../domain/policy/policy';
+import { ANY_ACTION, type Policy, type PolicyEffect } from '../../domain/policy/policy';
 import { policies } from './schema';
 
 export class DrizzlePoliciesRepository implements PoliciesRepository {
@@ -58,7 +58,7 @@ export class DrizzlePoliciesRepository implements PoliciesRepository {
         and(
           eq(policies.orgId, orgId.value),
           eq(policies.resourceType, resourceType),
-          eq(policies.action, action),
+          inArray(policies.action, [action, ANY_ACTION]),
         ),
       );
     return rows.map((row) => this.toDomain(row));

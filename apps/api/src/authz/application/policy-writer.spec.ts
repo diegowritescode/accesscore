@@ -45,6 +45,10 @@ class RecordingRepo implements PoliciesRepository {
   listByTarget(): Promise<Policy[]> {
     return Promise.resolve([]);
   }
+
+  listByOrg(): Promise<Policy[]> {
+    return Promise.resolve(this.saved);
+  }
 }
 
 describe('PolicyWriter', () => {

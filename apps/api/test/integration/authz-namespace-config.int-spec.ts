@@ -105,4 +105,19 @@ describe('authz namespace config (integration)', () => {
     expect(await countTable('namespace_definitions')).toBe(0);
     expect(await countTable('revisions')).toBe(0);
   });
+
+  it('lists every namespace in an org ordered by name, isolated per org', async () => {
+    await writer.define({
+      orgId: orgA,
+      namespace: 'folder',
+      config: { relations: ['viewer'], actions: { read: ['viewer'] } },
+    });
+    await writer.define({ orgId: orgA, namespace: 'document', config });
+    await writer.define({ orgId: orgB, namespace: 'secret', config });
+
+    const found = await repo.listByOrg(orgA);
+
+    expect(found.map((definition) => definition.namespace)).toEqual(['document', 'folder']);
+    expect(await repo.listByOrg(orgB)).toHaveLength(1);
+  });
 });

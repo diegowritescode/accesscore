@@ -38,6 +38,10 @@ class RecordingRepo implements NamespaceDefinitionsRepository {
   findByNamespace(): Promise<NamespaceDefinition | null> {
     return Promise.resolve(null);
   }
+
+  listByOrg(): Promise<NamespaceDefinition[]> {
+    return Promise.resolve(this.saved);
+  }
 }
 
 describe('NamespaceConfigWriter', () => {

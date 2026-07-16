@@ -158,4 +158,53 @@ describe('authz relation-tuple store (integration)', () => {
     expect(a.revision.value).not.toBe(b.revision.value);
     expect(await rowCount()).toBe(2);
   });
+
+  it('lists tuples filtered by namespace, subject and paginated', async () => {
+    const bob: SubjectRef = { kind: 'subject', ref: { type: 'user', id: 'bob' } };
+    const carol: SubjectRef = { kind: 'subject', ref: { type: 'user', id: 'carol' } };
+    await writer.write({ orgId: orgA, object, relation, subject: alice });
+    await writer.write({ orgId: orgA, object, relation, subject: bob });
+    await writer.write({
+      orgId: orgA,
+      object: { type: 'folder', id: 'f-1' },
+      relation,
+      subject: carol,
+    });
+
+    expect(await store.list({ orgId: orgA, limit: 50, offset: 0 })).toHaveLength(3);
+    expect(
+      await store.list({ orgId: orgA, namespace: 'document', limit: 50, offset: 0 }),
+    ).toHaveLength(2);
+
+    const byAlice = await store.list({ orgId: orgA, subject: alice, limit: 50, offset: 0 });
+    expect(byAlice).toHaveLength(1);
+    expect(required(byAlice[0]).subject).toEqual(alice);
+
+    const page1 = await store.list({
+      orgId: orgA,
+      namespace: 'document',
+      relation,
+      limit: 1,
+      offset: 0,
+    });
+    const page2 = await store.list({
+      orgId: orgA,
+      namespace: 'document',
+      relation,
+      limit: 1,
+      offset: 1,
+    });
+    expect(page1).toHaveLength(1);
+    expect(page2).toHaveLength(1);
+    expect(required(page1[0]).subject).not.toEqual(required(page2[0]).subject);
+  });
+
+  it('never lists tuples across org boundaries', async () => {
+    await writer.write({ orgId: orgA, object, relation, subject: alice });
+    await writer.write({ orgId: orgB, object, relation, subject: alice });
+
+    const inB = await store.list({ orgId: orgB, limit: 50, offset: 0 });
+    expect(inB).toHaveLength(1);
+    expect(required(inB[0]).orgId.value).toBe(orgB.value);
+  });
 });

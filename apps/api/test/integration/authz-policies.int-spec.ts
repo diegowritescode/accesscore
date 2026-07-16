@@ -87,4 +87,15 @@ describe('authz policies (integration)', () => {
     expect(await repo.deleteById(orgA, 'p1')).toBe(false);
     expect(await repo.listByTarget(orgA, 'document', 'read')).toEqual([]);
   });
+
+  it('lists every policy in an org ordered by target, isolated per org', async () => {
+    await repo.upsert({ ...policy(orgA, 'p2'), resourceType: 'folder' });
+    await repo.upsert(policy(orgA, 'p1'));
+    await repo.upsert(policy(orgB, 'other'));
+
+    const found = await repo.listByOrg(orgA);
+
+    expect(found.map((p) => p.id)).toEqual(['p1', 'p2']);
+    expect(await repo.listByOrg(orgB)).toHaveLength(1);
+  });
 });

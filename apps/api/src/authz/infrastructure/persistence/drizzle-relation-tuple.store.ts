@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, type SQL } from 'drizzle-orm';
 import { type Database, type Executor } from '../../../db/db.module';
 import { OrgId } from '../../../shared/kernel/org-id';
 import { Revision } from '../../../shared/kernel/revision';
@@ -7,6 +7,7 @@ import {
   type ObjectRelationQuery,
   type RelationTupleKey,
   type RelationTupleStore,
+  type TupleFilter,
 } from '../../domain/ports/relation-tuple-store';
 import { RelationTuple } from '../../domain/relation-tuple';
 import { encodeSubject, parseSubject } from '../../domain/subject-ref';
@@ -69,6 +70,36 @@ export class DrizzleRelationTupleStore implements RelationTupleStore {
           eq(relationTuples.relation, query.relation),
         ),
       );
+    return rows.map((row) => this.toDomain(row));
+  }
+
+  async list(filter: TupleFilter, tx?: Tx): Promise<RelationTuple[]> {
+    const executor = (tx?.executor as Executor) ?? this.db;
+    const conditions: SQL[] = [eq(relationTuples.orgId, filter.orgId.value)];
+    if (filter.namespace !== undefined) {
+      conditions.push(eq(relationTuples.namespace, filter.namespace));
+    }
+    if (filter.objectId !== undefined) {
+      conditions.push(eq(relationTuples.objectId, filter.objectId));
+    }
+    if (filter.relation !== undefined) {
+      conditions.push(eq(relationTuples.relation, filter.relation));
+    }
+    if (filter.subject !== undefined) {
+      conditions.push(eq(relationTuples.subject, encodeSubject(filter.subject)));
+    }
+    const rows = await executor
+      .select()
+      .from(relationTuples)
+      .where(and(...conditions))
+      .orderBy(
+        asc(relationTuples.namespace),
+        asc(relationTuples.objectId),
+        asc(relationTuples.relation),
+        asc(relationTuples.subject),
+      )
+      .limit(filter.limit)
+      .offset(filter.offset);
     return rows.map((row) => this.toDomain(row));
   }
 

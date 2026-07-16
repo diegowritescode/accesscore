@@ -1,6 +1,7 @@
 import { type AuthTokenClaims } from '../../authn/interface/access-token.guard';
 import { ProblemException } from '../../shared/http/problem-details';
 import { type Clock } from '../../shared/kernel/clock';
+import { type Principal } from '../domain/authorization-request';
 import { type Decision } from '../domain/decision';
 import { type PolicyDecisionPoint } from '../domain/policy-decision-point';
 import { AuthzController } from './authz.controller';
@@ -83,6 +84,116 @@ describe('AuthzController', () => {
     expect(response.live.effect).toBe('permit');
     expect(response.changed).toBe(true);
     expect(received).toHaveLength(1);
+  });
+
+  it('check-as evaluates for the requested subject, read-only, and returns the decision', async () => {
+    const permitted: Decision = {
+      effect: 'permit',
+      reasons: [{ code: 'grant.nested_group', message: 'x' }],
+    };
+    const recorded: { principal?: Principal; overlay?: unknown } = {};
+    const pdp: PolicyDecisionPoint = {
+      check: () => Promise.reject(new Error('unused')),
+      batchCheck: () => Promise.reject(new Error('unused')),
+      expand: () => Promise.reject(new Error('unused')),
+      simulate: (principal, _action, _resource, _context, overlay) => {
+        recorded.principal = principal;
+        recorded.overlay = overlay;
+        return Promise.resolve({ decision: permitted, live: permitted, changed: false });
+      },
+    };
+    const controller = new AuthzController(pdp, clock);
+
+    const response = await controller.checkAs(
+      token,
+      {
+        subject: { type: 'user', id: 'bob' },
+        action: 'document.read',
+        resource: { type: 'document', id: 'doc-1' },
+        aal: 2,
+      },
+      '127.0.0.1',
+    );
+
+    expect(response.effect).toBe('permit');
+    expect(recorded.overlay).toBeNull();
+    expect(recorded.principal?.subject).toEqual({ type: 'user', id: 'bob' });
+    expect(recorded.principal?.orgId).toBe('org-1');
+    expect(recorded.principal?.assuranceLevel).toBe(2);
+  });
+
+  it('check-as defaults the assurance level to 1 when omitted', async () => {
+    const recorded: { principal?: Principal } = {};
+    const pdp: PolicyDecisionPoint = {
+      check: () => Promise.reject(new Error('unused')),
+      batchCheck: () => Promise.reject(new Error('unused')),
+      expand: () => Promise.reject(new Error('unused')),
+      simulate: (principal) => {
+        recorded.principal = principal;
+        return Promise.resolve({
+          decision: { effect: 'deny', reasons: [] },
+          live: { effect: 'deny', reasons: [] },
+          changed: false,
+        });
+      },
+    };
+    const controller = new AuthzController(pdp, clock);
+
+    await controller.checkAs(
+      token,
+      {
+        subject: { type: 'user', id: 'carol' },
+        action: 'document.read',
+        resource: { type: 'document', id: 'doc-1' },
+      },
+      '127.0.0.1',
+    );
+
+    expect(recorded.principal?.assuranceLevel).toBe(1);
+  });
+
+  it('check-as rejects an invalid body with a 400 problem', async () => {
+    const controller = new AuthzController(pdpReturning({ effect: 'permit', reasons: [] }), clock);
+    await expect(
+      controller.checkAs(token, { action: 'document.read' }, '127.0.0.1'),
+    ).rejects.toBeInstanceOf(ProblemException);
+  });
+
+  it('check-as rejects a caller with no organization as a 400 problem', async () => {
+    const controller = new AuthzController(pdpReturning({ effect: 'permit', reasons: [] }), clock);
+    await expect(
+      controller.checkAs(
+        { ...token, org: null },
+        {
+          subject: { type: 'user', id: 'bob' },
+          action: 'document.read',
+          resource: { type: 'document', id: 'doc-1' },
+        },
+        '127.0.0.1',
+      ),
+    ).rejects.toBeInstanceOf(ProblemException);
+  });
+
+  it('check-as fails closed with a 503 problem when the PDP errors', async () => {
+    const failingPdp: PolicyDecisionPoint = {
+      check: () => Promise.reject(new Error('unused')),
+      batchCheck: () => Promise.reject(new Error('unused')),
+      expand: () => Promise.reject(new Error('unused')),
+      simulate: () => Promise.reject(new Error('store unavailable')),
+    };
+    const controller = new AuthzController(failingPdp, clock);
+
+    await expect(
+      controller.checkAs(
+        token,
+        {
+          subject: { type: 'user', id: 'bob' },
+          action: 'document.read',
+          resource: { type: 'document', id: 'doc-1' },
+        },
+        '127.0.0.1',
+      ),
+    ).rejects.toBeInstanceOf(ProblemException);
   });
 
   it('simulate rejects an invalid body with a 400 problem', async () => {

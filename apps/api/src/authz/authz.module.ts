@@ -10,6 +10,7 @@ import {
   type RevisionsRepository,
 } from '../shared/persistence/revisions-repository';
 import { UNIT_OF_WORK, type UnitOfWork } from '../shared/persistence/unit-of-work';
+import { AUTHZ_DIRECTORY, AuthzDirectoryService } from './application/directory-service';
 import {
   NAMESPACE_CONFIG_WRITER,
   NamespaceConfigWriter,
@@ -30,13 +31,14 @@ import { DrizzleNamespaceDefinitionsRepository } from './infrastructure/persiste
 import { DrizzlePoliciesRepository } from './infrastructure/persistence/drizzle-policies.repository';
 import { DrizzleRelationTupleStore } from './infrastructure/persistence/drizzle-relation-tuple.store';
 import { AuthzController } from './interface/authz.controller';
+import { DirectoryController } from './interface/directory.controller';
 import { PapAdminGuard } from './interface/pap-admin.guard';
 import { PapController } from './interface/pap.controller';
 import { PermissionGuard } from './interface/permission.guard';
 
 @Module({
   imports: [AuthnModule, TenancyModule],
-  controllers: [AuthzController, PapController],
+  controllers: [AuthzController, PapController, DirectoryController],
   providers: [
     { provide: CLOCK, useClass: SystemClock },
     AccessTokenGuard,
@@ -78,6 +80,15 @@ import { PermissionGuard } from './interface/permission.guard';
       provide: POLICIES_REPOSITORY,
       inject: [DB],
       useFactory: (db: Database): DrizzlePoliciesRepository => new DrizzlePoliciesRepository(db),
+    },
+    {
+      provide: AUTHZ_DIRECTORY,
+      inject: [NAMESPACE_DEFINITIONS_REPOSITORY, RELATION_TUPLE_STORE, POLICIES_REPOSITORY],
+      useFactory: (
+        namespaces: NamespaceDefinitionsRepository,
+        tuples: RelationTupleStore,
+        policies: PoliciesRepository,
+      ): AuthzDirectoryService => new AuthzDirectoryService(namespaces, tuples, policies),
     },
     {
       provide: POLICY_WRITER,
@@ -124,6 +135,7 @@ import { PermissionGuard } from './interface/permission.guard';
     NAMESPACE_CONFIG_WRITER,
     POLICIES_REPOSITORY,
     POLICY_WRITER,
+    AUTHZ_DIRECTORY,
     DECISION_LOG,
   ],
 })

@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { type Database, type Executor } from '../../../db/db.module';
 import { OrgId } from '../../../shared/kernel/org-id';
 import { Revision } from '../../../shared/kernel/revision';
@@ -46,6 +46,16 @@ export class DrizzleNamespaceDefinitionsRepository implements NamespaceDefinitio
       .limit(1);
     const row = rows[0];
     return row ? this.toDomain(row) : null;
+  }
+
+  async listByOrg(orgId: OrgId, tx?: Tx): Promise<NamespaceDefinition[]> {
+    const executor = (tx?.executor as Executor) ?? this.db;
+    const rows = await executor
+      .select()
+      .from(namespaceDefinitions)
+      .where(eq(namespaceDefinitions.orgId, orgId.value))
+      .orderBy(asc(namespaceDefinitions.namespace));
+    return rows.map((row) => this.toDomain(row));
   }
 
   private toDomain(row: typeof namespaceDefinitions.$inferSelect): NamespaceDefinition {

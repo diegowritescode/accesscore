@@ -2,10 +2,12 @@
 
 - **Status:** Accepted (2026-07-13)
 - **Date:** 2026-07-13
-- **Implementation: in progress (Slice 5, milestone #5).** The ReBAC + RBAC core shipped in Slices 3-4;
-  this ABAC layer is now being built US by US (US-5.0 onward). US-5.0 lands the model, the condition AST,
-  the trusted-context types, and enables the `intersection` / `exclusion` `Userset` nodes; the evaluator,
-  policy store, and deny-override follow in US-5.1–5.5.
+- **Implementation: complete (Slice 5, milestone #5).** The ReBAC + RBAC core shipped in Slices 3-4;
+  this ABAC layer shipped across US-5.0–5.5: the model + condition AST + enabled `intersection` /
+  `exclusion` nodes (5.0), the condition validator + policy store + PAP write plane (5.1), the pure
+  fail-closed condition evaluator (5.2), the deny-override integration + structural-algebra resolution
+  (5.3), the modeled permission boundaries / org guardrails with an inert bounding pass (5.4), and the
+  read-only simulation surface (5.5). The hybrid **ReBAC + RBAC + ABAC** engine is now complete.
 - The sequel to [ADR-015](015-userset-rewrites-and-rebac-evaluation.md): it wraps the pure,
   context-free ReBAC evaluator with the ABAC pillar [ADR-002](002-authorization-model.md) promised —
   a Cedar-inspired `permit`/`forbid` policy layer with `when`/`unless` conditions and IAM-style

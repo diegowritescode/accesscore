@@ -21,10 +21,15 @@ import {
 } from '../domain/evaluate';
 import { type NamespaceDefinition } from '../domain/namespace-definition';
 import { NamespaceRegistry } from '../domain/namespace-registry';
-import { applyBounds, UNBOUNDED } from '../domain/policy/boundary';
+import { applyBounds, type BoundaryTarget, UNBOUNDED } from '../domain/policy/boundary';
 import { decide } from '../domain/policy/decide';
 import { type EvaluationContext as PolicyContext } from '../domain/policy/evaluation-context';
-import { type BatchCheckRequest, type PolicyDecisionPoint } from '../domain/policy-decision-point';
+import { ANY_ACTION, type Policy } from '../domain/policy/policy';
+import {
+  type BatchCheckRequest,
+  type PolicyDecisionPoint,
+  type SimulationResult,
+} from '../domain/policy-decision-point';
 import { type DecisionLog } from '../domain/ports/decision-log';
 import { type NamespaceDefinitionsRepository } from '../domain/ports/namespace-definitions-repository';
 import { type PoliciesRepository } from '../domain/ports/policies-repository';
@@ -49,6 +54,18 @@ interface EvaluationContext {
   readonly namespaces: Map<string, NamespaceDefinition | null>;
   readonly tuples: Map<string, RelationTuple[]>;
 }
+
+type Prepared =
+  | { readonly outcome: 'deny'; readonly decision: Decision; readonly revisionUsed: Revision }
+  | {
+      readonly outcome: 'ok';
+      readonly rebac: Decision;
+      readonly applicable: readonly Policy[];
+      readonly policyContext: PolicyContext;
+      readonly target: BoundaryTarget;
+      readonly subject: EntityRef;
+      readonly revisionUsed: Revision;
+    };
 
 export class PdpService implements PolicyDecisionPoint {
   constructor(
@@ -151,6 +168,47 @@ export class PdpService implements PolicyDecisionPoint {
     };
   }
 
+  async simulate(
+    principal: Principal,
+    action: Action,
+    resource: Resource,
+    request: RequestContext,
+    overlay: readonly Policy[] | null,
+  ): Promise<SimulationResult> {
+    return this.unitOfWork.withTransaction<SimulationResult>(
+      async (tx) => {
+        const prepared = await this.prepare(
+          principal,
+          action,
+          resource,
+          request,
+          await this.openContext(tx),
+        );
+        if (prepared.outcome === 'deny') {
+          return { decision: prepared.decision, live: prepared.decision, changed: false };
+        }
+        const resolve = (policies: readonly Policy[]): Decision =>
+          applyBounds(
+            decide(prepared.rebac, policies, prepared.policyContext),
+            prepared.target,
+            prepared.subject,
+            UNBOUNDED,
+          );
+        const live = resolve(prepared.applicable);
+        const overlayPolicies = overlay
+          ? overlay.filter(
+              (policy) =>
+                policy.resourceType === prepared.target.resourceType &&
+                (policy.action === prepared.target.action || policy.action === ANY_ACTION),
+            )
+          : prepared.applicable;
+        const proposed = resolve(overlayPolicies);
+        return { decision: proposed, live, changed: proposed.effect !== live.effect };
+      },
+      { readOnly: true, isolationLevel: 'repeatable read' },
+    );
+  }
+
   private async evaluateWithin(
     principal: Principal,
     action: Action,
@@ -158,8 +216,27 @@ export class PdpService implements PolicyDecisionPoint {
     request: RequestContext,
     context: EvaluationContext,
   ): Promise<EvaluationResult> {
+    const prepared = await this.prepare(principal, action, resource, request, context);
+    if (prepared.outcome === 'deny') {
+      return { decision: prepared.decision, revisionUsed: prepared.revisionUsed };
+    }
+    const decided = decide(prepared.rebac, prepared.applicable, prepared.policyContext);
+    return {
+      decision: applyBounds(decided, prepared.target, prepared.subject, UNBOUNDED),
+      revisionUsed: prepared.revisionUsed,
+    };
+  }
+
+  private async prepare(
+    principal: Principal,
+    action: Action,
+    resource: Resource,
+    request: RequestContext,
+    context: EvaluationContext,
+  ): Promise<Prepared> {
     if (!principal.orgId) {
       return {
+        outcome: 'deny',
         decision: deny('no_org_context', 'The principal is not scoped to an organization.'),
         revisionUsed: Revision.fromValue(0),
       };
@@ -170,6 +247,7 @@ export class PdpService implements PolicyDecisionPoint {
         : null;
     if (requiredRevision && !context.revisionUsed.isAtLeast(requiredRevision)) {
       return {
+        outcome: 'deny',
         decision: deny(
           'consistency_unavailable',
           'The store has not caught up to the requested consistency token.',
@@ -198,14 +276,13 @@ export class PdpService implements PolicyDecisionPoint {
       env: { ip: request.ip, now: this.clock.now() },
       resource: {},
     };
-    const decided = decide(rebac, applicable, policyContext);
     return {
-      decision: applyBounds(
-        decided,
-        { resourceType: resource.type, action: action.verb },
-        principal.subject,
-        UNBOUNDED,
-      ),
+      outcome: 'ok',
+      rebac,
+      applicable,
+      policyContext,
+      target: { resourceType: resource.type, action: action.verb },
+      subject: principal.subject,
       revisionUsed: context.revisionUsed,
     };
   }

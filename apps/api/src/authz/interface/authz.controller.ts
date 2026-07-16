@@ -19,12 +19,28 @@ import {
 } from '../domain/policy-decision-point';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { openApiSchema } from '../../shared/http/openapi-schema';
-import { batchCheckSchema, type CheckDto, checkSchema, expandSchema } from './check.dto';
+import { OrgId } from '../../shared/kernel/org-id';
+import { Revision } from '../../shared/kernel/revision';
+import { parseCondition } from '../domain/policy/condition';
+import { type Policy } from '../domain/policy/policy';
+import {
+  batchCheckSchema,
+  type CheckDto,
+  checkSchema,
+  expandSchema,
+  simulateSchema,
+} from './check.dto';
 import { PapAdminGuard } from './pap-admin.guard';
 
 interface CheckResponse {
   effect: string;
   reasons: { code: string; message: string }[];
+}
+
+interface SimulateResponse {
+  decision: CheckResponse;
+  live: CheckResponse;
+  changed: boolean;
 }
 
 const badRequest = (): ProblemException =>
@@ -138,6 +154,70 @@ export class AuthzController {
         parsed.data.relation,
       );
       return { subjects: members.map((member) => ({ type: member.type, id: member.id })) };
+    } catch {
+      throw unavailable();
+    }
+  }
+
+  @Post('simulate')
+  @HttpCode(200)
+  @UseGuards(AccessTokenGuard, PapAdminGuard)
+  @ApiOperation({
+    summary: 'Simulate a decision against live or proposed policies',
+    description:
+      'Owner-gated and read-only. Evaluates the check against the live policies and, when a policy ' +
+      'overlay is supplied, against the proposed set — returning both decisions and whether they ' +
+      'differ. Writes no decision log and allocates no revision.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'The proposed and live decisions, and whether they differ.',
+  })
+  async simulate(
+    @AuthToken() token: AuthTokenClaims,
+    @Body() body: unknown,
+    @Ip() ip: string,
+  ): Promise<SimulateResponse> {
+    const parsed = simulateSchema.safeParse(body);
+    if (!parsed.success) {
+      throw badRequest();
+    }
+    if (!token.org) {
+      throw badRequest();
+    }
+    const request = this.toRequest(token, parsed.data, ip);
+    let overlay: Policy[] | null = null;
+    if (parsed.data.policies) {
+      overlay = [];
+      for (const [index, item] of parsed.data.policies.entries()) {
+        const condition = parseCondition(item.condition);
+        if (!condition.ok) {
+          throw badRequest();
+        }
+        overlay.push({
+          id: item.id ?? `overlay-${index}`,
+          orgId: OrgId.fromString(token.org),
+          effect: item.effect,
+          resourceType: item.resourceType,
+          action: item.action,
+          condition: condition.value,
+          revision: Revision.fromValue(0),
+        });
+      }
+    }
+    try {
+      const result = await this.pdp.simulate(
+        request.principal,
+        request.action,
+        request.resource,
+        request.context,
+        overlay,
+      );
+      return {
+        decision: toResponse(result.decision),
+        live: toResponse(result.live),
+        changed: result.changed,
+      };
     } catch {
       throw unavailable();
     }

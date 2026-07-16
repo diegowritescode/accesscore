@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { writePolicySchema } from './pap.dto';
 
 export const checkSchema = z.object({
   action: z.string().min(1).max(128),
@@ -21,6 +22,20 @@ export const expandSchema = z.object({
   relation: z.string().min(1).max(64),
 });
 
+export const simulateSchema = z.object({
+  action: z.string().min(1).max(128),
+  resource: z.object({
+    type: z.string().min(1).max(64),
+    id: z.string().min(1).max(256),
+  }),
+  consistency_token: z.string().min(1).max(512).optional(),
+  policies: z
+    .array(writePolicySchema.extend({ id: z.string().min(1).max(128).optional() }))
+    .max(50)
+    .optional(),
+});
+
 export type CheckDto = z.infer<typeof checkSchema>;
 export type BatchCheckDto = z.infer<typeof batchCheckSchema>;
 export type ExpandDto = z.infer<typeof expandSchema>;
+export type SimulateDto = z.infer<typeof simulateSchema>;

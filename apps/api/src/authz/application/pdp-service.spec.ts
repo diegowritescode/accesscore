@@ -283,6 +283,42 @@ describe('PdpService', () => {
     expect(stepped.effect).toBe('permit');
   });
 
+  it('simulate returns the live and proposed decisions and writes no decision log', async () => {
+    const { pdp, log } = build({
+      definition: namespaceDef(),
+      tuples: [tuple('viewer', { kind: 'subject', ref: alice })],
+    });
+    const overlay: Policy[] = [
+      {
+        id: 'proposed',
+        orgId,
+        effect: 'forbid',
+        resourceType: 'document',
+        action: 'read',
+        condition: {
+          kind: 'cmp',
+          op: 'lt',
+          left: { kind: 'attr', path: 'principal.aal' },
+          right: { kind: 'lit', value: 2 },
+        },
+        revision: Revision.fromValue(0),
+      },
+    ];
+
+    const result = await pdp.simulate(
+      { ...principal(orgId.value), assuranceLevel: 1 },
+      read,
+      resource,
+      fullContext,
+      overlay,
+    );
+
+    expect(result.live.effect).toBe('permit');
+    expect(result.decision.effect).toBe('deny');
+    expect(result.changed).toBe(true);
+    expect(log.records).toHaveLength(0);
+  });
+
   it('denies by default when nothing grants the action, and logs it', async () => {
     const { pdp, log } = build({ definition: namespaceDef(), tuples: [], revision: 3 });
 

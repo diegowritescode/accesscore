@@ -21,6 +21,7 @@ import {
 } from '../domain/evaluate';
 import { type NamespaceDefinition } from '../domain/namespace-definition';
 import { NamespaceRegistry } from '../domain/namespace-registry';
+import { applyBounds, UNBOUNDED } from '../domain/policy/boundary';
 import { decide } from '../domain/policy/decide';
 import { type EvaluationContext as PolicyContext } from '../domain/policy/evaluation-context';
 import { type BatchCheckRequest, type PolicyDecisionPoint } from '../domain/policy-decision-point';
@@ -197,8 +198,14 @@ export class PdpService implements PolicyDecisionPoint {
       env: { ip: request.ip, now: this.clock.now() },
       resource: {},
     };
+    const decided = decide(rebac, applicable, policyContext);
     return {
-      decision: decide(rebac, applicable, policyContext),
+      decision: applyBounds(
+        decided,
+        { resourceType: resource.type, action: action.verb },
+        principal.subject,
+        UNBOUNDED,
+      ),
       revisionUsed: context.revisionUsed,
     };
   }

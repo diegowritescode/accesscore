@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { EmptyState, PageHeader, Section } from '@/components/console/kit';
 import { Badge, Callout } from '@/components/ui';
+import { getT } from '@/lib/i18n-server';
 import { getPolicies, isUnauthorized } from '@/lib/server-directory';
 
 export default async function PoliciesPage() {
@@ -8,20 +9,16 @@ export default async function PoliciesPage() {
   if (isUnauthorized(result)) {
     redirect('/login');
   }
+  const t = await getT();
 
   return (
     <>
-      <PageHeader
-        title="Policies"
-        description="The live ABAC policies. Each targets a resource type and action, carries a permit or forbid effect, and gates on a condition over principal and environment attributes. Forbid always wins (deny-override)."
-      />
+      <PageHeader title={t('policies.title')} description={t('policies.description')} />
 
       {!result.ok ? (
-        <Callout tone="error">Policies could not be loaded from the authorization service.</Callout>
+        <Callout tone="error">{t('errors.policiesLoad')}</Callout>
       ) : result.data.policies.length === 0 ? (
-        <EmptyState>
-          No ABAC policies are defined. Decisions fall back to the relationship graph.
-        </EmptyState>
+        <EmptyState>{t('policies.empty')}</EmptyState>
       ) : (
         <div className="flex flex-col gap-4">
           {result.data.policies.map((policy) => (
@@ -39,7 +36,7 @@ export default async function PoliciesPage() {
             >
               <div>
                 <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
-                  Condition
+                  {t('policies.condition')}
                 </div>
                 <pre className="overflow-x-auto rounded-lg bg-surface-2 p-3 font-mono text-xs leading-relaxed text-fg">
                   {JSON.stringify(policy.condition, null, 2)}

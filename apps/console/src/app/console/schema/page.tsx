@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { EmptyState, PageHeader, Section } from '@/components/console/kit';
 import { Badge, Callout } from '@/components/ui';
+import { getT } from '@/lib/i18n-server';
 import { getNamespace, getNamespaces, isUnauthorized } from '@/lib/server-directory';
 import type { NamespaceDetail } from '@/lib/types';
 
@@ -9,13 +10,12 @@ export default async function SchemaPage() {
   if (isUnauthorized(namespacesResult)) {
     redirect('/login');
   }
+  const t = await getT();
   if (!namespacesResult.ok) {
     return (
       <>
-        <PageHeader title="Schema" />
-        <Callout tone="error">
-          The schema could not be loaded from the authorization service.
-        </Callout>
+        <PageHeader title={t('schema.title')} />
+        <Callout tone="error">{t('errors.schemaLoad')}</Callout>
       </>
     );
   }
@@ -28,13 +28,10 @@ export default async function SchemaPage() {
 
   return (
     <>
-      <PageHeader
-        title="Schema"
-        description="The namespace definitions: the relations each resource type declares, the actions clients can request, and the userset rewrites that expand one relation into others."
-      />
+      <PageHeader title={t('schema.title')} description={t('schema.description')} />
 
       {namespaces.length === 0 ? (
-        <EmptyState>No namespaces are defined in this organization.</EmptyState>
+        <EmptyState>{t('schema.empty')}</EmptyState>
       ) : (
         <div className="flex flex-col gap-6">
           {namespaces.map((ns) => {
@@ -43,12 +40,12 @@ export default async function SchemaPage() {
               <Section
                 key={ns.namespace}
                 title={ns.namespace}
-                description={`Revision ${ns.revision}`}
+                description={t('schema.revision', { revision: ns.revision })}
               >
                 <div className="flex flex-col gap-6">
                   <div>
                     <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
-                      Relations
+                      {t('schema.relations')}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {ns.relations.map((relation) => (
@@ -59,14 +56,14 @@ export default async function SchemaPage() {
 
                   <div>
                     <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
-                      Actions
+                      {t('schema.actions')}
                     </div>
                     <div className="flex flex-col gap-2">
                       {Object.entries(ns.actions).map(([verb, relations]) => (
                         <div key={verb} className="flex flex-wrap items-center gap-2 text-sm">
                           <Badge tone="brand">{verb}</Badge>
                           <span aria-hidden className="text-muted">
-                            requires
+                            {t('schema.requires')}
                           </span>
                           {relations.map((relation) => (
                             <Badge key={relation}>{relation}</Badge>
@@ -78,12 +75,10 @@ export default async function SchemaPage() {
 
                   <div>
                     <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
-                      Rewrites
+                      {t('schema.rewrites')}
                     </div>
                     {rewrites.length === 0 ? (
-                      <p className="text-sm text-muted">
-                        No rewrites — relations resolve directly from stored tuples.
-                      </p>
+                      <p className="text-sm text-muted">{t('schema.noRewrites')}</p>
                     ) : (
                       <div className="flex flex-col gap-3">
                         {rewrites.map(([relation, tree]) => (

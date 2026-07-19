@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '../i18n/language-provider';
 import { Panel, cn } from '../ui';
 import { CheckPanel } from './check-panel';
 import { ExpandPanel } from './expand-panel';
@@ -8,20 +9,21 @@ import { SimulatePanel } from './simulate-panel';
 
 type TabId = 'check' | 'expand' | 'simulate';
 
-const tabs: { id: TabId; label: string; blurb: string }[] = [
-  { id: 'check', label: 'Check', blurb: 'One decision, fully explained.' },
-  { id: 'expand', label: 'Expand', blurb: 'Resolve a relation to its subjects.' },
-  { id: 'simulate', label: 'Simulate', blurb: 'Live vs. proposed, side by side.' },
+const tabs: { id: TabId; labelKey: string; blurbKey: string }[] = [
+  { id: 'check', labelKey: 'playground.tabCheck', blurbKey: 'playground.tabCheckBlurb' },
+  { id: 'expand', labelKey: 'playground.tabExpand', blurbKey: 'playground.tabExpandBlurb' },
+  { id: 'simulate', labelKey: 'playground.tabSimulate', blurbKey: 'playground.tabSimulateBlurb' },
 ];
 
 export function Playground() {
+  const t = useT();
   const [active, setActive] = useState<TabId>('check');
 
   return (
     <div className="flex flex-col gap-6">
       <div
         role="tablist"
-        aria-label="Playground tools"
+        aria-label={t('playground.title')}
         className="flex flex-wrap gap-2 rounded-xl border border-line bg-surface p-1.5"
       >
         {tabs.map((tab) => {
@@ -37,9 +39,9 @@ export function Playground() {
                 selected ? 'bg-brand text-white' : 'text-muted hover:bg-surface-2 hover:text-fg',
               )}
             >
-              <span className="text-sm font-semibold">{tab.label}</span>
+              <span className="text-sm font-semibold">{t(tab.labelKey)}</span>
               <span className={cn('text-xs', selected ? 'text-white/80' : 'text-muted/80')}>
-                {tab.blurb}
+                {t(tab.blurbKey)}
               </span>
             </button>
           );

@@ -11,6 +11,7 @@ import {
 } from '@/components/console/kit';
 import { ArrowRightIcon } from '@/components/icons';
 import { Badge, Callout } from '@/components/ui';
+import { getT } from '@/lib/i18n-server';
 import { getNamespaces, getPolicies, getTuples, isUnauthorized } from '@/lib/server-directory';
 import type { TupleView } from '@/lib/types';
 
@@ -36,6 +37,7 @@ export default async function OverviewPage() {
     redirect('/login');
   }
 
+  const t = await getT();
   const namespaces = namespacesResult.ok ? namespacesResult.data.namespaces : [];
   const tuples = tuplesResult.ok ? tuplesResult.data.tuples : [];
   const policies = policiesResult.ok ? policiesResult.data.policies : [];
@@ -56,48 +58,67 @@ export default async function OverviewPage() {
   }
   const objectGroups = [...byObject.entries()].slice(0, 6);
 
+  const tryItems: [string, string][] = [
+    [t('playground.tabCheck'), t('overview.tryCheckBlurb')],
+    [t('playground.tabExpand'), t('overview.tryExpandBlurb')],
+    [t('playground.tabSimulate'), t('overview.trySimulateBlurb')],
+  ];
+
   return (
     <>
-      <PageHeader
-        title="Overview"
-        description="A live, explainable authorization engine — hybrid ReBAC, RBAC and ABAC in one policy decision point. This console reads and probes the same model the API enforces."
-      />
+      <PageHeader title={t('overview.title')} description={t('overview.description')} />
 
       {degraded ? (
         <Callout tone="error" className="mb-6">
-          Some data could not be loaded from the authorization service. Showing what is available.
+          {t('errors.degraded')}
         </Callout>
       ) : null}
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Namespaces" value={namespaces.length} hint="Resource types" />
-        <StatCard label="Relations" value={relationCount} hint="Across all namespaces" />
-        <StatCard label="Relationships" value={tupleCount} hint="Stored tuples" />
-        <StatCard label="Policies" value={policies.length} hint="Live ABAC rules" />
+        <StatCard
+          label={t('overview.statNamespaces')}
+          value={namespaces.length}
+          hint={t('overview.statNamespacesHint')}
+        />
+        <StatCard
+          label={t('overview.statRelations')}
+          value={relationCount}
+          hint={t('overview.statRelationsHint')}
+        />
+        <StatCard
+          label={t('overview.statRelationships')}
+          value={tupleCount}
+          hint={t('overview.statRelationshipsHint')}
+        />
+        <StatCard
+          label={t('overview.statPolicies')}
+          value={policies.length}
+          hint={t('overview.statPoliciesHint')}
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <Section
-          title="Namespaces"
-          description="The resource types in this organization, with their relations and the actions each exposes."
+          title={t('overview.namespacesTitle')}
+          description={t('overview.namespacesDesc')}
           action={
             <Link
               href="/console/schema"
               className="inline-flex items-center gap-1 text-sm font-medium text-brand-strong hover:underline"
             >
-              Schema <ArrowRightIcon className="h-4 w-4" />
+              {t('nav.schema')} <ArrowRightIcon className="h-4 w-4" />
             </Link>
           }
         >
           {namespaces.length === 0 ? (
-            <EmptyState>No namespaces defined.</EmptyState>
+            <EmptyState>{t('overview.emptyNamespaces')}</EmptyState>
           ) : (
             <DataTable
               head={
                 <tr>
-                  <Th>Namespace</Th>
-                  <Th>Relations</Th>
-                  <Th>Actions</Th>
+                  <Th>{t('overview.thNamespace')}</Th>
+                  <Th>{t('overview.thRelations')}</Th>
+                  <Th>{t('overview.thActions')}</Th>
                 </tr>
               }
             >
@@ -128,13 +149,9 @@ export default async function OverviewPage() {
           )}
         </Section>
 
-        <Section title="Try it" description="Probe the graph without leaving the console.">
+        <Section title={t('overview.tryItTitle')} description={t('overview.tryItDesc')}>
           <div className="flex flex-col gap-2.5">
-            {[
-              ['Check', 'Resolve one decision with reasons.'],
-              ['Expand', 'List everyone who holds a relation.'],
-              ['Simulate', 'Compare live vs. a proposed policy.'],
-            ].map(([label, blurb]) => (
+            {tryItems.map(([label, blurb]) => (
               <Link
                 key={label}
                 href="/console/playground"
@@ -153,19 +170,19 @@ export default async function OverviewPage() {
 
       <Section
         className="mt-6"
-        title="Seeded relationships"
-        description="The relationship tuples that back the demo, grouped by object. This is the stored graph — Expand resolves it to the full member set."
+        title={t('overview.seededTitle')}
+        description={t('overview.seededDesc')}
         action={
           <Link
             href="/console/relationships"
             className="inline-flex items-center gap-1 text-sm font-medium text-brand-strong hover:underline"
           >
-            Browse all <ArrowRightIcon className="h-4 w-4" />
+            {t('overview.browseAll')} <ArrowRightIcon className="h-4 w-4" />
           </Link>
         }
       >
         {objectGroups.length === 0 ? (
-          <EmptyState>No relationships stored.</EmptyState>
+          <EmptyState>{t('overview.emptyRelationships')}</EmptyState>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             {objectGroups.map(([object, group]) => (

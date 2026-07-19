@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { DataTable, EmptyState, PageHeader, Td, Th } from '@/components/console/kit';
 import { Badge, Callout } from '@/components/ui';
+import { getT } from '@/lib/i18n-server';
 import { getTuples, isUnauthorized } from '@/lib/server-directory';
 import type { TupleView } from '@/lib/types';
 
@@ -16,28 +17,24 @@ export default async function RelationshipsPage() {
   if (isUnauthorized(result)) {
     redirect('/login');
   }
+  const t = await getT();
 
   return (
     <>
-      <PageHeader
-        title="Relationships"
-        description="The stored relationship tuples — object, relation and subject. This is the raw graph the engine walks; a userset subject (type:id#relation) points at another set. Use Expand in the Playground to resolve a relation to its full member set."
-      />
+      <PageHeader title={t('relationships.title')} description={t('relationships.description')} />
 
       {!result.ok ? (
-        <Callout tone="error">
-          Relationships could not be loaded from the authorization service.
-        </Callout>
+        <Callout tone="error">{t('errors.relationshipsLoad')}</Callout>
       ) : result.data.tuples.length === 0 ? (
-        <EmptyState>No relationship tuples are stored in this organization.</EmptyState>
+        <EmptyState>{t('relationships.empty')}</EmptyState>
       ) : (
         <DataTable
           head={
             <tr>
-              <Th>Object</Th>
-              <Th>Relation</Th>
-              <Th>Subject</Th>
-              <Th className="text-right">Rev</Th>
+              <Th>{t('relationships.thObject')}</Th>
+              <Th>{t('relationships.thRelation')}</Th>
+              <Th>{t('relationships.thSubject')}</Th>
+              <Th className="text-right">{t('relationships.thRev')}</Th>
             </tr>
           }
         >

@@ -6,6 +6,8 @@ import { useState } from 'react';
 import type { ComponentType, SVGProps } from 'react';
 import { logout } from '@/lib/client';
 import type { Identity } from '@/lib/identity';
+import { useT } from '../i18n/language-provider';
+import { LanguageToggle } from '../i18n/language-toggle';
 import { Logo } from '../logo';
 import {
   ExternalIcon,
@@ -20,17 +22,17 @@ import { Badge, Spinner, cn } from '../ui';
 
 interface NavItem {
   href: string;
-  label: string;
+  labelKey: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   exact?: boolean;
 }
 
 const NAV: NavItem[] = [
-  { href: '/console', label: 'Overview', icon: OverviewIcon, exact: true },
-  { href: '/console/schema', label: 'Schema', icon: SchemaIcon },
-  { href: '/console/relationships', label: 'Relationships', icon: GraphIcon },
-  { href: '/console/playground', label: 'Playground', icon: PlaygroundIcon },
-  { href: '/console/policies', label: 'Policies', icon: PolicyIcon },
+  { href: '/console', labelKey: 'nav.overview', icon: OverviewIcon, exact: true },
+  { href: '/console/schema', labelKey: 'nav.schema', icon: SchemaIcon },
+  { href: '/console/relationships', labelKey: 'nav.relationships', icon: GraphIcon },
+  { href: '/console/playground', labelKey: 'nav.playground', icon: PlaygroundIcon },
+  { href: '/console/policies', labelKey: 'nav.policies', icon: PolicyIcon },
 ];
 
 const API_REFERENCE = 'https://auth.deviego.xyz/reference';
@@ -48,6 +50,7 @@ export function ConsoleShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const t = useT();
   const [signingOut, setSigningOut] = useState(false);
 
   async function handleLogout() {
@@ -65,7 +68,7 @@ export function ConsoleShell({
         <Link href="/console" className="flex items-center gap-2.5 px-5 py-5">
           <Logo className="h-7 w-7" />
           <span className="text-sm font-semibold tracking-tight">
-            AccessCore <span className="text-muted">Console</span>
+            AccessCore <span className="text-muted">{t('brand.suffix')}</span>
           </span>
         </Link>
 
@@ -86,7 +89,7 @@ export function ConsoleShell({
                 )}
               >
                 <Icon className="h-[18px] w-[18px]" />
-                {item.label}
+                {t(item.labelKey)}
               </Link>
             );
           })}
@@ -99,7 +102,7 @@ export function ConsoleShell({
           className="mx-3 mb-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-fg"
         >
           <ExternalIcon className="h-[18px] w-[18px]" />
-          API reference
+          {t('common.apiReference')}
         </a>
       </aside>
 
@@ -111,9 +114,10 @@ export function ConsoleShell({
           </Link>
 
           <div className="ml-auto flex items-center gap-3">
+            <LanguageToggle />
             <div className="hidden text-right sm:block">
               <div className="text-sm font-medium leading-tight">{who}</div>
-              <div className="text-xs text-muted">Signed in</div>
+              <div className="text-xs text-muted">{t('common.signedIn')}</div>
             </div>
             {identity.aal !== null ? <Badge tone="brand">AAL {identity.aal}</Badge> : null}
             <button
@@ -127,7 +131,7 @@ export function ConsoleShell({
               ) : (
                 <LogoutIcon className="h-[18px] w-[18px]" />
               )}
-              <span className="hidden sm:inline">Log out</span>
+              <span className="hidden sm:inline">{t('common.logout')}</span>
             </button>
           </div>
         </header>
@@ -144,7 +148,7 @@ export function ConsoleShell({
                   active ? 'bg-brand-soft text-brand-strong' : 'text-muted hover:text-fg',
                 )}
               >
-                {item.label}
+                {t(item.labelKey)}
               </Link>
             );
           })}

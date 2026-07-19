@@ -1,7 +1,11 @@
+'use client';
+
 import type { Decision, Reason } from '@/lib/types';
+import { useT } from '../i18n/language-provider';
 import { cn } from '../ui';
 
 function ReasonRow({ reason }: { reason: Reason }) {
+  const t = useT();
   return (
     <li className="rounded-lg border border-line bg-ink/60 p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -9,7 +13,9 @@ function ReasonRow({ reason }: { reason: Reason }) {
           {reason.code}
         </code>
         {reason.relation ? (
-          <span className="font-mono text-xs text-muted">relation: {reason.relation}</span>
+          <span className="font-mono text-xs text-muted">
+            {t('decision.relationLabel')} {reason.relation}
+          </span>
         ) : null}
       </div>
       <p className="mt-1.5 text-sm text-fg">{reason.message}</p>
@@ -42,6 +48,7 @@ export function DecisionCard({
   label?: string;
   compact?: boolean;
 }) {
+  const t = useT();
   const permit = decision.effect === 'permit';
 
   return (
@@ -77,7 +84,7 @@ export function DecisionCard({
           ))}
         </ul>
       ) : (
-        <p className="mt-3 text-sm text-muted">No reasons returned.</p>
+        <p className="mt-3 text-sm text-muted">{t('decision.noReasons')}</p>
       )}
     </div>
   );

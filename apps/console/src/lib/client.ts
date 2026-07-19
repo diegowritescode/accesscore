@@ -1,10 +1,13 @@
 import type {
+  CheckAsInput,
   CheckInput,
   Decision,
   ExpandInput,
   ExpandResponse,
+  NamespaceSummary,
   SimulateInput,
   SimulateResponse,
+  TupleView,
 } from './types';
 
 export type ApiResult<T> =
@@ -59,6 +62,35 @@ async function post<T>(path: string, payload: unknown): Promise<ApiResult<T>> {
   return { status: 'ok', data: body as T };
 }
 
+async function get<T>(path: string): Promise<ApiResult<T>> {
+  let response: Response;
+  try {
+    response = await fetch(path);
+  } catch {
+    return { status: 'unavailable' };
+  }
+
+  if (response.status === 401) {
+    return { status: 'unauthorized' };
+  }
+  if (response.status === 503) {
+    return { status: 'unavailable' };
+  }
+
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+
+  if (!response.ok) {
+    return { status: 'error', message: messageFrom(body, `Request failed (${response.status})`) };
+  }
+
+  return { status: 'ok', data: body as T };
+}
+
 export async function login(email: string, password: string): Promise<ApiResult<{ ok: true }>> {
   return post('/api/login', { email, password });
 }
@@ -79,8 +111,28 @@ export async function runCheck(input: CheckInput): Promise<ApiResult<Decision>> 
   });
 }
 
+export async function runCheckAs(input: CheckAsInput): Promise<ApiResult<Decision>> {
+  const payload: Record<string, unknown> = {
+    subject: input.subject,
+    action: input.action,
+    resource: input.resource,
+  };
+  if (typeof input.aal === 'number') {
+    payload.aal = input.aal;
+  }
+  return post('/api/check-as', payload);
+}
+
 export async function runExpand(input: ExpandInput): Promise<ApiResult<ExpandResponse>> {
   return post('/api/expand', { resource: input.resource, relation: input.relation });
+}
+
+export async function fetchNamespaces(): Promise<ApiResult<{ namespaces: NamespaceSummary[] }>> {
+  return get('/api/namespaces');
+}
+
+export async function fetchTuples(query = ''): Promise<ApiResult<{ tuples: TupleView[] }>> {
+  return get(`/api/tuples${query ? `?${query}` : ''}`);
 }
 
 export async function runSimulate(input: SimulateInput): Promise<ApiResult<SimulateResponse>> {

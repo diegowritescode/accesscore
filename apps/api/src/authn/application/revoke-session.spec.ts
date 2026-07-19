@@ -38,6 +38,7 @@ const setup = (found: Session | null) => {
     findById: () => Promise.resolve(found),
     listActiveByUser: () => Promise.resolve([]),
     touch: () => Promise.resolve(),
+    elevate: () => Promise.resolve(true),
     revoke: () => Promise.resolve(),
     revokeAllForUser: () => Promise.resolve([]),
   };

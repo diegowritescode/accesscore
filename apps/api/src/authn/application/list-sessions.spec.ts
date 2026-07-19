@@ -28,6 +28,7 @@ const sessionsRepo = (active: Session[]): SessionsRepository => ({
   findById: () => Promise.resolve(null),
   listActiveByUser: () => Promise.resolve(active),
   touch: () => Promise.resolve(),
+  elevate: () => Promise.resolve(true),
   revoke: () => Promise.resolve(),
   revokeAllForUser: () => Promise.resolve([]),
 });

@@ -1,6 +1,7 @@
 export interface CredentialCheck {
   userId: string;
   aal: number;
+  mfaRequired: boolean;
 }
 
 export interface Credentials {

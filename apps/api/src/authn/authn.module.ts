@@ -3,8 +3,18 @@ import type { Redis } from 'ioredis';
 import { ENV } from '../config/env.module';
 import type { Env } from '../config/env';
 import { DB, type Database } from '../db/db.module';
+import {
+  REDEEM_RECOVERY_CODE_HANDLER,
+  type RedeemRecoveryCodeHandler,
+} from '../identity/application/redeem-recovery-code';
 import { HASHER, type Hasher } from '../identity/domain/ports/hasher';
+import {
+  MFA_CREDENTIALS_REPOSITORY,
+  type MfaCredentialsRepository,
+} from '../identity/domain/ports/mfa-credentials-repository';
+import { SECRET_ENCRYPTOR, type SecretEncryptor } from '../identity/domain/ports/secret-encryptor';
 import { SESSION_REVOKER } from '../identity/domain/ports/session-revoker';
+import { TOTP, type Totp } from '../identity/domain/ports/totp';
 import { USERS_REPOSITORY, type UsersRepository } from '../identity/domain/ports/users-repository';
 import { IdentityModule } from '../identity/identity.module';
 import { REDIS } from '../redis/redis.module';
@@ -17,6 +27,7 @@ import { REFRESH_HANDLER, RefreshHandler } from './application/refresh';
 import { REVOKE_SESSION_HANDLER, RevokeSessionHandler } from './application/revoke-session';
 import { SESSION_TERMINATOR, SessionTerminator } from './application/session-terminator';
 import { SIGNING_KEYS, SigningKeyService } from './application/signing-keys';
+import { STEP_UP_HANDLER, StepUpHandler } from './application/step-up';
 import { ACCESS_TOKEN_ISSUER, type AccessTokenIssuer } from './domain/ports/access-token-issuer';
 import { CLOCK, type Clock } from '../shared/kernel/clock';
 import { CREDENTIALS, type Credentials } from './domain/ports/credentials';
@@ -26,6 +37,7 @@ import type { RefreshTokenGenerator } from './domain/ports/refresh-token-generat
 import { REFRESH_TOKENS_REPOSITORY } from './domain/ports/refresh-tokens-repository';
 import type { RefreshTokensRepository } from './domain/ports/refresh-tokens-repository';
 import { REVOCATION_STORE, type RevocationStore } from './domain/ports/revocation-store';
+import { SECOND_FACTOR, type SecondFactor } from './domain/ports/second-factor';
 import { SESSIONS_REPOSITORY } from './domain/ports/sessions-repository';
 import type { SessionsRepository } from './domain/ports/sessions-repository';
 import { SIGNER, type Signer } from './domain/ports/signer';
@@ -36,6 +48,7 @@ import { type TokenSigner } from './domain/ports/token-signer';
 import { RedisRefreshGraceCache } from './infrastructure/cache/redis-refresh-grace-cache';
 import { SystemClock } from '../shared/kernel/system-clock';
 import { IdentityCredentials } from './infrastructure/credentials/identity-credentials';
+import { IdentitySecondFactor } from './infrastructure/credentials/identity-second-factor';
 import { AuthnSessionRevoker } from './infrastructure/session/authn-session-revoker';
 import { JWKS_PROVIDER, JwksProvider } from './infrastructure/jwks/jwks-provider';
 import { AppMetaSigningKeyState } from './infrastructure/persistence/app-meta-signing-key-state.repository';
@@ -133,9 +146,40 @@ import { JwksController } from './interface/jwks.controller';
     },
     {
       provide: CREDENTIALS,
-      inject: [USERS_REPOSITORY, HASHER],
-      useFactory: (users: UsersRepository, hasher: Hasher): IdentityCredentials =>
-        new IdentityCredentials(users, hasher),
+      inject: [USERS_REPOSITORY, HASHER, MFA_CREDENTIALS_REPOSITORY],
+      useFactory: (
+        users: UsersRepository,
+        hasher: Hasher,
+        mfaCredentials: MfaCredentialsRepository,
+      ): IdentityCredentials => new IdentityCredentials(users, hasher, mfaCredentials),
+    },
+    {
+      provide: SECOND_FACTOR,
+      inject: [
+        MFA_CREDENTIALS_REPOSITORY,
+        SECRET_ENCRYPTOR,
+        TOTP,
+        REDEEM_RECOVERY_CODE_HANDLER,
+        CLOCK,
+      ],
+      useFactory: (
+        mfaCredentials: MfaCredentialsRepository,
+        encryptor: SecretEncryptor,
+        totp: Totp,
+        redeem: RedeemRecoveryCodeHandler,
+        clock: Clock,
+      ): IdentitySecondFactor =>
+        new IdentitySecondFactor(mfaCredentials, encryptor, totp, redeem, clock),
+    },
+    {
+      provide: STEP_UP_HANDLER,
+      inject: [SESSIONS_REPOSITORY, SECOND_FACTOR, ACCESS_TOKEN_ISSUER, CLOCK],
+      useFactory: (
+        sessions: SessionsRepository,
+        secondFactor: SecondFactor,
+        accessTokens: AccessTokenIssuer,
+        clock: Clock,
+      ): StepUpHandler => new StepUpHandler(sessions, secondFactor, accessTokens, clock),
     },
     {
       provide: ACCESS_TOKEN_ISSUER,

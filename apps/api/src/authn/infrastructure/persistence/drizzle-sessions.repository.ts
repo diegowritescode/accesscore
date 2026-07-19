@@ -50,6 +50,14 @@ export class DrizzleSessionsRepository implements SessionsRepository {
     await this.db.update(sessions).set({ lastSeenAt: at }).where(eq(sessions.id, id.value));
   }
 
+  async elevate(id: SessionId, aal: number, authTime: Date, tx?: Tx): Promise<boolean> {
+    const result = await this.executor(tx)
+      .update(sessions)
+      .set({ aal, authTime })
+      .where(and(eq(sessions.id, id.value), eq(sessions.status, 'active')));
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async revoke(id: SessionId, at: Date, tx?: Tx): Promise<void> {
     await this.executor(tx)
       .update(sessions)

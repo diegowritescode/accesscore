@@ -58,6 +58,9 @@ class FakeSessions implements SessionsRepository {
   touch(): Promise<void> {
     return Promise.resolve();
   }
+  elevate(): Promise<boolean> {
+    return Promise.resolve(true);
+  }
 }
 
 class FakeFamilies implements TokenFamiliesRepository {
@@ -122,7 +125,11 @@ const build = (check: CredentialCheck | null) => {
 
 describe('LoginHandler', () => {
   it('issues tokens and creates a session, family, and refresh token on valid credentials', async () => {
-    const { handler, sessions, families, refreshTokens } = build({ userId: 'user-1', aal: 1 });
+    const { handler, sessions, families, refreshTokens } = build({
+      userId: 'user-1',
+      aal: 1,
+      mfaRequired: false,
+    });
 
     const result = await handler.execute({
       email: 'a@b.com',

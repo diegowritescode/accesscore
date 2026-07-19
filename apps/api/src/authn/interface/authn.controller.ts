@@ -25,16 +25,19 @@ import { LOGIN_HANDLER, type LoginHandler } from '../application/login';
 import { REFRESH_HANDLER, type RefreshHandler } from '../application/refresh';
 import { REVOKE_SESSION_HANDLER, type RevokeSessionHandler } from '../application/revoke-session';
 import { SESSION_TERMINATOR, type SessionTerminator } from '../application/session-terminator';
+import { STEP_UP_HANDLER, type StepUpHandler } from '../application/step-up';
 import { AccessTokenGuard, type AuthTokenClaims } from './access-token.guard';
 import { AuthToken } from './auth-token.decorator';
 import { loginSchema } from './login.dto';
 import { refreshSchema } from './refresh.dto';
+import { stepUpSchema } from './step-up.dto';
 
 interface TokenResponse {
   access_token: string;
   refresh_token: string;
   token_type: string;
   expires_in: number;
+  mfa_required?: boolean;
 }
 
 const invalidCredentials = (): ProblemException =>
@@ -52,6 +55,7 @@ export class AuthnController {
     @Inject(SESSION_TERMINATOR) private readonly sessions: SessionTerminator,
     @Inject(LIST_SESSIONS_HANDLER) private readonly listSessions: ListSessionsHandler,
     @Inject(REVOKE_SESSION_HANDLER) private readonly revokeSession: RevokeSessionHandler,
+    @Inject(STEP_UP_HANDLER) private readonly stepUp: StepUpHandler,
   ) {}
 
   @Post('login')
@@ -79,7 +83,42 @@ export class AuthnController {
       throw invalidCredentials();
     }
 
-    return this.toResponse(result.value);
+    return { ...this.toResponse(result.value), mfa_required: result.value.mfaRequired };
+  }
+
+  @Post('mfa/step-up')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @UseGuards(AccessTokenGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Elevate the current session to AAL2 with a second factor' })
+  @ApiBody({ schema: openApiSchema(stepUpSchema) })
+  async stepUpEndpoint(
+    @AuthToken() token: AuthTokenClaims,
+    @Body() body: unknown,
+  ): Promise<{ access_token: string; token_type: string; expires_in: number }> {
+    const parsed = stepUpSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new ProblemException({
+        type: 'about:blank',
+        title: 'Invalid step-up request',
+        status: 422,
+      });
+    }
+    const kind: 'totp' | 'recovery' = /^\d{6}$/.test(parsed.data.code) ? 'totp' : 'recovery';
+    const result = await this.stepUp.execute({
+      sessionId: token.sid,
+      userId: token.sub,
+      proof: { kind, value: parsed.data.code },
+    });
+    if (!result.ok) {
+      throw new ProblemException({ type: 'about:blank', title: 'Step-up failed', status: 401 });
+    }
+    return {
+      access_token: result.value.accessToken,
+      token_type: result.value.tokenType,
+      expires_in: result.value.expiresIn,
+    };
   }
 
   @Post('refresh')

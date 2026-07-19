@@ -22,6 +22,7 @@ export function LoginCard() {
 
     const result = await login(email, password);
     if (result.status === 'ok') {
+      router.push('/console');
       router.refresh();
       return;
     }
@@ -45,10 +46,10 @@ export function LoginCard() {
   return (
     <div className="mx-auto max-w-md">
       <Panel>
-        <h1 className="text-xl font-semibold tracking-tight">Sign in to the Playground</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Sign in to the Console</h1>
         <p className="mt-1.5 text-sm text-muted">
           The demo account is prefilled. It owns{' '}
-          <span className="font-mono">document:onboarding</span> and can use expand and simulate.
+          <span className="font-mono">document:onboarding</span> and can use every console view.
         </p>
 
         <form className="mt-6 flex flex-col gap-4" onSubmit={handleSubmit}>

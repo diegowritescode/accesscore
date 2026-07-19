@@ -23,7 +23,7 @@ export function SiteHeader({ authed = false }: { authed?: boolean }) {
         <Link href="/" className="flex items-center gap-2.5">
           <Logo className="h-7 w-7" />
           <span className="text-sm font-semibold tracking-tight">
-            AccessCore <span className="text-muted">Playground</span>
+            AccessCore <span className="text-muted">Console</span>
           </span>
         </Link>
         <nav className="flex items-center gap-2">
@@ -40,8 +40,8 @@ export function SiteHeader({ authed = false }: { authed?: boolean }) {
               {pending ? 'Signing out…' : 'Log out'}
             </Button>
           ) : (
-            <Link href="/playground">
-              <Button variant="secondary">Open playground</Button>
+            <Link href="/console">
+              <Button variant="secondary">Open console</Button>
             </Link>
           )}
         </nav>

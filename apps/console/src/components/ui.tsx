@@ -88,7 +88,7 @@ export function Panel({ className, children }: { className?: string; children: R
   return (
     <div
       className={cn(
-        'rounded-2xl border border-line bg-surface p-6 shadow-lg shadow-black/20',
+        'rounded-2xl border border-line bg-surface p-6 shadow-sm shadow-slate-900/[0.04]',
         className,
       )}
     >
@@ -101,8 +101,8 @@ type CalloutTone = 'info' | 'error' | 'warning';
 
 const calloutTones: Record<CalloutTone, string> = {
   info: 'border-line-strong bg-surface-2 text-fg',
-  error: 'border-deny/40 bg-deny/10 text-deny',
-  warning: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
+  error: 'border-deny/30 bg-deny-ink text-deny',
+  warning: 'border-warn/30 bg-warn-soft text-warn',
 };
 
 export function Callout({
@@ -143,5 +143,37 @@ export function Spinner({ className }: { className?: string }) {
         className,
       )}
     />
+  );
+}
+
+type BadgeTone = 'neutral' | 'brand' | 'permit' | 'deny' | 'warn';
+
+const badgeTones: Record<BadgeTone, string> = {
+  neutral: 'border-line bg-surface-2 text-muted',
+  brand: 'border-brand/20 bg-brand-soft text-brand-strong',
+  permit: 'border-permit/25 bg-permit-ink text-permit',
+  deny: 'border-deny/25 bg-deny-ink text-deny',
+  warn: 'border-warn/25 bg-warn-soft text-warn',
+};
+
+export function Badge({
+  tone = 'neutral',
+  children,
+  className,
+}: {
+  tone?: BadgeTone;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-xs font-medium',
+        badgeTones[tone],
+        className,
+      )}
+    >
+      {children}
+    </span>
   );
 }

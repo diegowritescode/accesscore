@@ -26,3 +26,18 @@ export async function proxyAuthorized(
     return NextResponse.json({ error: 'service_unavailable' }, { status: 503 });
   }
 }
+
+export async function proxyGet(upstreamPath: string): Promise<NextResponse> {
+  const store = await cookies();
+  const token = store.get(AC_TOKEN_COOKIE)?.value;
+  if (!token) {
+    return NextResponse.json({ error: 'not_authenticated' }, { status: 401 });
+  }
+
+  try {
+    const upstream = await callAccessCore(upstreamPath, { method: 'GET', token });
+    return NextResponse.json(upstream.body ?? {}, { status: upstream.status });
+  } catch {
+    return NextResponse.json({ error: 'service_unavailable' }, { status: 503 });
+  }
+}

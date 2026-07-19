@@ -48,8 +48,8 @@ export default function LandingPage() {
               conditions resolved in one call.
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
-              <Link href="/playground">
-                <Button className="px-5 py-2.5 text-base">Open the Playground</Button>
+              <Link href="/console">
+                <Button className="px-5 py-2.5 text-base">Open the console</Button>
               </Link>
               <a href="https://auth.deviego.xyz/reference" target="_blank" rel="noreferrer">
                 <Button variant="secondary" className="px-5 py-2.5 text-base">
@@ -59,7 +59,7 @@ export default function LandingPage() {
             </div>
             <p className="mt-6 text-sm text-muted">
               A portfolio demo backed by a live API. Sign in with the seeded demo account —
-              credentials are prefilled on the Playground.
+              credentials are prefilled on the sign-in page.
             </p>
           </div>
         </section>

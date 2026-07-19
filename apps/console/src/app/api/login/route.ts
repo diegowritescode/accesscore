@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import {
   AC_TOKEN_COOKIE,
   AC_TOKEN_MAX_AGE_SECONDS,
+  AC_USER_COOKIE,
   callAccessCore,
   tokenCookieOptions,
 } from '@/lib/accesscore';
@@ -47,5 +48,6 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set(AC_TOKEN_COOKIE, data.access_token, tokenCookieOptions(maxAge));
+  response.cookies.set(AC_USER_COOKIE, email, tokenCookieOptions(maxAge));
   return response;
 }

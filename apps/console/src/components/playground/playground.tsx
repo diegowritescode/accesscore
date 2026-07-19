@@ -19,14 +19,6 @@ export function Playground() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Authorization Playground</h1>
-        <p className="mt-1.5 text-sm text-muted">
-          Signed in as <span className="font-mono text-brand-strong">demo@accesscore.dev</span>.
-          Every call is proxied through the server-side BFF.
-        </p>
-      </div>
-
       <div
         role="tablist"
         aria-label="Playground tools"

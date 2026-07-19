@@ -1,19 +1,22 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-ink: #090d15;
-  --color-surface: #111826;
-  --color-surface-2: #172033;
-  --color-line: #232d42;
-  --color-line-strong: #33405c;
-  --color-muted: #93a0b8;
-  --color-fg: #e8edf6;
-  --color-brand: #6366f1;
-  --color-brand-strong: #818cf8;
-  --color-permit: #34d399;
-  --color-permit-ink: #052e21;
-  --color-deny: #fb7185;
-  --color-deny-ink: #3f0d18;
+  --color-ink: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f3f7;
+  --color-line: #e4e7ee;
+  --color-line-strong: #cdd3df;
+  --color-muted: #5a6371;
+  --color-fg: #101623;
+  --color-brand: #4f46e5;
+  --color-brand-strong: #4338ca;
+  --color-brand-soft: #eef0fe;
+  --color-permit: #067a54;
+  --color-permit-ink: #ecfdf5;
+  --color-deny: #d12a3a;
+  --color-deny-ink: #fdf2f3;
+  --color-warn: #b45309;
+  --color-warn-soft: #fef6e7;
 
   --font-mono:
     ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
@@ -21,7 +24,7 @@
 
 @layer base {
   html {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   body {
@@ -32,11 +35,11 @@
   }
 
   ::selection {
-    background-color: color-mix(in oklab, var(--color-brand) 40%, transparent);
+    background-color: color-mix(in oklab, var(--color-brand) 20%, transparent);
   }
 
   *:focus-visible {
-    outline: 2px solid var(--color-brand-strong);
+    outline: 2px solid var(--color-brand);
     outline-offset: 2px;
   }
 }

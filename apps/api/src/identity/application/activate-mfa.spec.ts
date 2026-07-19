@@ -5,6 +5,7 @@ import { type MfaCredentialsRepository } from '../domain/ports/mfa-credentials-r
 import { type SecretEncryptor } from '../domain/ports/secret-encryptor';
 import { type Totp, type TotpVerification } from '../domain/ports/totp';
 import { ActivateMfaHandler } from './activate-mfa';
+import { type RecoveryCodeIssuer } from './recovery-code-issuer';
 
 const now = new Date('2026-07-19T00:00:00.000Z');
 const clock: Clock = { now: () => now };
@@ -15,6 +16,10 @@ const encryptor: SecretEncryptor = {
   decrypt: (ciphertext) =>
     Promise.resolve(new Uint8Array(Buffer.from(ciphertext.slice(3), 'base64'))),
 };
+
+const recoveryIssuer = {
+  issue: () => Promise.resolve(['AAAAA-BBBBB', 'CCCCC-DDDDD']),
+} as unknown as RecoveryCodeIssuer;
 
 const totpReturning = (verification: TotpVerification): Totp => ({ verify: () => verification });
 
@@ -48,14 +53,21 @@ const withPending = (id = 'p1'): MemoryCredentials => {
   return credentials;
 };
 
+const handlerFor = (
+  credentials: MemoryCredentials,
+  verification: TotpVerification,
+): ActivateMfaHandler =>
+  new ActivateMfaHandler(
+    credentials,
+    encryptor,
+    totpReturning(verification),
+    clock,
+    recoveryIssuer,
+  );
+
 describe('ActivateMfaHandler', () => {
   it('rejects when there is no pending credential', async () => {
-    const handler = new ActivateMfaHandler(
-      new MemoryCredentials(),
-      encryptor,
-      totpReturning({ valid: false, step: -1 }),
-      clock,
-    );
+    const handler = handlerFor(new MemoryCredentials(), { valid: false, step: -1 });
     expect(await handler.execute({ userId, code: '000000' })).toEqual({
       ok: false,
       error: 'no_pending_credential',
@@ -63,30 +75,22 @@ describe('ActivateMfaHandler', () => {
   });
 
   it('rejects an invalid code', async () => {
-    const handler = new ActivateMfaHandler(
-      withPending(),
-      encryptor,
-      totpReturning({ valid: false, step: -1 }),
-      clock,
-    );
+    const handler = handlerFor(withPending(), { valid: false, step: -1 });
     expect(await handler.execute({ userId, code: '000000' })).toEqual({
       ok: false,
       error: 'invalid_code',
     });
   });
 
-  it('activates the pending credential and seeds the last used step', async () => {
+  it('activates, seeds the last used step and returns recovery codes', async () => {
     const credentials = withPending();
-    const handler = new ActivateMfaHandler(
-      credentials,
-      encryptor,
-      totpReturning({ valid: true, step: 7 }),
-      clock,
-    );
+    const handler = handlerFor(credentials, { valid: true, step: 7 });
 
     const result = await handler.execute({ userId, code: '287082' });
 
     expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.recoveryCodes).toHaveLength(2);
     const active = await credentials.findActiveTotpByUser(userId);
     expect(active?.status).toBe('active');
     expect(active?.lastUsedStep).toBe(7);
@@ -103,13 +107,7 @@ describe('ActivateMfaHandler', () => {
     previous.activate(now);
     credentials.items.set('active-old', previous);
 
-    const handler = new ActivateMfaHandler(
-      credentials,
-      encryptor,
-      totpReturning({ valid: true, step: 9 }),
-      clock,
-    );
-    await handler.execute({ userId, code: '123456' });
+    await handlerFor(credentials, { valid: true, step: 9 }).execute({ userId, code: '123456' });
 
     expect(credentials.items.get('active-old')?.status).toBe('revoked');
     expect((await credentials.findActiveTotpByUser(userId))?.id).toBe('p1');

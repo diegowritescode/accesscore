@@ -2,6 +2,7 @@ import { type Clock } from '../../shared/kernel/clock';
 import { UserId } from '../../shared/kernel/user-id';
 import { MfaCredential } from '../domain/mfa-credential';
 import { type MfaCredentialsRepository } from '../domain/ports/mfa-credentials-repository';
+import { type RecoveryCodesRepository } from '../domain/ports/recovery-codes-repository';
 import { DisableMfaHandler } from './disable-mfa';
 import { GetMfaStatusHandler } from './get-mfa-status';
 
@@ -30,6 +31,13 @@ class MemoryCredentials implements MfaCredentialsRepository {
   }
 }
 
+const recoveryWith = (remaining: number): RecoveryCodesRepository => ({
+  replaceForUser: () => Promise.resolve(),
+  findByHash: () => Promise.resolve(null),
+  consume: () => Promise.resolve(true),
+  countActive: () => Promise.resolve(remaining),
+});
+
 const withActive = (): MemoryCredentials => {
   const credentials = new MemoryCredentials();
   const credential = MfaCredential.enroll({ id: 'a1', userId, secretCiphertext: 'ct:x', now });
@@ -53,13 +61,15 @@ describe('DisableMfaHandler', () => {
 });
 
 describe('GetMfaStatusHandler', () => {
-  it('reports enabled when an active credential exists', async () => {
-    expect(await new GetMfaStatusHandler(withActive()).execute(userId)).toEqual({ enabled: true });
+  it('reports enabled with the remaining recovery-code count', async () => {
+    const status = await new GetMfaStatusHandler(withActive(), recoveryWith(4)).execute(userId);
+    expect(status).toEqual({ enabled: true, recoveryCodesRemaining: 4 });
   });
 
-  it('reports disabled when there is no active credential', async () => {
-    expect(await new GetMfaStatusHandler(new MemoryCredentials()).execute(userId)).toEqual({
-      enabled: false,
-    });
+  it('reports disabled with no codes when there is no active credential', async () => {
+    const status = await new GetMfaStatusHandler(new MemoryCredentials(), recoveryWith(9)).execute(
+      userId,
+    );
+    expect(status).toEqual({ enabled: false, recoveryCodesRemaining: 0 });
   });
 });

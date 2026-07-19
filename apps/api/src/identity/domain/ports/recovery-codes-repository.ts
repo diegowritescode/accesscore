@@ -4,7 +4,7 @@ import { type RecoveryCode } from '../recovery-code';
 export interface RecoveryCodesRepository {
   replaceForUser(userId: UserId, codes: RecoveryCode[]): Promise<void>;
   findByHash(userId: UserId, codeHash: string): Promise<RecoveryCode | null>;
-  consume(code: RecoveryCode): Promise<void>;
+  consume(code: RecoveryCode): Promise<boolean>;
   countActive(userId: UserId): Promise<number>;
 }
 

@@ -4,10 +4,15 @@ import { err, ok, type Result } from '../../shared/result';
 import { type MfaCredentialsRepository } from '../domain/ports/mfa-credentials-repository';
 import { type SecretEncryptor } from '../domain/ports/secret-encryptor';
 import { type Totp } from '../domain/ports/totp';
+import { type RecoveryCodeIssuer } from './recovery-code-issuer';
 
 export interface ActivateMfaInput {
   userId: UserId;
   code: string;
+}
+
+export interface ActivateMfaResult {
+  recoveryCodes: string[];
 }
 
 export type ActivateMfaError = 'no_pending_credential' | 'invalid_code';
@@ -20,9 +25,10 @@ export class ActivateMfaHandler {
     private readonly encryptor: SecretEncryptor,
     private readonly totp: Totp,
     private readonly clock: Clock,
+    private readonly recoveryCodes: RecoveryCodeIssuer,
   ) {}
 
-  async execute(input: ActivateMfaInput): Promise<Result<void, ActivateMfaError>> {
+  async execute(input: ActivateMfaInput): Promise<Result<ActivateMfaResult, ActivateMfaError>> {
     const pending = await this.credentials.findPendingTotpByUser(input.userId);
     if (!pending) {
       return err('no_pending_credential');
@@ -45,7 +51,8 @@ export class ActivateMfaHandler {
     pending.registerUse(verification.step);
     await this.credentials.save(pending);
 
-    return ok(undefined);
+    const recoveryCodes = await this.recoveryCodes.issue(input.userId);
+    return ok({ recoveryCodes });
   }
 }
 

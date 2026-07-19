@@ -78,7 +78,7 @@ describe('MFA enrollment (e2e)', () => {
 
   const bearer = (token: string): string => `Bearer ${token}`;
 
-  it('enrolls, activates with a real TOTP code, reports status, and disables', async () => {
+  it('enrolls, activates, issues recovery codes, regenerates them, and disables', async () => {
     const token = await authenticate();
 
     const enroll = await request(server())
@@ -93,20 +93,36 @@ describe('MFA enrollment (e2e)', () => {
       .get('/auth/mfa/status')
       .set('Authorization', bearer(token))
       .expect(200)
-      .expect({ enabled: false });
+      .expect({ enabled: false, recoveryCodesRemaining: 0 });
 
-    await request(server())
+    const activate = await request(server())
       .post('/auth/mfa/activate')
       .set('Authorization', bearer(token))
       .send({ code: totpCode(secret ?? '', new Date()) })
-      .expect(200)
-      .expect({ status: 'active' });
+      .expect(200);
+    const firstCodes = (activate.body as { status: string; recoveryCodes: string[] }).recoveryCodes;
+    expect(activate.body).toMatchObject({ status: 'active' });
+    expect(firstCodes).toHaveLength(10);
 
     await request(server())
       .get('/auth/mfa/status')
       .set('Authorization', bearer(token))
       .expect(200)
-      .expect({ enabled: true });
+      .expect({ enabled: true, recoveryCodesRemaining: 10 });
+
+    const regenerate = await request(server())
+      .post('/auth/mfa/recovery-codes')
+      .set('Authorization', bearer(token))
+      .expect(200);
+    const newCodes = (regenerate.body as { recoveryCodes: string[] }).recoveryCodes;
+    expect(newCodes).toHaveLength(10);
+    expect(newCodes).not.toEqual(firstCodes);
+
+    await request(server())
+      .get('/auth/mfa/status')
+      .set('Authorization', bearer(token))
+      .expect(200)
+      .expect({ enabled: true, recoveryCodesRemaining: 10 });
 
     await request(server())
       .post('/auth/mfa/disable')
@@ -118,7 +134,7 @@ describe('MFA enrollment (e2e)', () => {
       .get('/auth/mfa/status')
       .set('Authorization', bearer(token))
       .expect(200)
-      .expect({ enabled: false });
+      .expect({ enabled: false, recoveryCodesRemaining: 0 });
   });
 
   it('rejects activation with a wrong code', async () => {

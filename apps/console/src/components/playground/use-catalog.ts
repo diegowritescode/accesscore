@@ -11,6 +11,7 @@ export interface Catalog {
   unauthorized: boolean;
   namespaces: NamespaceSummary[];
   tuples: TupleView[];
+  namespaceNames: string[];
   resourceTypes: string[];
   subjects: string[];
   actionsFor: (type: string) => string[];
@@ -86,6 +87,7 @@ export function useCatalog(): Catalog {
       unauthorized,
       namespaces,
       tuples,
+      namespaceNames: sorted(namespaces.map((ns) => ns.namespace)),
       resourceTypes: objectTypes,
       subjects,
       actionsFor,

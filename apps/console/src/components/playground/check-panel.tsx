@@ -5,7 +5,7 @@ import { runCheck, runCheckAs } from '@/lib/client';
 import type { Decision, EntityInput } from '@/lib/types';
 import { useT } from '../i18n/language-provider';
 import { Button, Callout, Spinner } from '../ui';
-import { ComboInput, Segmented, SelectField } from './form-kit';
+import { ChoiceField, Segmented, SelectField } from './form-kit';
 import { DecisionCard } from './decision-card';
 import { ReauthNotice } from './reauth-notice';
 import { useCatalog } from './use-catalog';
@@ -28,6 +28,9 @@ function parseSubject(value: string): EntityInput {
   return { type: value.slice(0, separator).trim(), id: value.slice(separator + 1).trim() };
 }
 
+const pick = (list: string[], current: string): string =>
+  list.includes(current) ? current : (list[0] ?? current);
+
 export function CheckPanel() {
   const t = useT();
   const catalog = useCatalog();
@@ -38,6 +41,12 @@ export function CheckPanel() {
   const [resourceId, setResourceId] = useState('onboarding');
   const [verb, setVerb] = useState('read');
   const [outcome, setOutcome] = useState<Outcome>({ kind: 'idle' });
+
+  function changeType(next: string) {
+    setResourceType(next);
+    setResourceId(pick(catalog.objectIdsFor(next), resourceId));
+    setVerb(pick(catalog.actionsFor(next), verb));
+  }
 
   async function handleCheck(event: React.FormEvent) {
     event.preventDefault();
@@ -89,12 +98,12 @@ export function CheckPanel() {
 
         {mode === 'subject' ? (
           <div className="grid gap-3 sm:grid-cols-[1.5fr_1fr]">
-            <ComboInput
+            <ChoiceField
               label={t('check.subject')}
               value={subject}
               onChange={setSubject}
               options={catalog.subjects}
-              placeholder="user:bob"
+              hint={t('check.subjectHint')}
             />
             <SelectField
               label={t('check.aal')}
@@ -104,35 +113,33 @@ export function CheckPanel() {
                 { value: '1', label: t('check.aal1') },
                 { value: '2', label: t('check.aal2') },
                 { value: '3', label: t('check.aal3') },
-                { value: '4', label: t('check.aal4') },
               ]}
+              hint={t('check.aalHint')}
             />
           </div>
         ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <ComboInput
+          <ChoiceField
             label={t('field.resourceType')}
             value={resourceType}
-            onChange={setResourceType}
-            options={catalog.resourceTypes}
-            placeholder="document"
+            onChange={changeType}
+            options={catalog.namespaceNames}
           />
-          <ComboInput
+          <ChoiceField
             label={t('field.resourceId')}
             value={resourceId}
             onChange={setResourceId}
             options={catalog.objectIdsFor(resourceType)}
-            placeholder="onboarding"
+            hint={t('field.resourceIdHint')}
           />
         </div>
 
-        <ComboInput
+        <ChoiceField
           label={t('field.action')}
           value={verb}
           onChange={setVerb}
           options={catalog.actionsFor(resourceType)}
-          placeholder="read"
           hint={t('field.sentAs', { action })}
         />
 

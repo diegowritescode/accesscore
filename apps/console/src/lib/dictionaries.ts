@@ -18,6 +18,7 @@ const en: Dict = {
 
   'field.resourceType': 'Resource type',
   'field.resourceId': 'Resource id',
+  'field.resourceIdHint': 'The specific object instance.',
   'field.action': 'Action',
   'field.sentAs': 'Sent as {action}',
 
@@ -147,11 +148,13 @@ const en: Dict = {
   'check.hintSubject': 'Owner-gated: check the decision for any subject in the graph.',
   'check.hintMe': 'Check as the signed-in principal, exactly as the API would enforce it.',
   'check.subject': 'Subject',
+  'check.subjectHint': 'Any subject in the graph.',
   'check.aal': 'Assurance (AAL)',
   'check.aal1': '1 — password',
   'check.aal2': '2 — MFA',
-  'check.aal3': '3',
-  'check.aal4': '4',
+  'check.aal3': '3 — hardware key',
+  'check.aalHint':
+    'Only changes the decision when an ABAC policy checks principal.aal. None are seeded — try the “Require MFA” preset under Simulate.',
   'check.submit': 'Check',
   'check.idle': 'Run a check to see the decision.',
   'check.evaluating': 'Evaluating…',
@@ -199,6 +202,24 @@ const en: Dict = {
 
   'decision.relationLabel': 'relation:',
   'decision.noReasons': 'No reasons returned.',
+  'decision.permit': 'PERMIT',
+  'decision.deny': 'DENY',
+
+  'reason.grant.direct': 'Granted directly by a stored relationship.',
+  'reason.grant.userset': 'Granted through a group the subject belongs to.',
+  'reason.grant.computed_userset':
+    'Granted through a computed role (e.g. owner ⇒ editor ⇒ viewer).',
+  'reason.grant.tuple_to_userset': 'Granted by inheritance from a parent resource.',
+  'reason.grant.intersection': 'Granted — the subject satisfied every required set.',
+  'reason.grant.exclusion': 'Granted — in the base set and not excluded.',
+  'reason.grant.policy': 'Permitted by an ABAC policy.',
+  'reason.default_deny': 'No relationship or policy grants this access — denied by default.',
+  'reason.forbid_matched': 'Denied by a forbid policy whose condition matched.',
+  'reason.unknown_action': 'No relation is bound to this action in the namespace.',
+  'reason.walk_truncated': 'Traversal stopped at the depth bound; a deeper relationship may exist.',
+  'reason.org_mismatch': 'The resource belongs to a different organization.',
+  'reason.no_org_context': 'The request is not scoped to an organization.',
+  'reason.consistency_unavailable': 'The store has not caught up to the requested consistency.',
 };
 
 const es: Dict = {
@@ -219,6 +240,7 @@ const es: Dict = {
 
   'field.resourceType': 'Tipo de recurso',
   'field.resourceId': 'ID del recurso',
+  'field.resourceIdHint': 'La instancia específica del objeto.',
   'field.action': 'Acción',
   'field.sentAs': 'Se envía como {action}',
 
@@ -339,11 +361,11 @@ const es: Dict = {
   'playground.title': 'Playground',
   'playground.description':
     'Resolvé, explorá y simulá decisiones de autorización. Cada llamada pasa por el backend-for-frontend de la consola del lado del servidor — el navegador nunca tiene un token de acceso.',
-  'playground.tabCheck': 'Check',
+  'playground.tabCheck': 'Consultar',
   'playground.tabCheckBlurb': 'Una decisión, explicada por completo.',
-  'playground.tabExpand': 'Expand',
+  'playground.tabExpand': 'Expandir',
   'playground.tabExpandBlurb': 'Resolvé una relación a sus sujetos.',
-  'playground.tabSimulate': 'Simulate',
+  'playground.tabSimulate': 'Simular',
   'playground.tabSimulateBlurb': 'En vivo vs. propuesta, lado a lado.',
 
   'check.intro':
@@ -354,11 +376,13 @@ const es: Dict = {
   'check.hintSubject': 'Restringido a owner: consultá la decisión para cualquier sujeto del grafo.',
   'check.hintMe': 'Consultá como el principal con sesión, tal cual lo aplicaría la API.',
   'check.subject': 'Sujeto',
+  'check.subjectHint': 'Cualquier sujeto del grafo.',
   'check.aal': 'Aseguramiento (AAL)',
   'check.aal1': '1 — contraseña',
   'check.aal2': '2 — MFA',
-  'check.aal3': '3',
-  'check.aal4': '4',
+  'check.aal3': '3 — llave física',
+  'check.aalHint':
+    'Solo cambia la decisión cuando una política ABAC evalúa principal.aal. No hay ninguna sembrada — probá el preset “Requerir MFA” en Simular.',
   'check.submit': 'Consultar',
   'check.idle': 'Ejecutá una consulta para ver la decisión.',
   'check.evaluating': 'Evaluando…',
@@ -406,6 +430,25 @@ const es: Dict = {
 
   'decision.relationLabel': 'relación:',
   'decision.noReasons': 'No se devolvieron razones.',
+  'decision.permit': 'PERMITIDO',
+  'decision.deny': 'DENEGADO',
+
+  'reason.grant.direct': 'Otorgado directamente por una relación almacenada.',
+  'reason.grant.userset': 'Otorgado a través de un grupo al que pertenece el sujeto.',
+  'reason.grant.computed_userset':
+    'Otorgado por un rol computado (p. ej. owner ⇒ editor ⇒ viewer).',
+  'reason.grant.tuple_to_userset': 'Otorgado por herencia de un recurso padre.',
+  'reason.grant.intersection': 'Otorgado — el sujeto cumplió todos los conjuntos requeridos.',
+  'reason.grant.exclusion': 'Otorgado — está en el conjunto base y no fue excluido.',
+  'reason.grant.policy': 'Permitido por una política ABAC.',
+  'reason.default_deny': 'Ninguna relación o política concede este acceso — denegado por defecto.',
+  'reason.forbid_matched': 'Denegado por una política forbid cuya condición coincidió.',
+  'reason.unknown_action': 'Ninguna relación está asociada a esta acción en el namespace.',
+  'reason.walk_truncated':
+    'El recorrido se detuvo en el límite de profundidad; podría existir una relación más profunda.',
+  'reason.org_mismatch': 'El recurso pertenece a otra organización.',
+  'reason.no_org_context': 'La petición no está en el contexto de una organización.',
+  'reason.consistency_unavailable': 'El almacén no alcanzó la consistencia solicitada.',
 };
 
 export const dictionaries: { en: Dict; es: Dict } = { en, es };

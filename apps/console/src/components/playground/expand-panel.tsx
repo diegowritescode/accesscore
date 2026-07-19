@@ -5,7 +5,7 @@ import { runExpand } from '@/lib/client';
 import type { ExpandResponse } from '@/lib/types';
 import { useT } from '../i18n/language-provider';
 import { Button, Callout, Spinner } from '../ui';
-import { ComboInput } from './form-kit';
+import { ChoiceField } from './form-kit';
 import { ReauthNotice } from './reauth-notice';
 import { useCatalog } from './use-catalog';
 
@@ -17,6 +17,9 @@ type Outcome =
   | { kind: 'unavailable' }
   | { kind: 'error'; message: string };
 
+const pick = (list: string[], current: string): string =>
+  list.includes(current) ? current : (list[0] ?? current);
+
 export function ExpandPanel() {
   const t = useT();
   const catalog = useCatalog();
@@ -24,6 +27,12 @@ export function ExpandPanel() {
   const [resourceId, setResourceId] = useState('onboarding');
   const [relation, setRelation] = useState('viewer');
   const [outcome, setOutcome] = useState<Outcome>({ kind: 'idle' });
+
+  function changeType(next: string) {
+    setResourceType(next);
+    setResourceId(pick(catalog.objectIdsFor(next), resourceId));
+    setRelation(pick(catalog.relationsFor(next), relation));
+  }
 
   async function handleExpand(event: React.FormEvent) {
     event.preventDefault();
@@ -53,28 +62,26 @@ export function ExpandPanel() {
         <p className="text-sm text-muted">{t('expand.intro')}</p>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <ComboInput
+          <ChoiceField
             label={t('field.resourceType')}
             value={resourceType}
-            onChange={setResourceType}
+            onChange={changeType}
             options={catalog.resourceTypes}
-            placeholder="document"
           />
-          <ComboInput
+          <ChoiceField
             label={t('field.resourceId')}
             value={resourceId}
             onChange={setResourceId}
             options={catalog.objectIdsFor(resourceType)}
-            placeholder="onboarding"
+            hint={t('field.resourceIdHint')}
           />
         </div>
 
-        <ComboInput
+        <ChoiceField
           label={t('expand.relation')}
           value={relation}
           onChange={setRelation}
           options={catalog.relationsFor(resourceType)}
-          placeholder="viewer"
         />
 
         <div>

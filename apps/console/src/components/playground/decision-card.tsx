@@ -6,6 +6,9 @@ import { cn } from '../ui';
 
 function ReasonRow({ reason }: { reason: Reason }) {
   const t = useT();
+  const reasonKey = `reason.${reason.code}`;
+  const localized = t(reasonKey);
+  const message = localized === reasonKey ? reason.message : localized;
   return (
     <li className="rounded-lg border border-line bg-ink/60 p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -18,7 +21,7 @@ function ReasonRow({ reason }: { reason: Reason }) {
           </span>
         ) : null}
       </div>
-      <p className="mt-1.5 text-sm text-fg">{reason.message}</p>
+      <p className="mt-1.5 text-sm text-fg">{message}</p>
       {reason.path && reason.path.length > 0 ? (
         <ol className="mt-3 flex flex-wrap items-center gap-1.5 text-xs">
           {reason.path.map((step, index) => (
@@ -73,7 +76,7 @@ export function DecisionCard({
             aria-hidden
             className={cn('h-2.5 w-2.5 rounded-full', permit ? 'bg-permit' : 'bg-deny')}
           />
-          {permit ? 'PERMIT' : 'DENY'}
+          {permit ? t('decision.permit') : t('decision.deny')}
         </span>
       </div>
 

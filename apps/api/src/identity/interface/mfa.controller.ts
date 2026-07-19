@@ -8,7 +8,15 @@ import { UserId } from '../../shared/kernel/user-id';
 import { ACTIVATE_MFA_HANDLER, type ActivateMfaHandler } from '../application/activate-mfa';
 import { DISABLE_MFA_HANDLER, type DisableMfaHandler } from '../application/disable-mfa';
 import { ENROLL_MFA_HANDLER, type EnrollMfaHandler } from '../application/enroll-mfa';
-import { GET_MFA_STATUS_HANDLER, type GetMfaStatusHandler } from '../application/get-mfa-status';
+import {
+  GET_MFA_STATUS_HANDLER,
+  type GetMfaStatusHandler,
+  type MfaStatus,
+} from '../application/get-mfa-status';
+import {
+  REGENERATE_RECOVERY_CODES_HANDLER,
+  type RegenerateRecoveryCodesHandler,
+} from '../application/regenerate-recovery-codes';
 import { activateMfaSchema } from './mfa.dto';
 
 @ApiTags('mfa')
@@ -21,11 +29,13 @@ export class MfaController {
     @Inject(ACTIVATE_MFA_HANDLER) private readonly activateHandler: ActivateMfaHandler,
     @Inject(DISABLE_MFA_HANDLER) private readonly disableHandler: DisableMfaHandler,
     @Inject(GET_MFA_STATUS_HANDLER) private readonly statusHandler: GetMfaStatusHandler,
+    @Inject(REGENERATE_RECOVERY_CODES_HANDLER)
+    private readonly regenerateHandler: RegenerateRecoveryCodesHandler,
   ) {}
 
   @Get('status')
-  @ApiOperation({ summary: 'Whether the caller has an active MFA factor' })
-  async status(@AuthToken() token: AuthTokenClaims): Promise<{ enabled: boolean }> {
+  @ApiOperation({ summary: 'Whether the caller has an active MFA factor and codes remaining' })
+  async status(@AuthToken() token: AuthTokenClaims): Promise<MfaStatus> {
     return this.statusHandler.execute(UserId.fromString(token.sub));
   }
 
@@ -53,7 +63,7 @@ export class MfaController {
   async activate(
     @AuthToken() token: AuthTokenClaims,
     @Body() body: unknown,
-  ): Promise<{ status: string }> {
+  ): Promise<{ status: string; recoveryCodes: string[] }> {
     const parsed = activateMfaSchema.safeParse(body);
     if (!parsed.success) {
       throw new ProblemException({ type: 'about:blank', title: 'Invalid code', status: 422 });
@@ -70,7 +80,25 @@ export class MfaController {
         status,
       });
     }
-    return { status: 'active' };
+    return { status: 'active', recoveryCodes: result.value.recoveryCodes };
+  }
+
+  @Post('recovery-codes')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Regenerate recovery codes',
+    description: 'Replaces the recovery-code batch and returns the new codes once.',
+  })
+  async regenerate(@AuthToken() token: AuthTokenClaims): Promise<{ recoveryCodes: string[] }> {
+    const result = await this.regenerateHandler.execute({ userId: UserId.fromString(token.sub) });
+    if (!result.ok) {
+      throw new ProblemException({
+        type: 'about:blank',
+        title: 'MFA is not enabled',
+        status: 409,
+      });
+    }
+    return { recoveryCodes: result.value.recoveryCodes };
   }
 
   @Post('disable')

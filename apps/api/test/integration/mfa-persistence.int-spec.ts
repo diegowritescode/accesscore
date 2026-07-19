@@ -93,7 +93,8 @@ describe('MFA persistence (integration)', () => {
 
     if (found) {
       found.consume(now);
-      await recovery.consume(found);
+      expect(await recovery.consume(found)).toBe(true);
+      expect(await recovery.consume(found)).toBe(false);
     }
     expect(await recovery.countActive(userId)).toBe(2);
 

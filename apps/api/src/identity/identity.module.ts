@@ -8,6 +8,15 @@ import { ActivateMfaHandler, ACTIVATE_MFA_HANDLER } from './application/activate
 import { DisableMfaHandler, DISABLE_MFA_HANDLER } from './application/disable-mfa';
 import { EnrollMfaHandler, ENROLL_MFA_HANDLER } from './application/enroll-mfa';
 import { GetMfaStatusHandler, GET_MFA_STATUS_HANDLER } from './application/get-mfa-status';
+import { RecoveryCodeIssuer, RECOVERY_CODE_ISSUER } from './application/recovery-code-issuer';
+import {
+  RedeemRecoveryCodeHandler,
+  REDEEM_RECOVERY_CODE_HANDLER,
+} from './application/redeem-recovery-code';
+import {
+  RegenerateRecoveryCodesHandler,
+  REGENERATE_RECOVERY_CODES_HANDLER,
+} from './application/regenerate-recovery-codes';
 import { RegisterUserHandler, REGISTER_USER_HANDLER } from './application/register-user';
 import {
   RequestPasswordResetHandler,
@@ -22,7 +31,10 @@ import {
   MFA_CREDENTIALS_REPOSITORY,
   type MfaCredentialsRepository,
 } from './domain/ports/mfa-credentials-repository';
-import { RECOVERY_CODES_REPOSITORY } from './domain/ports/recovery-codes-repository';
+import {
+  RECOVERY_CODES_REPOSITORY,
+  type RecoveryCodesRepository,
+} from './domain/ports/recovery-codes-repository';
 import { SECRET_ENCRYPTOR, type SecretEncryptor } from './domain/ports/secret-encryptor';
 import { TOTP, type Totp } from './domain/ports/totp';
 import {
@@ -86,6 +98,15 @@ import { MfaController } from './interface/mfa.controller';
         new DrizzleRecoveryCodesRepository(db),
     },
     {
+      provide: RECOVERY_CODE_ISSUER,
+      inject: [RECOVERY_CODES_REPOSITORY, TOKEN_GENERATOR, CLOCK],
+      useFactory: (
+        recovery: RecoveryCodesRepository,
+        tokens: TokenGenerator,
+        clock: Clock,
+      ): RecoveryCodeIssuer => new RecoveryCodeIssuer(recovery, tokens, clock),
+    },
+    {
       provide: ENROLL_MFA_HANDLER,
       inject: [USERS_REPOSITORY, MFA_CREDENTIALS_REPOSITORY, SECRET_ENCRYPTOR, CLOCK],
       useFactory: (
@@ -98,13 +119,15 @@ import { MfaController } from './interface/mfa.controller';
     },
     {
       provide: ACTIVATE_MFA_HANDLER,
-      inject: [MFA_CREDENTIALS_REPOSITORY, SECRET_ENCRYPTOR, TOTP, CLOCK],
+      inject: [MFA_CREDENTIALS_REPOSITORY, SECRET_ENCRYPTOR, TOTP, CLOCK, RECOVERY_CODE_ISSUER],
       useFactory: (
         credentials: MfaCredentialsRepository,
         encryptor: SecretEncryptor,
         totp: Totp,
         clock: Clock,
-      ): ActivateMfaHandler => new ActivateMfaHandler(credentials, encryptor, totp, clock),
+        recoveryCodes: RecoveryCodeIssuer,
+      ): ActivateMfaHandler =>
+        new ActivateMfaHandler(credentials, encryptor, totp, clock, recoveryCodes),
     },
     {
       provide: DISABLE_MFA_HANDLER,
@@ -114,9 +137,28 @@ import { MfaController } from './interface/mfa.controller';
     },
     {
       provide: GET_MFA_STATUS_HANDLER,
-      inject: [MFA_CREDENTIALS_REPOSITORY],
-      useFactory: (credentials: MfaCredentialsRepository): GetMfaStatusHandler =>
-        new GetMfaStatusHandler(credentials),
+      inject: [MFA_CREDENTIALS_REPOSITORY, RECOVERY_CODES_REPOSITORY],
+      useFactory: (
+        credentials: MfaCredentialsRepository,
+        recovery: RecoveryCodesRepository,
+      ): GetMfaStatusHandler => new GetMfaStatusHandler(credentials, recovery),
+    },
+    {
+      provide: REGENERATE_RECOVERY_CODES_HANDLER,
+      inject: [MFA_CREDENTIALS_REPOSITORY, RECOVERY_CODE_ISSUER],
+      useFactory: (
+        credentials: MfaCredentialsRepository,
+        issuer: RecoveryCodeIssuer,
+      ): RegenerateRecoveryCodesHandler => new RegenerateRecoveryCodesHandler(credentials, issuer),
+    },
+    {
+      provide: REDEEM_RECOVERY_CODE_HANDLER,
+      inject: [RECOVERY_CODES_REPOSITORY, TOKEN_GENERATOR, CLOCK],
+      useFactory: (
+        recovery: RecoveryCodesRepository,
+        tokens: TokenGenerator,
+        clock: Clock,
+      ): RedeemRecoveryCodeHandler => new RedeemRecoveryCodeHandler(recovery, tokens, clock),
     },
     {
       provide: USERS_REPOSITORY,
@@ -213,6 +255,7 @@ import { MfaController } from './interface/mfa.controller';
     SECRET_ENCRYPTOR,
     MFA_CREDENTIALS_REPOSITORY,
     RECOVERY_CODES_REPOSITORY,
+    REDEEM_RECOVERY_CODE_HANDLER,
   ],
 })
 export class IdentityModule {}

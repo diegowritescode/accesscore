@@ -37,11 +37,12 @@ export class DrizzleRecoveryCodesRepository implements RecoveryCodesRepository {
     return row ? this.toDomain(row) : null;
   }
 
-  async consume(code: RecoveryCode): Promise<void> {
-    await this.db
+  async consume(code: RecoveryCode): Promise<boolean> {
+    const result = await this.db
       .update(recoveryCodes)
       .set({ consumedAt: code.consumedAt })
-      .where(eq(recoveryCodes.id, code.id));
+      .where(and(eq(recoveryCodes.id, code.id), isNull(recoveryCodes.consumedAt)));
+    return (result.rowCount ?? 0) > 0;
   }
 
   async countActive(userId: UserId): Promise<number> {

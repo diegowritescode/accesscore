@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import { runExpand } from '@/lib/client';
 import type { ExpandResponse } from '@/lib/types';
-import { Button, Callout, Field, Spinner, TextInput } from '../ui';
+import { Button, Callout, Spinner } from '../ui';
+import { ComboInput } from './form-kit';
 import { ReauthNotice } from './reauth-notice';
+import { useCatalog } from './use-catalog';
 
 type Outcome =
   | { kind: 'idle' }
@@ -15,6 +17,7 @@ type Outcome =
   | { kind: 'error'; message: string };
 
 export function ExpandPanel() {
+  const catalog = useCatalog();
   const [resourceType, setResourceType] = useState('document');
   const [resourceId, setResourceId] = useState('onboarding');
   const [relation, setRelation] = useState('viewer');
@@ -50,25 +53,30 @@ export function ExpandPanel() {
           role aliases, nested groups, and hierarchy.
         </p>
 
-        <div>
-          <span className="text-xs font-medium uppercase tracking-wide text-muted">Resource</span>
-          <div className="mt-1.5 grid grid-cols-2 gap-2">
-            <TextInput
-              aria-label="Resource type"
-              value={resourceType}
-              onChange={(event) => setResourceType(event.target.value)}
-            />
-            <TextInput
-              aria-label="Resource id"
-              value={resourceId}
-              onChange={(event) => setResourceId(event.target.value)}
-            />
-          </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <ComboInput
+            label="Resource type"
+            value={resourceType}
+            onChange={setResourceType}
+            options={catalog.resourceTypes}
+            placeholder="document"
+          />
+          <ComboInput
+            label="Resource id"
+            value={resourceId}
+            onChange={setResourceId}
+            options={catalog.objectIdsFor(resourceType)}
+            placeholder="onboarding"
+          />
         </div>
 
-        <Field label="Relation">
-          <TextInput value={relation} onChange={(event) => setRelation(event.target.value)} />
-        </Field>
+        <ComboInput
+          label="Relation"
+          value={relation}
+          onChange={setRelation}
+          options={catalog.relationsFor(resourceType)}
+          placeholder="viewer"
+        />
 
         <div>
           <Button type="submit" disabled={loading} className="min-w-28">
@@ -89,7 +97,7 @@ export function ExpandPanel() {
           </div>
         ) : null}
         {outcome.kind === 'subjects' ? (
-          <div className="rounded-xl border border-line bg-ink/60 p-4">
+          <div className="rounded-xl border border-line bg-surface-2 p-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium uppercase tracking-wide text-muted">
                 Subject closure
@@ -104,7 +112,7 @@ export function ExpandPanel() {
                 {outcome.data.subjects.map((subject) => (
                   <li
                     key={`${subject.type}:${subject.id}`}
-                    className="rounded-full border border-line-strong bg-surface-2 px-3 py-1 font-mono text-xs"
+                    className="rounded-full border border-line-strong bg-surface px-3 py-1 font-mono text-xs"
                   >
                     <span className="text-brand-strong">{subject.type}</span>
                     <span className="text-muted">:</span>

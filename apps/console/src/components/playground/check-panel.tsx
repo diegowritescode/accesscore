@@ -1,11 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { runCheck } from '@/lib/client';
-import type { Decision } from '@/lib/types';
-import { Button, Callout, Field, Spinner, TextInput } from '../ui';
+import { runCheck, runCheckAs } from '@/lib/client';
+import type { Decision, EntityInput } from '@/lib/types';
+import { Button, Callout, Spinner } from '../ui';
+import { ComboInput, Segmented, SelectField } from './form-kit';
 import { DecisionCard } from './decision-card';
 import { ReauthNotice } from './reauth-notice';
+import { useCatalog } from './use-catalog';
+
+type Mode = 'me' | 'subject';
 
 type Outcome =
   | { kind: 'idle' }
@@ -15,23 +19,34 @@ type Outcome =
   | { kind: 'unavailable' }
   | { kind: 'error'; message: string };
 
+function parseSubject(value: string): EntityInput {
+  const separator = value.indexOf(':');
+  if (separator === -1) {
+    return { type: 'user', id: value.trim() };
+  }
+  return { type: value.slice(0, separator).trim(), id: value.slice(separator + 1).trim() };
+}
+
 export function CheckPanel() {
-  const [subjectType, setSubjectType] = useState('user');
-  const [subjectId, setSubjectId] = useState('demo');
-  const [action, setAction] = useState('document.read');
+  const catalog = useCatalog();
+  const [mode, setMode] = useState<Mode>('subject');
+  const [subject, setSubject] = useState('user:bob');
+  const [aal, setAal] = useState('1');
   const [resourceType, setResourceType] = useState('document');
   const [resourceId, setResourceId] = useState('onboarding');
+  const [verb, setVerb] = useState('read');
   const [outcome, setOutcome] = useState<Outcome>({ kind: 'idle' });
 
   async function handleCheck(event: React.FormEvent) {
     event.preventDefault();
     setOutcome({ kind: 'loading' });
 
-    const result = await runCheck({
-      subject: { type: subjectType, id: subjectId },
-      action,
-      resource: { type: resourceType, id: resourceId },
-    });
+    const action = `${resourceType}.${verb}`;
+    const resource = { type: resourceType, id: resourceId };
+    const result =
+      mode === 'subject'
+        ? await runCheckAs({ subject: parseSubject(subject), action, resource, aal: Number(aal) })
+        : await runCheck({ subject: { type: 'user', id: 'self' }, action, resource });
 
     if (result.status === 'ok') {
       setOutcome({ kind: 'decision', decision: result.data });
@@ -50,52 +65,82 @@ export function CheckPanel() {
     <div className="grid gap-8 lg:grid-cols-[1fr_1.1fr]">
       <form onSubmit={handleCheck} className="flex flex-col gap-4">
         <p className="text-sm text-muted">
-          Resolve a single decision. The engine walks the relationship graph and returns permit or
-          deny with the reasons behind it.
+          Resolve a single decision. The engine walks the relationship graph and evaluates ABAC
+          policies, returning permit or deny with the reasons behind it.
         </p>
 
         <div>
-          <span className="text-xs font-medium uppercase tracking-wide text-muted">Subject</span>
-          <div className="mt-1.5 grid grid-cols-2 gap-2">
-            <TextInput
-              aria-label="Subject type"
-              value={subjectType}
-              onChange={(event) => setSubjectType(event.target.value)}
-            />
-            <TextInput
-              aria-label="Subject id"
-              value={subjectId}
-              onChange={(event) => setSubjectId(event.target.value)}
-            />
+          <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted">
+            Evaluate as
           </div>
-          <p className="mt-1.5 text-xs text-muted/80">
-            Checks evaluate as the authenticated principal; the subject fields describe the query.
+          <Segmented
+            ariaLabel="Evaluate as"
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: 'subject', label: 'A subject' },
+              { value: 'me', label: 'Me' },
+            ]}
+          />
+          <p className="mt-1.5 text-xs text-muted/90">
+            {mode === 'subject'
+              ? 'Owner-gated: check the decision for any subject in the graph.'
+              : 'Check as the signed-in principal, exactly as the API would enforce it.'}
           </p>
         </div>
 
-        <Field label="Action">
-          <TextInput
-            value={action}
-            onChange={(event) => setAction(event.target.value)}
-            placeholder="namespace.verb"
-          />
-        </Field>
-
-        <div>
-          <span className="text-xs font-medium uppercase tracking-wide text-muted">Resource</span>
-          <div className="mt-1.5 grid grid-cols-2 gap-2">
-            <TextInput
-              aria-label="Resource type"
-              value={resourceType}
-              onChange={(event) => setResourceType(event.target.value)}
+        {mode === 'subject' ? (
+          <div className="grid gap-3 sm:grid-cols-[1.5fr_1fr]">
+            <ComboInput
+              label="Subject"
+              value={subject}
+              onChange={setSubject}
+              options={catalog.subjects}
+              placeholder="user:bob"
             />
-            <TextInput
-              aria-label="Resource id"
-              value={resourceId}
-              onChange={(event) => setResourceId(event.target.value)}
+            <SelectField
+              label="Assurance (AAL)"
+              value={aal}
+              onChange={setAal}
+              options={[
+                { value: '1', label: '1 — password' },
+                { value: '2', label: '2 — MFA' },
+                { value: '3', label: '3' },
+                { value: '4', label: '4' },
+              ]}
             />
           </div>
+        ) : null}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <ComboInput
+            label="Resource type"
+            value={resourceType}
+            onChange={setResourceType}
+            options={catalog.resourceTypes}
+            placeholder="document"
+          />
+          <ComboInput
+            label="Resource id"
+            value={resourceId}
+            onChange={setResourceId}
+            options={catalog.objectIdsFor(resourceType)}
+            placeholder="onboarding"
+          />
         </div>
+
+        <ComboInput
+          label="Action"
+          value={verb}
+          onChange={setVerb}
+          options={catalog.actionsFor(resourceType)}
+          placeholder="read"
+          hint={
+            <>
+              Sent as <span className="font-mono">{`${resourceType || '…'}.${verb || '…'}`}</span>
+            </>
+          }
+        />
 
         <div>
           <Button type="submit" disabled={loading} className="min-w-28">

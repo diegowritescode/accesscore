@@ -1,8 +1,13 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { AuthnModule } from '../authn/authn.module';
+import { AccessTokenGuard } from '../authn/interface/access-token.guard';
 import { ENV } from '../config/env.module';
 import { type Env } from '../config/env';
 import { DB, type Database } from '../db/db.module';
+import { ActivateMfaHandler, ACTIVATE_MFA_HANDLER } from './application/activate-mfa';
+import { DisableMfaHandler, DISABLE_MFA_HANDLER } from './application/disable-mfa';
+import { EnrollMfaHandler, ENROLL_MFA_HANDLER } from './application/enroll-mfa';
+import { GetMfaStatusHandler, GET_MFA_STATUS_HANDLER } from './application/get-mfa-status';
 import { RegisterUserHandler, REGISTER_USER_HANDLER } from './application/register-user';
 import {
   RequestPasswordResetHandler,
@@ -13,10 +18,13 @@ import { VerifyEmailHandler, VERIFY_EMAIL_HANDLER } from './application/verify-e
 import { CLOCK, type Clock } from '../shared/kernel/clock';
 import { HASHER, type Hasher } from './domain/ports/hasher';
 import { MAILER, type Mailer } from './domain/ports/mailer';
-import { MFA_CREDENTIALS_REPOSITORY } from './domain/ports/mfa-credentials-repository';
+import {
+  MFA_CREDENTIALS_REPOSITORY,
+  type MfaCredentialsRepository,
+} from './domain/ports/mfa-credentials-repository';
 import { RECOVERY_CODES_REPOSITORY } from './domain/ports/recovery-codes-repository';
 import { SECRET_ENCRYPTOR, type SecretEncryptor } from './domain/ports/secret-encryptor';
-import { TOTP } from './domain/ports/totp';
+import { TOTP, type Totp } from './domain/ports/totp';
 import {
   PASSWORD_RESET_TOKENS_REPOSITORY,
   type PasswordResetTokensRepository,
@@ -41,11 +49,13 @@ import { DrizzleRecoveryCodesRepository } from './infrastructure/persistence/dri
 import { DrizzleUsersRepository } from './infrastructure/persistence/drizzle-users.repository';
 import { DrizzleVerificationTokensRepository } from './infrastructure/persistence/drizzle-verification-tokens.repository';
 import { AuthController } from './interface/auth.controller';
+import { MfaController } from './interface/mfa.controller';
 
 @Module({
   imports: [forwardRef(() => AuthnModule)],
-  controllers: [AuthController],
+  controllers: [AuthController, MfaController],
   providers: [
+    AccessTokenGuard,
     { provide: HASHER, useClass: Argon2Hasher },
     { provide: CLOCK, useClass: SystemClock },
     { provide: TOKEN_GENERATOR, useClass: CryptoTokenGenerator },
@@ -74,6 +84,39 @@ import { AuthController } from './interface/auth.controller';
       inject: [DB],
       useFactory: (db: Database): DrizzleRecoveryCodesRepository =>
         new DrizzleRecoveryCodesRepository(db),
+    },
+    {
+      provide: ENROLL_MFA_HANDLER,
+      inject: [USERS_REPOSITORY, MFA_CREDENTIALS_REPOSITORY, SECRET_ENCRYPTOR, CLOCK],
+      useFactory: (
+        users: UsersRepository,
+        credentials: MfaCredentialsRepository,
+        encryptor: SecretEncryptor,
+        clock: Clock,
+      ): EnrollMfaHandler =>
+        new EnrollMfaHandler(users, credentials, encryptor, clock, 'AccessCore'),
+    },
+    {
+      provide: ACTIVATE_MFA_HANDLER,
+      inject: [MFA_CREDENTIALS_REPOSITORY, SECRET_ENCRYPTOR, TOTP, CLOCK],
+      useFactory: (
+        credentials: MfaCredentialsRepository,
+        encryptor: SecretEncryptor,
+        totp: Totp,
+        clock: Clock,
+      ): ActivateMfaHandler => new ActivateMfaHandler(credentials, encryptor, totp, clock),
+    },
+    {
+      provide: DISABLE_MFA_HANDLER,
+      inject: [MFA_CREDENTIALS_REPOSITORY, CLOCK],
+      useFactory: (credentials: MfaCredentialsRepository, clock: Clock): DisableMfaHandler =>
+        new DisableMfaHandler(credentials, clock),
+    },
+    {
+      provide: GET_MFA_STATUS_HANDLER,
+      inject: [MFA_CREDENTIALS_REPOSITORY],
+      useFactory: (credentials: MfaCredentialsRepository): GetMfaStatusHandler =>
+        new GetMfaStatusHandler(credentials),
     },
     {
       provide: USERS_REPOSITORY,

@@ -11,6 +11,7 @@ import { EnvModule } from './config/env.module';
 import { DbModule } from './db/db.module';
 import { HealthModule } from './health/health.module';
 import { IdentityModule } from './identity/identity.module';
+import { MetricsModule } from './observability/metrics.module';
 import { RedisModule } from './redis/redis.module';
 import { SecurityModule } from './security/security.module';
 import { ProblemDetailsFilter } from './shared/http/problem-details.filter';
@@ -37,7 +38,12 @@ import { TenancyModule } from './tenancy/tenancy.module';
           autoLogging: {
             ignore: (req) => {
               const path = (req.url ?? '').split('?')[0];
-              return path === '/health' || path === '/ready' || path === '/reference';
+              return (
+                path === '/health' ||
+                path === '/ready' ||
+                path === '/reference' ||
+                path === '/metrics'
+              );
             },
           },
         },
@@ -46,6 +52,7 @@ import { TenancyModule } from './tenancy/tenancy.module';
     DbModule,
     RedisModule,
     HealthModule,
+    MetricsModule,
     IdentityModule,
     AuthnModule,
     AuthzModule,

@@ -1,14 +1,12 @@
 'use client';
 
-import { useId } from 'react';
-import { Field, Select, TextInput, cn } from '../ui';
+import { Field, Select, cn } from '../ui';
 
-export function ComboInput({
+export function ChoiceField({
   label,
   value,
   onChange,
   options,
-  placeholder,
   hint,
   disabled,
 }: {
@@ -16,29 +14,24 @@ export function ComboInput({
   value: string;
   onChange: (value: string) => void;
   options: string[];
-  placeholder?: string;
   hint?: React.ReactNode;
   disabled?: boolean;
 }) {
-  const listId = useId();
+  const choices = options.includes(value) || value === '' ? options : [value, ...options];
   return (
     <Field label={label} hint={hint}>
-      <TextInput
-        list={options.length > 0 ? listId : undefined}
+      <Select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        disabled={disabled}
-        autoComplete="off"
+        disabled={disabled || choices.length === 0}
         className="font-mono"
-      />
-      {options.length > 0 ? (
-        <datalist id={listId}>
-          {options.map((option) => (
-            <option key={option} value={option} />
-          ))}
-        </datalist>
-      ) : null}
+      >
+        {choices.map((choice) => (
+          <option key={choice} value={choice}>
+            {choice}
+          </option>
+        ))}
+      </Select>
     </Field>
   );
 }

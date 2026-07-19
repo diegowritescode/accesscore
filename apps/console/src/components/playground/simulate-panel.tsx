@@ -5,7 +5,7 @@ import { runSimulate } from '@/lib/client';
 import type { PolicyEffect, SimulateInput, SimulateResponse } from '@/lib/types';
 import { useT } from '../i18n/language-provider';
 import { Button, Callout, Spinner, cn } from '../ui';
-import { ComboInput, Segmented } from './form-kit';
+import { ChoiceField, Segmented } from './form-kit';
 import { ConditionBuilder } from './condition-builder';
 import { DecisionCard } from './decision-card';
 import { ReauthNotice } from './reauth-notice';
@@ -19,6 +19,9 @@ type Outcome =
   | { kind: 'unavailable' }
   | { kind: 'error'; message: string };
 
+const pick = (list: string[], current: string): string =>
+  list.includes(current) ? current : (list[0] ?? current);
+
 export function SimulatePanel() {
   const t = useT();
   const catalog = useCatalog();
@@ -29,6 +32,12 @@ export function SimulatePanel() {
   const [effect, setEffect] = useState<PolicyEffect>('forbid');
   const [condition, setCondition] = useState<unknown>(null);
   const [outcome, setOutcome] = useState<Outcome>({ kind: 'idle' });
+
+  function changeType(next: string) {
+    setResourceType(next);
+    setResourceId(pick(catalog.objectIdsFor(next), resourceId));
+    setVerb(pick(catalog.actionsFor(next), verb));
+  }
 
   async function handleSimulate(event: React.FormEvent) {
     event.preventDefault();
@@ -65,28 +74,26 @@ export function SimulatePanel() {
         <p className="text-sm text-muted">{t('simulate.intro')}</p>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <ComboInput
+          <ChoiceField
             label={t('field.resourceType')}
             value={resourceType}
-            onChange={setResourceType}
-            options={catalog.resourceTypes}
-            placeholder="document"
+            onChange={changeType}
+            options={catalog.namespaceNames}
           />
-          <ComboInput
+          <ChoiceField
             label={t('field.resourceId')}
             value={resourceId}
             onChange={setResourceId}
             options={catalog.objectIdsFor(resourceType)}
-            placeholder="onboarding"
+            hint={t('field.resourceIdHint')}
           />
         </div>
 
-        <ComboInput
+        <ChoiceField
           label={t('field.action')}
           value={verb}
           onChange={setVerb}
           options={catalog.actionsFor(resourceType)}
-          placeholder="read"
           hint={t('field.sentAs', { action })}
         />
 

@@ -4,6 +4,7 @@ import { MfaCredential } from '../domain/mfa-credential';
 import { type MfaCredentialsRepository } from '../domain/ports/mfa-credentials-repository';
 import { type SecretEncryptor } from '../domain/ports/secret-encryptor';
 import { type Totp, type TotpVerification } from '../domain/ports/totp';
+import { type AuditLog } from '../../security/domain/ports/audit-log';
 import { ActivateMfaHandler } from './activate-mfa';
 import { type RecoveryCodeIssuer } from './recovery-code-issuer';
 
@@ -20,6 +21,11 @@ const encryptor: SecretEncryptor = {
 const recoveryIssuer = {
   issue: () => Promise.resolve(['AAAAA-BBBBB', 'CCCCC-DDDDD']),
 } as unknown as RecoveryCodeIssuer;
+
+const audit: AuditLog = {
+  append: () => Promise.resolve({ seq: 1, hash: 'h' }),
+  verify: () => Promise.resolve({ ok: true, length: 0, brokenAt: null }),
+};
 
 const totpReturning = (verification: TotpVerification): Totp => ({ verify: () => verification });
 
@@ -63,6 +69,7 @@ const handlerFor = (
     totpReturning(verification),
     clock,
     recoveryIssuer,
+    audit,
   );
 
 describe('ActivateMfaHandler', () => {

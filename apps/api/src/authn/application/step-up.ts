@@ -1,5 +1,6 @@
 import { type Clock } from '../../shared/kernel/clock';
 import { err, ok, type Result } from '../../shared/result';
+import { type AuditLog } from '../../security/domain/ports/audit-log';
 import { type AccessTokenIssuer } from '../domain/ports/access-token-issuer';
 import { type LockoutPolicy, type LockoutStore } from '../domain/ports/lockout-store';
 import { type SecondFactor, type SecondFactorProof } from '../domain/ports/second-factor';
@@ -30,6 +31,7 @@ export class StepUpHandler {
     private readonly lockout: LockoutStore,
     private readonly clock: Clock,
     private readonly lockoutPolicy: LockoutPolicy,
+    private readonly audit: AuditLog,
   ) {}
 
   async execute(command: StepUpCommand): Promise<Result<StepUpResult, StepUpError>> {
@@ -43,9 +45,17 @@ export class StepUpHandler {
       return err('locked');
     }
 
+    const orgId = session.orgId?.value ?? null;
+    const subject = session.userId.value;
     const verified = await this.secondFactor.verify(session.userId, command.proof);
     if (!verified) {
       await this.lockout.registerFailure(lockoutKey, this.lockoutPolicy);
+      await this.audit.append({
+        type: 'mfa.step_up_failed',
+        orgId,
+        subject,
+        payload: { factor: command.proof.kind },
+      });
       return err('invalid_factor');
     }
     await this.lockout.reset(lockoutKey);
@@ -53,11 +63,17 @@ export class StepUpHandler {
     const now = this.clock.now();
     await this.sessions.elevate(session.id, STEP_UP_AAL, now);
     const token = await this.accessTokens.issue({
-      sub: session.userId.value,
+      sub: subject,
       sid: session.id.value,
-      org: session.orgId?.value ?? null,
+      org: orgId,
       aal: STEP_UP_AAL,
       authTime: now,
+    });
+    await this.audit.append({
+      type: 'mfa.step_up',
+      orgId,
+      subject,
+      payload: { factor: command.proof.kind, aal: STEP_UP_AAL },
     });
 
     return ok({

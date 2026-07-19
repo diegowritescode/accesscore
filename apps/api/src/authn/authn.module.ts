@@ -18,6 +18,8 @@ import { TOTP, type Totp } from '../identity/domain/ports/totp';
 import { USERS_REPOSITORY, type UsersRepository } from '../identity/domain/ports/users-repository';
 import { IdentityModule } from '../identity/identity.module';
 import { REDIS } from '../redis/redis.module';
+import { AUDIT_LOG, type AuditLog } from '../security/domain/ports/audit-log';
+import { SecurityModule } from '../security/security.module';
 import { UNIT_OF_WORK, type UnitOfWork } from '../shared/persistence/unit-of-work';
 import { TENANCY_SERVICE, type TenancyService } from '../tenancy/application/tenancy-service';
 import { TenancyModule } from '../tenancy/tenancy.module';
@@ -68,7 +70,7 @@ import { AuthnController } from './interface/authn.controller';
 import { JwksController } from './interface/jwks.controller';
 
 @Module({
-  imports: [forwardRef(() => IdentityModule), TenancyModule],
+  imports: [forwardRef(() => IdentityModule), TenancyModule, SecurityModule],
   controllers: [AuthnController, JwksController],
   providers: [
     { provide: CLOCK, useClass: SystemClock },
@@ -180,7 +182,15 @@ import { JwksController } from './interface/jwks.controller';
     },
     {
       provide: STEP_UP_HANDLER,
-      inject: [SESSIONS_REPOSITORY, SECOND_FACTOR, ACCESS_TOKEN_ISSUER, LOCKOUT_STORE, CLOCK, ENV],
+      inject: [
+        SESSIONS_REPOSITORY,
+        SECOND_FACTOR,
+        ACCESS_TOKEN_ISSUER,
+        LOCKOUT_STORE,
+        CLOCK,
+        ENV,
+        AUDIT_LOG,
+      ],
       useFactory: (
         sessions: SessionsRepository,
         secondFactor: SecondFactor,
@@ -188,11 +198,17 @@ import { JwksController } from './interface/jwks.controller';
         lockout: LockoutStore,
         clock: Clock,
         env: Env,
+        audit: AuditLog,
       ): StepUpHandler =>
-        new StepUpHandler(sessions, secondFactor, accessTokens, lockout, clock, {
-          threshold: env.LOCKOUT_THRESHOLD,
-          windowSeconds: env.LOCKOUT_WINDOW_SECONDS,
-        }),
+        new StepUpHandler(
+          sessions,
+          secondFactor,
+          accessTokens,
+          lockout,
+          clock,
+          { threshold: env.LOCKOUT_THRESHOLD, windowSeconds: env.LOCKOUT_WINDOW_SECONDS },
+          audit,
+        ),
     },
     {
       provide: ACCESS_TOKEN_ISSUER,

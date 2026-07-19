@@ -1,4 +1,5 @@
 import { type AuthTokenClaims } from '../../authn/interface/access-token.guard';
+import { type AuditLog } from '../../security/domain/ports/audit-log';
 import { ProblemException } from '../../shared/http/problem-details';
 import {
   type AuthzDirectoryService,
@@ -6,6 +7,11 @@ import {
   type TupleView,
 } from '../application/directory-service';
 import { DirectoryController } from './directory.controller';
+
+const audit: AuditLog = {
+  append: () => Promise.resolve({ seq: 1, hash: 'h' }),
+  verify: () => Promise.resolve({ ok: true, length: 3, brokenAt: null }),
+};
 
 const token: AuthTokenClaims = {
   sub: 'user-1',
@@ -17,9 +23,13 @@ const token: AuthTokenClaims = {
 };
 
 const controllerWith = (stub: Partial<AuthzDirectoryService>): DirectoryController =>
-  new DirectoryController(stub as AuthzDirectoryService);
+  new DirectoryController(stub as AuthzDirectoryService, audit);
 
 describe('DirectoryController', () => {
+  it('verifies the audit chain', async () => {
+    expect(await controllerWith({}).auditVerify()).toEqual({ ok: true, length: 3, brokenAt: null });
+  });
+
   it('lists namespaces for the caller organization', async () => {
     const controller = controllerWith({
       listNamespaces: (orgId) => {

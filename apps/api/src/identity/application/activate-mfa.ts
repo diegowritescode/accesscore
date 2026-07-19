@@ -1,3 +1,4 @@
+import { type AuditLog } from '../../security/domain/ports/audit-log';
 import { type Clock } from '../../shared/kernel/clock';
 import { type UserId } from '../../shared/kernel/user-id';
 import { err, ok, type Result } from '../../shared/result';
@@ -26,6 +27,7 @@ export class ActivateMfaHandler {
     private readonly totp: Totp,
     private readonly clock: Clock,
     private readonly recoveryCodes: RecoveryCodeIssuer,
+    private readonly audit: AuditLog,
   ) {}
 
   async execute(input: ActivateMfaInput): Promise<Result<ActivateMfaResult, ActivateMfaError>> {
@@ -52,6 +54,12 @@ export class ActivateMfaHandler {
     await this.credentials.save(pending);
 
     const recoveryCodes = await this.recoveryCodes.issue(input.userId);
+    await this.audit.append({
+      type: 'mfa.activated',
+      orgId: null,
+      subject: input.userId.value,
+      payload: { credentialId: pending.id },
+    });
     return ok({ recoveryCodes });
   }
 }

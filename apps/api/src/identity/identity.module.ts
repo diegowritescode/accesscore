@@ -4,6 +4,8 @@ import { AccessTokenGuard } from '../authn/interface/access-token.guard';
 import { ENV } from '../config/env.module';
 import { type Env } from '../config/env';
 import { DB, type Database } from '../db/db.module';
+import { AUDIT_LOG, type AuditLog } from '../security/domain/ports/audit-log';
+import { SecurityModule } from '../security/security.module';
 import { ActivateMfaHandler, ACTIVATE_MFA_HANDLER } from './application/activate-mfa';
 import { DisableMfaHandler, DISABLE_MFA_HANDLER } from './application/disable-mfa';
 import { EnrollMfaHandler, ENROLL_MFA_HANDLER } from './application/enroll-mfa';
@@ -64,7 +66,7 @@ import { AuthController } from './interface/auth.controller';
 import { MfaController } from './interface/mfa.controller';
 
 @Module({
-  imports: [forwardRef(() => AuthnModule)],
+  imports: [forwardRef(() => AuthnModule), SecurityModule],
   controllers: [AuthController, MfaController],
   providers: [
     AccessTokenGuard,
@@ -119,21 +121,32 @@ import { MfaController } from './interface/mfa.controller';
     },
     {
       provide: ACTIVATE_MFA_HANDLER,
-      inject: [MFA_CREDENTIALS_REPOSITORY, SECRET_ENCRYPTOR, TOTP, CLOCK, RECOVERY_CODE_ISSUER],
+      inject: [
+        MFA_CREDENTIALS_REPOSITORY,
+        SECRET_ENCRYPTOR,
+        TOTP,
+        CLOCK,
+        RECOVERY_CODE_ISSUER,
+        AUDIT_LOG,
+      ],
       useFactory: (
         credentials: MfaCredentialsRepository,
         encryptor: SecretEncryptor,
         totp: Totp,
         clock: Clock,
         recoveryCodes: RecoveryCodeIssuer,
+        audit: AuditLog,
       ): ActivateMfaHandler =>
-        new ActivateMfaHandler(credentials, encryptor, totp, clock, recoveryCodes),
+        new ActivateMfaHandler(credentials, encryptor, totp, clock, recoveryCodes, audit),
     },
     {
       provide: DISABLE_MFA_HANDLER,
-      inject: [MFA_CREDENTIALS_REPOSITORY, CLOCK],
-      useFactory: (credentials: MfaCredentialsRepository, clock: Clock): DisableMfaHandler =>
-        new DisableMfaHandler(credentials, clock),
+      inject: [MFA_CREDENTIALS_REPOSITORY, CLOCK, AUDIT_LOG],
+      useFactory: (
+        credentials: MfaCredentialsRepository,
+        clock: Clock,
+        audit: AuditLog,
+      ): DisableMfaHandler => new DisableMfaHandler(credentials, clock, audit),
     },
     {
       provide: GET_MFA_STATUS_HANDLER,

@@ -3,8 +3,14 @@ import { UserId } from '../../shared/kernel/user-id';
 import { MfaCredential } from '../domain/mfa-credential';
 import { type MfaCredentialsRepository } from '../domain/ports/mfa-credentials-repository';
 import { type RecoveryCodesRepository } from '../domain/ports/recovery-codes-repository';
+import { type AuditLog } from '../../security/domain/ports/audit-log';
 import { DisableMfaHandler } from './disable-mfa';
 import { GetMfaStatusHandler } from './get-mfa-status';
+
+const audit: AuditLog = {
+  append: () => Promise.resolve({ seq: 1, hash: 'h' }),
+  verify: () => Promise.resolve({ ok: true, length: 0, brokenAt: null }),
+};
 
 const now = new Date('2026-07-19T00:00:00.000Z');
 const clock: Clock = { now: () => now };
@@ -49,13 +55,15 @@ const withActive = (): MemoryCredentials => {
 describe('DisableMfaHandler', () => {
   it('revokes the active credential', async () => {
     const credentials = withActive();
-    const result = await new DisableMfaHandler(credentials, clock).execute({ userId });
+    const result = await new DisableMfaHandler(credentials, clock, audit).execute({ userId });
     expect(result.ok).toBe(true);
     expect(credentials.items.get('a1')?.status).toBe('revoked');
   });
 
   it('rejects when MFA is not enabled', async () => {
-    const result = await new DisableMfaHandler(new MemoryCredentials(), clock).execute({ userId });
+    const result = await new DisableMfaHandler(new MemoryCredentials(), clock, audit).execute({
+      userId,
+    });
     expect(result).toEqual({ ok: false, error: 'not_enabled' });
   });
 });

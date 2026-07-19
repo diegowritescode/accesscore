@@ -12,6 +12,7 @@ import { DbModule } from './db/db.module';
 import { HealthModule } from './health/health.module';
 import { IdentityModule } from './identity/identity.module';
 import { RedisModule } from './redis/redis.module';
+import { SecurityModule } from './security/security.module';
 import { ProblemDetailsFilter } from './shared/http/problem-details.filter';
 import { TenancyModule } from './tenancy/tenancy.module';
 
@@ -49,6 +50,7 @@ import { TenancyModule } from './tenancy/tenancy.module';
     AuthnModule,
     AuthzModule,
     TenancyModule,
+    SecurityModule,
     ThrottlerModule.forRootAsync({
       inject: [ENV],
       useFactory: (env: Env) => ({

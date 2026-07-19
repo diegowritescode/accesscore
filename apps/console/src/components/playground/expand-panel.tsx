@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { runExpand } from '@/lib/client';
 import type { ExpandResponse } from '@/lib/types';
+import { useT } from '../i18n/language-provider';
 import { Button, Callout, Spinner } from '../ui';
 import { ComboInput } from './form-kit';
 import { ReauthNotice } from './reauth-notice';
@@ -17,6 +18,7 @@ type Outcome =
   | { kind: 'error'; message: string };
 
 export function ExpandPanel() {
+  const t = useT();
   const catalog = useCatalog();
   const [resourceType, setResourceType] = useState('document');
   const [resourceId, setResourceId] = useState('onboarding');
@@ -48,21 +50,18 @@ export function ExpandPanel() {
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_1.1fr]">
       <form onSubmit={handleExpand} className="flex flex-col gap-4">
-        <p className="text-sm text-muted">
-          Owner-gated. Resolve the full set of subjects that hold a relation on a resource, across
-          role aliases, nested groups, and hierarchy.
-        </p>
+        <p className="text-sm text-muted">{t('expand.intro')}</p>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <ComboInput
-            label="Resource type"
+            label={t('field.resourceType')}
             value={resourceType}
             onChange={setResourceType}
             options={catalog.resourceTypes}
             placeholder="document"
           />
           <ComboInput
-            label="Resource id"
+            label={t('field.resourceId')}
             value={resourceId}
             onChange={setResourceId}
             options={catalog.objectIdsFor(resourceType)}
@@ -71,7 +70,7 @@ export function ExpandPanel() {
         </div>
 
         <ComboInput
-          label="Relation"
+          label={t('expand.relation')}
           value={relation}
           onChange={setRelation}
           options={catalog.relationsFor(resourceType)}
@@ -80,7 +79,7 @@ export function ExpandPanel() {
 
         <div>
           <Button type="submit" disabled={loading} className="min-w-28">
-            {loading ? <Spinner /> : 'Expand'}
+            {loading ? <Spinner /> : t('expand.submit')}
           </Button>
         </div>
       </form>
@@ -88,23 +87,25 @@ export function ExpandPanel() {
       <div className="flex flex-col gap-3">
         {outcome.kind === 'idle' ? (
           <div className="flex h-full min-h-40 items-center justify-center rounded-xl border border-dashed border-line text-sm text-muted">
-            Expand a relation to see its subject closure.
+            {t('expand.idle')}
           </div>
         ) : null}
         {outcome.kind === 'loading' ? (
           <div className="flex h-full min-h-40 items-center justify-center rounded-xl border border-line text-sm text-muted">
-            <Spinner /> <span className="ml-2">Resolving…</span>
+            <Spinner /> <span className="ml-2">{t('expand.resolving')}</span>
           </div>
         ) : null}
         {outcome.kind === 'subjects' ? (
           <div className="rounded-xl border border-line bg-surface-2 p-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium uppercase tracking-wide text-muted">
-                Subject closure
+                {t('expand.subjectClosure')}
               </span>
               <span className="font-mono text-xs text-muted">
-                {outcome.data.subjects.length} subject
-                {outcome.data.subjects.length === 1 ? '' : 's'}
+                {t(
+                  outcome.data.subjects.length === 1 ? 'expand.subjectsOne' : 'expand.subjectsMany',
+                  { count: outcome.data.subjects.length },
+                )}
               </span>
             </div>
             {outcome.data.subjects.length > 0 ? (
@@ -121,15 +122,13 @@ export function ExpandPanel() {
                 ))}
               </ul>
             ) : (
-              <p className="mt-3 text-sm text-muted">No subjects hold this relation.</p>
+              <p className="mt-3 text-sm text-muted">{t('expand.noSubjects')}</p>
             )}
           </div>
         ) : null}
         {outcome.kind === 'reauth' ? <ReauthNotice /> : null}
         {outcome.kind === 'unavailable' ? (
-          <Callout tone="error">
-            Authorization service unavailable. Please try again shortly.
-          </Callout>
+          <Callout tone="error">{t('errors.unavailable')}</Callout>
         ) : null}
         {outcome.kind === 'error' ? <Callout tone="error">{outcome.message}</Callout> : null}
       </div>

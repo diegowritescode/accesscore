@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { runCheck, runCheckAs } from '@/lib/client';
 import type { Decision, EntityInput } from '@/lib/types';
+import { useT } from '../i18n/language-provider';
 import { Button, Callout, Spinner } from '../ui';
 import { ComboInput, Segmented, SelectField } from './form-kit';
 import { DecisionCard } from './decision-card';
@@ -28,6 +29,7 @@ function parseSubject(value: string): EntityInput {
 }
 
 export function CheckPanel() {
+  const t = useT();
   const catalog = useCatalog();
   const [mode, setMode] = useState<Mode>('subject');
   const [subject, setSubject] = useState('user:bob');
@@ -60,53 +62,49 @@ export function CheckPanel() {
   }
 
   const loading = outcome.kind === 'loading';
+  const action = `${resourceType || '…'}.${verb || '…'}`;
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_1.1fr]">
       <form onSubmit={handleCheck} className="flex flex-col gap-4">
-        <p className="text-sm text-muted">
-          Resolve a single decision. The engine walks the relationship graph and evaluates ABAC
-          policies, returning permit or deny with the reasons behind it.
-        </p>
+        <p className="text-sm text-muted">{t('check.intro')}</p>
 
         <div>
           <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted">
-            Evaluate as
+            {t('check.evaluateAs')}
           </div>
           <Segmented
-            ariaLabel="Evaluate as"
+            ariaLabel={t('check.evaluateAs')}
             value={mode}
             onChange={setMode}
             options={[
-              { value: 'subject', label: 'A subject' },
-              { value: 'me', label: 'Me' },
+              { value: 'subject', label: t('check.asSubject') },
+              { value: 'me', label: t('check.asMe') },
             ]}
           />
           <p className="mt-1.5 text-xs text-muted/90">
-            {mode === 'subject'
-              ? 'Owner-gated: check the decision for any subject in the graph.'
-              : 'Check as the signed-in principal, exactly as the API would enforce it.'}
+            {mode === 'subject' ? t('check.hintSubject') : t('check.hintMe')}
           </p>
         </div>
 
         {mode === 'subject' ? (
           <div className="grid gap-3 sm:grid-cols-[1.5fr_1fr]">
             <ComboInput
-              label="Subject"
+              label={t('check.subject')}
               value={subject}
               onChange={setSubject}
               options={catalog.subjects}
               placeholder="user:bob"
             />
             <SelectField
-              label="Assurance (AAL)"
+              label={t('check.aal')}
               value={aal}
               onChange={setAal}
               options={[
-                { value: '1', label: '1 — password' },
-                { value: '2', label: '2 — MFA' },
-                { value: '3', label: '3' },
-                { value: '4', label: '4' },
+                { value: '1', label: t('check.aal1') },
+                { value: '2', label: t('check.aal2') },
+                { value: '3', label: t('check.aal3') },
+                { value: '4', label: t('check.aal4') },
               ]}
             />
           </div>
@@ -114,14 +112,14 @@ export function CheckPanel() {
 
         <div className="grid gap-3 sm:grid-cols-2">
           <ComboInput
-            label="Resource type"
+            label={t('field.resourceType')}
             value={resourceType}
             onChange={setResourceType}
             options={catalog.resourceTypes}
             placeholder="document"
           />
           <ComboInput
-            label="Resource id"
+            label={t('field.resourceId')}
             value={resourceId}
             onChange={setResourceId}
             options={catalog.objectIdsFor(resourceType)}
@@ -130,21 +128,17 @@ export function CheckPanel() {
         </div>
 
         <ComboInput
-          label="Action"
+          label={t('field.action')}
           value={verb}
           onChange={setVerb}
           options={catalog.actionsFor(resourceType)}
           placeholder="read"
-          hint={
-            <>
-              Sent as <span className="font-mono">{`${resourceType || '…'}.${verb || '…'}`}</span>
-            </>
-          }
+          hint={t('field.sentAs', { action })}
         />
 
         <div>
           <Button type="submit" disabled={loading} className="min-w-28">
-            {loading ? <Spinner /> : 'Check'}
+            {loading ? <Spinner /> : t('check.submit')}
           </Button>
         </div>
       </form>
@@ -152,20 +146,18 @@ export function CheckPanel() {
       <div className="flex flex-col gap-3">
         {outcome.kind === 'idle' ? (
           <div className="flex h-full min-h-40 items-center justify-center rounded-xl border border-dashed border-line text-sm text-muted">
-            Run a check to see the decision.
+            {t('check.idle')}
           </div>
         ) : null}
         {outcome.kind === 'loading' ? (
           <div className="flex h-full min-h-40 items-center justify-center rounded-xl border border-line text-sm text-muted">
-            <Spinner /> <span className="ml-2">Evaluating…</span>
+            <Spinner /> <span className="ml-2">{t('check.evaluating')}</span>
           </div>
         ) : null}
         {outcome.kind === 'decision' ? <DecisionCard decision={outcome.decision} /> : null}
         {outcome.kind === 'reauth' ? <ReauthNotice /> : null}
         {outcome.kind === 'unavailable' ? (
-          <Callout tone="error">
-            Authorization service unavailable. Please try again shortly.
-          </Callout>
+          <Callout tone="error">{t('errors.unavailable')}</Callout>
         ) : null}
         {outcome.kind === 'error' ? <Callout tone="error">{outcome.message}</Callout> : null}
       </div>

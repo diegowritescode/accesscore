@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '../i18n/language-provider';
 import { Button, Select, TextInput, cn } from '../ui';
 import { Segmented } from './form-kit';
 
@@ -102,25 +103,26 @@ function compile(combinator: Combinator, clauses: Clause[]): unknown {
   return { kind: combinator, children: nodes };
 }
 
-const PRESETS: { label: string; combinator: Combinator; clauses: Omit<Clause, 'id'>[] }[] = [
+const PRESETS: { labelKey: string; combinator: Combinator; clauses: Omit<Clause, 'id'>[] }[] = [
   {
-    label: 'Require MFA (aal ≥ 2)',
+    labelKey: 'builder.presetMfa',
     combinator: 'and',
     clauses: [{ attr: 'principal.aal', op: 'ge', value: '2' }],
   },
   {
-    label: 'IP allowlist',
+    labelKey: 'builder.presetIp',
     combinator: 'and',
     clauses: [{ attr: 'ip.cidr', op: 'eq', value: '203.0.113.0/24' }],
   },
   {
-    label: 'Before a deadline',
+    labelKey: 'builder.presetDeadline',
     combinator: 'and',
     clauses: [{ attr: 'env.now', op: 'le', value: '2026-12-31T23:59' }],
   },
 ];
 
 export function ConditionBuilder({ onChange }: { onChange: (condition: unknown) => void }) {
+  const t = useT();
   const nextId = useRef(1);
   const [combinator, setCombinator] = useState<Combinator>('and');
   const [clauses, setClauses] = useState<Clause[]>([
@@ -171,17 +173,17 @@ export function ConditionBuilder({ onChange }: { onChange: (condition: unknown) 
     <div className="flex flex-col gap-3">
       {clauses.length > 1 ? (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted">Match</span>
+          <span className="text-xs text-muted">{t('builder.match')}</span>
           <Segmented
-            ariaLabel="Combinator"
+            ariaLabel={t('builder.match')}
             value={combinator}
             onChange={setCombinator}
             options={[
-              { value: 'and', label: 'All' },
-              { value: 'or', label: 'Any' },
+              { value: 'and', label: t('builder.all') },
+              { value: 'or', label: t('builder.any') },
             ]}
           />
-          <span className="text-xs text-muted">of these</span>
+          <span className="text-xs text-muted">{t('builder.ofThese')}</span>
         </div>
       ) : null}
 
@@ -191,7 +193,7 @@ export function ConditionBuilder({ onChange }: { onChange: (condition: unknown) 
           return (
             <div key={clause.id} className="flex flex-wrap items-center gap-2">
               <Select
-                aria-label="Attribute"
+                aria-label={t('builder.attribute')}
                 value={clause.attr}
                 onChange={(event) => updateClause(clause.id, { attr: event.target.value as Attr })}
                 className="w-auto min-w-[9.5rem] font-mono"
@@ -205,7 +207,7 @@ export function ConditionBuilder({ onChange }: { onChange: (condition: unknown) 
 
               {ops.length > 0 ? (
                 <Select
-                  aria-label="Operator"
+                  aria-label={t('builder.operator')}
                   value={clause.op}
                   onChange={(event) => updateClause(clause.id, { op: event.target.value as CmpOp })}
                   className="w-16 text-center font-mono"
@@ -217,11 +219,11 @@ export function ConditionBuilder({ onChange }: { onChange: (condition: unknown) 
                   ))}
                 </Select>
               ) : (
-                <span className="px-1 font-mono text-sm text-muted">in</span>
+                <span className="px-1 font-mono text-sm text-muted">{t('builder.in')}</span>
               )}
 
               <TextInput
-                aria-label="Value"
+                aria-label={t('builder.value')}
                 type={inputTypeFor(clause.attr)}
                 value={clause.value}
                 placeholder={placeholderFor(clause.attr)}
@@ -231,7 +233,7 @@ export function ConditionBuilder({ onChange }: { onChange: (condition: unknown) 
 
               <button
                 type="button"
-                aria-label="Remove condition"
+                aria-label={t('builder.removeCondition')}
                 onClick={() => removeClause(clause.id)}
                 disabled={clauses.length === 1}
                 className={cn(
@@ -255,18 +257,18 @@ export function ConditionBuilder({ onChange }: { onChange: (condition: unknown) 
           onClick={addClause}
           className="px-3 py-1.5 text-xs"
         >
-          + Add condition
+          {t('builder.addCondition')}
         </Button>
-        <span className="mx-1 text-xs text-muted">Presets:</span>
+        <span className="mx-1 text-xs text-muted">{t('builder.presets')}</span>
         {PRESETS.map((preset) => (
           <Button
-            key={preset.label}
+            key={preset.labelKey}
             type="button"
             variant="ghost"
             onClick={() => applyPreset(preset)}
             className="px-2.5 py-1.5 text-xs"
           >
-            {preset.label}
+            {t(preset.labelKey)}
           </Button>
         ))}
       </div>
@@ -276,7 +278,7 @@ export function ConditionBuilder({ onChange }: { onChange: (condition: unknown) 
         onClick={() => setShowJson((current) => !current)}
         className="self-start text-xs text-muted underline decoration-dotted underline-offset-2 hover:text-fg"
       >
-        {showJson ? 'Hide generated JSON' : 'View generated JSON'}
+        {showJson ? t('builder.hideJson') : t('builder.viewJson')}
       </button>
       {showJson ? (
         <pre className="overflow-x-auto rounded-lg bg-surface-2 p-3 font-mono text-xs leading-relaxed text-fg">

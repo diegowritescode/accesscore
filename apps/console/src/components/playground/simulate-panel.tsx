@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { runSimulate } from '@/lib/client';
 import type { PolicyEffect, SimulateInput, SimulateResponse } from '@/lib/types';
+import { useT } from '../i18n/language-provider';
 import { Button, Callout, Spinner, cn } from '../ui';
 import { ComboInput, Segmented } from './form-kit';
 import { ConditionBuilder } from './condition-builder';
@@ -19,6 +20,7 @@ type Outcome =
   | { kind: 'error'; message: string };
 
 export function SimulatePanel() {
+  const t = useT();
   const catalog = useCatalog();
   const [resourceType, setResourceType] = useState('document');
   const [resourceId, setResourceId] = useState('onboarding');
@@ -55,25 +57,23 @@ export function SimulatePanel() {
   }
 
   const loading = outcome.kind === 'loading';
+  const action = `${resourceType || '…'}.${verb || '…'}`;
 
   return (
     <div className="grid gap-8 lg:grid-cols-2">
       <form onSubmit={handleSimulate} className="flex flex-col gap-4">
-        <p className="text-sm text-muted">
-          Owner-gated and read-only. Evaluate a decision against the live policies and, optionally,
-          a proposed policy overlay — then compare. Writes nothing.
-        </p>
+        <p className="text-sm text-muted">{t('simulate.intro')}</p>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <ComboInput
-            label="Resource type"
+            label={t('field.resourceType')}
             value={resourceType}
             onChange={setResourceType}
             options={catalog.resourceTypes}
             placeholder="document"
           />
           <ComboInput
-            label="Resource id"
+            label={t('field.resourceId')}
             value={resourceId}
             onChange={setResourceId}
             options={catalog.objectIdsFor(resourceType)}
@@ -82,16 +82,12 @@ export function SimulatePanel() {
         </div>
 
         <ComboInput
-          label="Action"
+          label={t('field.action')}
           value={verb}
           onChange={setVerb}
           options={catalog.actionsFor(resourceType)}
           placeholder="read"
-          hint={
-            <>
-              Sent as <span className="font-mono">{`${resourceType || '…'}.${verb || '…'}`}</span>
-            </>
-          }
+          hint={t('field.sentAs', { action })}
         />
 
         <label className="flex items-center gap-2.5 rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-sm">
@@ -101,15 +97,17 @@ export function SimulatePanel() {
             onChange={(event) => setWithPolicy(event.target.checked)}
             className="h-4 w-4 accent-[var(--color-brand)]"
           />
-          <span>Include a proposed policy overlay</span>
+          <span>{t('simulate.includeOverlay')}</span>
         </label>
 
         {withPolicy ? (
           <div className="flex flex-col gap-4 rounded-lg border border-line bg-surface-2 p-4">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted">Effect</span>
+              <span className="text-xs font-medium uppercase tracking-wide text-muted">
+                {t('simulate.effect')}
+              </span>
               <Segmented
-                ariaLabel="Effect"
+                ariaLabel={t('simulate.effect')}
                 value={effect}
                 onChange={setEffect}
                 options={[
@@ -117,9 +115,7 @@ export function SimulatePanel() {
                   { value: 'permit', label: 'permit' },
                 ]}
               />
-              <span className="text-xs text-muted">
-                on <span className="font-mono">{`${resourceType || '…'}.${verb || '…'}`}</span> when
-              </span>
+              <span className="text-xs text-muted">{t('simulate.onWhen', { action })}</span>
             </div>
 
             <ConditionBuilder onChange={setCondition} />
@@ -128,7 +124,7 @@ export function SimulatePanel() {
 
         <div>
           <Button type="submit" disabled={loading} className="min-w-28">
-            {loading ? <Spinner /> : 'Simulate'}
+            {loading ? <Spinner /> : t('simulate.submit')}
           </Button>
         </div>
       </form>
@@ -136,12 +132,12 @@ export function SimulatePanel() {
       <div className="flex flex-col gap-3">
         {outcome.kind === 'idle' ? (
           <div className="flex h-full min-h-40 items-center justify-center rounded-xl border border-dashed border-line text-sm text-muted">
-            Simulate to compare live and proposed decisions.
+            {t('simulate.idle')}
           </div>
         ) : null}
         {outcome.kind === 'loading' ? (
           <div className="flex h-full min-h-40 items-center justify-center rounded-xl border border-line text-sm text-muted">
-            <Spinner /> <span className="ml-2">Simulating…</span>
+            <Spinner /> <span className="ml-2">{t('simulate.simulating')}</span>
           </div>
         ) : null}
         {outcome.kind === 'result' ? (
@@ -161,21 +157,21 @@ export function SimulatePanel() {
                   outcome.data.changed ? 'bg-warn' : 'bg-muted',
                 )}
               />
-              {outcome.data.changed
-                ? 'The proposed policy changes this decision.'
-                : 'The proposed policy does not change this decision.'}
+              {outcome.data.changed ? t('simulate.changed') : t('simulate.unchanged')}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <DecisionCard decision={outcome.data.live} label="Live" compact />
-              <DecisionCard decision={outcome.data.decision} label="Proposed" compact />
+              <DecisionCard decision={outcome.data.live} label={t('simulate.live')} compact />
+              <DecisionCard
+                decision={outcome.data.decision}
+                label={t('simulate.proposed')}
+                compact
+              />
             </div>
           </>
         ) : null}
         {outcome.kind === 'reauth' ? <ReauthNotice /> : null}
         {outcome.kind === 'unavailable' ? (
-          <Callout tone="error">
-            Authorization service unavailable. Please try again shortly.
-          </Callout>
+          <Callout tone="error">{t('errors.unavailable')}</Callout>
         ) : null}
         {outcome.kind === 'error' ? <Callout tone="error">{outcome.message}</Callout> : null}
       </div>

@@ -1,6 +1,7 @@
 import { type Clock } from '../../shared/kernel/clock';
 import { err, ok, type Result } from '../../shared/result';
 import { type AccessTokenIssuer } from '../domain/ports/access-token-issuer';
+import { type LockoutPolicy, type LockoutStore } from '../domain/ports/lockout-store';
 import { type SecondFactor, type SecondFactorProof } from '../domain/ports/second-factor';
 import { type SessionsRepository } from '../domain/ports/sessions-repository';
 import { SessionId } from '../domain/value-objects/session-id';
@@ -19,14 +20,16 @@ export interface StepUpResult {
   expiresIn: number;
 }
 
-export type StepUpError = 'invalid_session' | 'invalid_factor';
+export type StepUpError = 'invalid_session' | 'invalid_factor' | 'locked';
 
 export class StepUpHandler {
   constructor(
     private readonly sessions: SessionsRepository,
     private readonly secondFactor: SecondFactor,
     private readonly accessTokens: AccessTokenIssuer,
+    private readonly lockout: LockoutStore,
     private readonly clock: Clock,
+    private readonly lockoutPolicy: LockoutPolicy,
   ) {}
 
   async execute(command: StepUpCommand): Promise<Result<StepUpResult, StepUpError>> {
@@ -35,10 +38,17 @@ export class StepUpHandler {
       return err('invalid_session');
     }
 
+    const lockoutKey = `mfa:${session.userId.value}`;
+    if (await this.lockout.isLocked(lockoutKey, this.lockoutPolicy)) {
+      return err('locked');
+    }
+
     const verified = await this.secondFactor.verify(session.userId, command.proof);
     if (!verified) {
+      await this.lockout.registerFailure(lockoutKey, this.lockoutPolicy);
       return err('invalid_factor');
     }
+    await this.lockout.reset(lockoutKey);
 
     const now = this.clock.now();
     await this.sessions.elevate(session.id, STEP_UP_AAL, now);

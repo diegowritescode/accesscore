@@ -34,6 +34,7 @@ import { CREDENTIALS, type Credentials } from './domain/ports/credentials';
 import { REFRESH_GRACE_CACHE, type RefreshGraceCache } from './domain/ports/refresh-grace-cache';
 import { REFRESH_TOKEN_GENERATOR } from './domain/ports/refresh-token-generator';
 import type { RefreshTokenGenerator } from './domain/ports/refresh-token-generator';
+import { LOCKOUT_STORE, type LockoutStore } from './domain/ports/lockout-store';
 import { REFRESH_TOKENS_REPOSITORY } from './domain/ports/refresh-tokens-repository';
 import type { RefreshTokensRepository } from './domain/ports/refresh-tokens-repository';
 import { REVOCATION_STORE, type RevocationStore } from './domain/ports/revocation-store';
@@ -46,6 +47,7 @@ import { TOKEN_FAMILIES_REPOSITORY } from './domain/ports/token-families-reposit
 import type { TokenFamiliesRepository } from './domain/ports/token-families-repository';
 import { type TokenSigner } from './domain/ports/token-signer';
 import { RedisRefreshGraceCache } from './infrastructure/cache/redis-refresh-grace-cache';
+import { RedisLockoutStore } from './infrastructure/revocation/redis-lockout-store';
 import { SystemClock } from '../shared/kernel/system-clock';
 import { IdentityCredentials } from './infrastructure/credentials/identity-credentials';
 import { IdentitySecondFactor } from './infrastructure/credentials/identity-second-factor';
@@ -123,6 +125,11 @@ import { JwksController } from './interface/jwks.controller';
       useFactory: (redis: Redis): RedisRevocationStore => new RedisRevocationStore(redis),
     },
     {
+      provide: LOCKOUT_STORE,
+      inject: [REDIS],
+      useFactory: (redis: Redis): RedisLockoutStore => new RedisLockoutStore(redis),
+    },
+    {
       provide: REFRESH_GRACE_CACHE,
       inject: [REDIS],
       useFactory: (redis: Redis): RedisRefreshGraceCache => new RedisRefreshGraceCache(redis),
@@ -173,13 +180,19 @@ import { JwksController } from './interface/jwks.controller';
     },
     {
       provide: STEP_UP_HANDLER,
-      inject: [SESSIONS_REPOSITORY, SECOND_FACTOR, ACCESS_TOKEN_ISSUER, CLOCK],
+      inject: [SESSIONS_REPOSITORY, SECOND_FACTOR, ACCESS_TOKEN_ISSUER, LOCKOUT_STORE, CLOCK, ENV],
       useFactory: (
         sessions: SessionsRepository,
         secondFactor: SecondFactor,
         accessTokens: AccessTokenIssuer,
+        lockout: LockoutStore,
         clock: Clock,
-      ): StepUpHandler => new StepUpHandler(sessions, secondFactor, accessTokens, clock),
+        env: Env,
+      ): StepUpHandler =>
+        new StepUpHandler(sessions, secondFactor, accessTokens, lockout, clock, {
+          threshold: env.LOCKOUT_THRESHOLD,
+          windowSeconds: env.LOCKOUT_WINDOW_SECONDS,
+        }),
     },
     {
       provide: ACCESS_TOKEN_ISSUER,
@@ -202,6 +215,7 @@ import { JwksController } from './interface/jwks.controller';
         REFRESH_TOKEN_GENERATOR,
         TENANCY_SERVICE,
         UNIT_OF_WORK,
+        LOCKOUT_STORE,
         CLOCK,
         ENV,
       ],
@@ -214,6 +228,7 @@ import { JwksController } from './interface/jwks.controller';
         refreshTokenGenerator: RefreshTokenGenerator,
         tenancy: TenancyService,
         unitOfWork: UnitOfWork,
+        lockout: LockoutStore,
         clock: Clock,
         env: Env,
       ): LoginHandler =>
@@ -226,8 +241,19 @@ import { JwksController } from './interface/jwks.controller';
           refreshTokenGenerator,
           tenancy,
           unitOfWork,
+          lockout,
           clock,
-          { refreshTtlSeconds: env.REFRESH_TOKEN_TTL },
+          {
+            refreshTtlSeconds: env.REFRESH_TOKEN_TTL,
+            accountLockout: {
+              threshold: env.LOCKOUT_THRESHOLD,
+              windowSeconds: env.LOCKOUT_WINDOW_SECONDS,
+            },
+            ipLockout: {
+              threshold: env.LOCKOUT_IP_THRESHOLD,
+              windowSeconds: env.LOCKOUT_WINDOW_SECONDS,
+            },
+          },
         ),
     },
     {

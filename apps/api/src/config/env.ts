@@ -22,6 +22,9 @@ export const envSchema = z.object({
   JWKS_CACHE_MAX_AGE: z.coerce.number().int().nonnegative().default(300),
   THROTTLE_TTL_SECONDS: z.coerce.number().int().positive().default(60),
   THROTTLE_LIMIT: z.coerce.number().int().positive().default(100),
+  LOCKOUT_THRESHOLD: z.coerce.number().int().positive().default(5),
+  LOCKOUT_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
+  LOCKOUT_IP_THRESHOLD: z.coerce.number().int().positive().default(50),
 });
 
 export type Env = z.infer<typeof envSchema>;

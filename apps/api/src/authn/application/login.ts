@@ -5,6 +5,7 @@ import { err, ok, type Result } from '../../shared/result';
 import { type AccessTokenIssuer } from '../domain/ports/access-token-issuer';
 import { type Clock } from '../../shared/kernel/clock';
 import { type Credentials } from '../domain/ports/credentials';
+import { type LockoutPolicy, type LockoutStore } from '../domain/ports/lockout-store';
 import { type RefreshTokenGenerator } from '../domain/ports/refresh-token-generator';
 import { type RefreshTokensRepository } from '../domain/ports/refresh-tokens-repository';
 import { type SessionsRepository } from '../domain/ports/sessions-repository';
@@ -30,9 +31,11 @@ export interface LoginResult {
 
 export interface LoginConfig {
   refreshTtlSeconds: number;
+  accountLockout: LockoutPolicy;
+  ipLockout: LockoutPolicy;
 }
 
-export type LoginError = 'invalid_credentials';
+export type LoginError = 'invalid_credentials' | 'locked';
 
 export const LOGIN_HANDLER = Symbol('LOGIN_HANDLER');
 
@@ -46,14 +49,34 @@ export class LoginHandler {
     private readonly refreshTokenGenerator: RefreshTokenGenerator,
     private readonly tenancy: TenancyService,
     private readonly unitOfWork: UnitOfWork,
+    private readonly lockout: LockoutStore,
     private readonly clock: Clock,
     private readonly config: LoginConfig,
   ) {}
 
   async execute(command: LoginCommand): Promise<Result<LoginResult, LoginError>> {
+    const accountKey = `acct:${command.email.trim().toLowerCase()}`;
+    const ipKey = command.ip ? `ip:${command.ip}` : null;
+
+    const lockedByAccount = await this.lockout.isLocked(accountKey, this.config.accountLockout);
+    const lockedByIp =
+      ipKey !== null && (await this.lockout.isLocked(ipKey, this.config.ipLockout));
+    if (lockedByAccount || lockedByIp) {
+      return err('locked');
+    }
+
     const check = await this.credentials.verify(command.email, command.password);
     if (!check) {
+      await this.lockout.registerFailure(accountKey, this.config.accountLockout);
+      if (ipKey !== null) {
+        await this.lockout.registerFailure(ipKey, this.config.ipLockout);
+      }
       return err('invalid_credentials');
+    }
+
+    await this.lockout.reset(accountKey);
+    if (ipKey !== null) {
+      await this.lockout.reset(ipKey);
     }
 
     const now = this.clock.now();

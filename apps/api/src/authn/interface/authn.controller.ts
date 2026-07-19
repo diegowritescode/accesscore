@@ -46,6 +46,9 @@ const invalidCredentials = (): ProblemException =>
 const invalidGrant = (): ProblemException =>
   new ProblemException({ type: 'about:blank', title: 'Invalid refresh token', status: 401 });
 
+const tooManyAttempts = (): ProblemException =>
+  new ProblemException({ type: 'about:blank', title: 'Too many attempts', status: 429 });
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthnController {
@@ -80,7 +83,7 @@ export class AuthnController {
       ip: ip || null,
     });
     if (!result.ok) {
-      throw invalidCredentials();
+      throw result.error === 'locked' ? tooManyAttempts() : invalidCredentials();
     }
 
     return { ...this.toResponse(result.value), mfa_required: result.value.mfaRequired };
@@ -112,6 +115,9 @@ export class AuthnController {
       proof: { kind, value: parsed.data.code },
     });
     if (!result.ok) {
+      if (result.error === 'locked') {
+        throw tooManyAttempts();
+      }
       throw new ProblemException({ type: 'about:blank', title: 'Step-up failed', status: 401 });
     }
     return {

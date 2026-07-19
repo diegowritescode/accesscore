@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthnModule } from '../authn/authn.module';
 import { AccessTokenGuard } from '../authn/interface/access-token.guard';
+import { SecurityModule } from '../security/security.module';
 import { TenancyModule } from '../tenancy/tenancy.module';
 import { DB, type Database } from '../db/db.module';
 import { CLOCK, type Clock } from '../shared/kernel/clock';
@@ -37,7 +38,7 @@ import { PapController } from './interface/pap.controller';
 import { PermissionGuard } from './interface/permission.guard';
 
 @Module({
-  imports: [AuthnModule, TenancyModule],
+  imports: [AuthnModule, TenancyModule, SecurityModule],
   controllers: [AuthzController, PapController, DirectoryController],
   providers: [
     { provide: CLOCK, useClass: SystemClock },

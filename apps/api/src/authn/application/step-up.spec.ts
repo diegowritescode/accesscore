@@ -4,6 +4,8 @@ import {
   type AccessTokenClaims,
   type AccessTokenIssuer,
 } from '../domain/ports/access-token-issuer';
+import { type AuditEvent } from '../../security/domain/audit-event';
+import { type AuditLog } from '../../security/domain/ports/audit-log';
 import { type LockoutStore } from '../domain/ports/lockout-store';
 import { type SecondFactor } from '../domain/ports/second-factor';
 import { type SessionsRepository } from '../domain/ports/sessions-repository';
@@ -64,6 +66,22 @@ const secondFactor = (result: boolean): SecondFactor => ({ verify: () => Promise
 
 const POLICY = { threshold: 5, windowSeconds: 900 };
 
+interface RecordingAudit extends AuditLog {
+  events: AuditEvent[];
+}
+
+const recordingAudit = (): RecordingAudit => {
+  const events: AuditEvent[] = [];
+  return {
+    events,
+    append: (event) => {
+      events.push(event);
+      return Promise.resolve({ seq: events.length, hash: 'h' });
+    },
+    verify: () => Promise.resolve({ ok: true, length: events.length, brokenAt: null }),
+  };
+};
+
 interface RecordingLockout extends LockoutStore {
   failures: string[];
   resets: string[];
@@ -113,6 +131,7 @@ describe('StepUpHandler', () => {
     const sessions = new FakeSessions(session());
     const tokens = issuer();
     const lockout = recordingLockout();
+    const audit = recordingAudit();
     const handler = new StepUpHandler(
       sessions,
       secondFactor(true),
@@ -120,6 +139,7 @@ describe('StepUpHandler', () => {
       lockout,
       clock,
       POLICY,
+      audit,
     );
 
     const result = await handler.execute({
@@ -135,11 +155,13 @@ describe('StepUpHandler', () => {
     expect(sessions.elevations).toEqual([{ id: SID, aal: 2 }]);
     expect(tokens.claims[0]?.aal).toBe(2);
     expect(lockout.resets).toEqual([`mfa:${UID}`]);
+    expect(audit.events.map((event) => event.type)).toEqual(['mfa.step_up']);
   });
 
   it('rejects an invalid factor without elevating and registers a failure', async () => {
     const sessions = new FakeSessions(session());
     const lockout = recordingLockout();
+    const audit = recordingAudit();
     const handler = new StepUpHandler(
       sessions,
       secondFactor(false),
@@ -147,6 +169,7 @@ describe('StepUpHandler', () => {
       lockout,
       clock,
       POLICY,
+      audit,
     );
 
     expect(
@@ -161,6 +184,7 @@ describe('StepUpHandler', () => {
     });
     expect(sessions.elevations).toEqual([]);
     expect(lockout.failures).toEqual([`mfa:${UID}`]);
+    expect(audit.events.map((event) => event.type)).toEqual(['mfa.step_up_failed']);
   });
 
   it('rejects step-up when the mfa lockout is engaged, without verifying', async () => {
@@ -174,6 +198,7 @@ describe('StepUpHandler', () => {
       lockout,
       clock,
       POLICY,
+      recordingAudit(),
     );
 
     expect(
@@ -195,6 +220,7 @@ describe('StepUpHandler', () => {
         recordingLockout(),
         clock,
         POLICY,
+        recordingAudit(),
       );
 
     const proof = { kind: 'totp' as const, value: '123456' };

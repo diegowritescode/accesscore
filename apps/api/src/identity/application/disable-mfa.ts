@@ -1,3 +1,4 @@
+import { type AuditLog } from '../../security/domain/ports/audit-log';
 import { type Clock } from '../../shared/kernel/clock';
 import { type UserId } from '../../shared/kernel/user-id';
 import { err, ok, type Result } from '../../shared/result';
@@ -13,6 +14,7 @@ export class DisableMfaHandler {
   constructor(
     private readonly credentials: MfaCredentialsRepository,
     private readonly clock: Clock,
+    private readonly audit: AuditLog,
   ) {}
 
   async execute(input: DisableMfaInput): Promise<Result<void, DisableMfaError>> {
@@ -22,6 +24,12 @@ export class DisableMfaHandler {
     }
     active.revoke(this.clock.now());
     await this.credentials.save(active);
+    await this.audit.append({
+      type: 'mfa.disabled',
+      orgId: null,
+      subject: input.userId.value,
+      payload: { credentialId: active.id },
+    });
     return ok(undefined);
   }
 }

@@ -13,6 +13,8 @@ import {
   type SubjectView,
   type TupleView,
 } from '../application/directory-service';
+import { type ChainVerification } from '../../security/domain/audit-event';
+import { AUDIT_LOG, type AuditLog } from '../../security/domain/ports/audit-log';
 import { tupleQuerySchema } from './check.dto';
 import { PapAdminGuard } from './pap-admin.guard';
 
@@ -34,7 +36,20 @@ const unavailable = (): ProblemException =>
 @Controller('authz')
 @UseGuards(AccessTokenGuard, PapAdminGuard)
 export class DirectoryController {
-  constructor(@Inject(AUTHZ_DIRECTORY) private readonly directory: AuthzDirectoryService) {}
+  constructor(
+    @Inject(AUTHZ_DIRECTORY) private readonly directory: AuthzDirectoryService,
+    @Inject(AUDIT_LOG) private readonly audit: AuditLog,
+  ) {}
+
+  @Get('audit/verify')
+  @ApiOperation({
+    summary: 'Verify the tamper-evident security audit chain',
+    description: 'Owner-gated. Re-walks the hash chain and reports the first break, if any.',
+  })
+  @ApiResponse({ status: 200, description: 'The chain integrity result.' })
+  async auditVerify(): Promise<ChainVerification> {
+    return this.audit.verify();
+  }
 
   @Get('namespaces')
   @ApiOperation({

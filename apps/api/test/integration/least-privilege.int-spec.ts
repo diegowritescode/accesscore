@@ -44,6 +44,19 @@ describe('Least-privilege runtime role (integration)', () => {
     ).rejects.toMatchObject({ code: '42501' });
   });
 
+  it('may read but not UPDATE the security audit chain', async () => {
+    await expect(app.query('SELECT 1 FROM security_audit LIMIT 1')).resolves.toBeDefined();
+    await expect(
+      app.query('UPDATE security_audit SET hash = hash WHERE false'),
+    ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('may not DELETE from the security audit chain', async () => {
+    await expect(app.query('DELETE FROM security_audit WHERE false')).rejects.toMatchObject({
+      code: '42501',
+    });
+  });
+
   it('may still mutate a non-append-only table', async () => {
     await expect(
       app.query('UPDATE sessions SET status = status WHERE false'),

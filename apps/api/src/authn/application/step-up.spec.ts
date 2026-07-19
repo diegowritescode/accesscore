@@ -4,6 +4,7 @@ import {
   type AccessTokenClaims,
   type AccessTokenIssuer,
 } from '../domain/ports/access-token-issuer';
+import { type LockoutStore } from '../domain/ports/lockout-store';
 import { type SecondFactor } from '../domain/ports/second-factor';
 import { type SessionsRepository } from '../domain/ports/sessions-repository';
 import { type Session } from '../domain/session';
@@ -61,6 +62,34 @@ class FakeSessions implements SessionsRepository {
 
 const secondFactor = (result: boolean): SecondFactor => ({ verify: () => Promise.resolve(result) });
 
+const POLICY = { threshold: 5, windowSeconds: 900 };
+
+interface RecordingLockout extends LockoutStore {
+  failures: string[];
+  resets: string[];
+  lockedKeys: Set<string>;
+}
+
+const recordingLockout = (): RecordingLockout => {
+  const failures: string[] = [];
+  const resets: string[] = [];
+  const lockedKeys = new Set<string>();
+  return {
+    failures,
+    resets,
+    lockedKeys,
+    isLocked: (key) => Promise.resolve(lockedKeys.has(key)),
+    registerFailure: (key) => {
+      failures.push(key);
+      return Promise.resolve({ locked: false, retriesLeft: 5 });
+    },
+    reset: (key) => {
+      resets.push(key);
+      return Promise.resolve();
+    },
+  };
+};
+
 const issuer = (): { issuer: AccessTokenIssuer; claims: AccessTokenClaims[] } => {
   const claims: AccessTokenClaims[] = [];
   return {
@@ -83,7 +112,15 @@ describe('StepUpHandler', () => {
   it('elevates the session and reissues an AAL2 token on a valid factor', async () => {
     const sessions = new FakeSessions(session());
     const tokens = issuer();
-    const handler = new StepUpHandler(sessions, secondFactor(true), tokens.issuer, clock);
+    const lockout = recordingLockout();
+    const handler = new StepUpHandler(
+      sessions,
+      secondFactor(true),
+      tokens.issuer,
+      lockout,
+      clock,
+      POLICY,
+    );
 
     const result = await handler.execute({
       sessionId: SID,
@@ -97,11 +134,20 @@ describe('StepUpHandler', () => {
     });
     expect(sessions.elevations).toEqual([{ id: SID, aal: 2 }]);
     expect(tokens.claims[0]?.aal).toBe(2);
+    expect(lockout.resets).toEqual([`mfa:${UID}`]);
   });
 
-  it('rejects an invalid factor without elevating', async () => {
+  it('rejects an invalid factor without elevating and registers a failure', async () => {
     const sessions = new FakeSessions(session());
-    const handler = new StepUpHandler(sessions, secondFactor(false), issuer().issuer, clock);
+    const lockout = recordingLockout();
+    const handler = new StepUpHandler(
+      sessions,
+      secondFactor(false),
+      issuer().issuer,
+      lockout,
+      clock,
+      POLICY,
+    );
 
     expect(
       await handler.execute({
@@ -114,11 +160,42 @@ describe('StepUpHandler', () => {
       error: 'invalid_factor',
     });
     expect(sessions.elevations).toEqual([]);
+    expect(lockout.failures).toEqual([`mfa:${UID}`]);
+  });
+
+  it('rejects step-up when the mfa lockout is engaged, without verifying', async () => {
+    const lockout = recordingLockout();
+    lockout.lockedKeys.add(`mfa:${UID}`);
+    const sessions = new FakeSessions(session());
+    const handler = new StepUpHandler(
+      sessions,
+      secondFactor(true),
+      issuer().issuer,
+      lockout,
+      clock,
+      POLICY,
+    );
+
+    expect(
+      await handler.execute({
+        sessionId: SID,
+        userId: UID,
+        proof: { kind: 'totp', value: '123456' },
+      }),
+    ).toEqual({ ok: false, error: 'locked' });
+    expect(sessions.elevations).toEqual([]);
   });
 
   it('rejects an unknown, revoked, or mismatched session', async () => {
     const handler = (found: Session | null): StepUpHandler =>
-      new StepUpHandler(new FakeSessions(found), secondFactor(true), issuer().issuer, clock);
+      new StepUpHandler(
+        new FakeSessions(found),
+        secondFactor(true),
+        issuer().issuer,
+        recordingLockout(),
+        clock,
+        POLICY,
+      );
 
     const proof = { kind: 'totp' as const, value: '123456' };
     expect(await handler(null).execute({ sessionId: SID, userId: UID, proof })).toEqual({

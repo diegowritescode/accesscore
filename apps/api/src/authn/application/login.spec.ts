@@ -4,6 +4,7 @@ import {
 } from '../domain/ports/access-token-issuer';
 import { type Clock } from '../../shared/kernel/clock';
 import { type CredentialCheck, type Credentials } from '../domain/ports/credentials';
+import { type LockoutStore } from '../domain/ports/lockout-store';
 import { type RefreshTokenGenerator } from '../domain/ports/refresh-token-generator';
 import { type RefreshTokensRepository } from '../domain/ports/refresh-tokens-repository';
 import { type SessionsRepository } from '../domain/ports/sessions-repository';
@@ -103,7 +104,33 @@ class FakeRefreshTokens implements RefreshTokensRepository {
   }
 }
 
-const build = (check: CredentialCheck | null) => {
+interface RecordingLockout extends LockoutStore {
+  failures: string[];
+  resets: string[];
+  lockedKeys: Set<string>;
+}
+
+const recordingLockout = (): RecordingLockout => {
+  const failures: string[] = [];
+  const resets: string[] = [];
+  const lockedKeys = new Set<string>();
+  return {
+    failures,
+    resets,
+    lockedKeys,
+    isLocked: (key) => Promise.resolve(lockedKeys.has(key)),
+    registerFailure: (key) => {
+      failures.push(key);
+      return Promise.resolve({ locked: false, retriesLeft: 5 });
+    },
+    reset: (key) => {
+      resets.push(key);
+      return Promise.resolve();
+    },
+  };
+};
+
+const build = (check: CredentialCheck | null, lockout: RecordingLockout = recordingLockout()) => {
   const sessions = new FakeSessions();
   const families = new FakeFamilies();
   const refreshTokens = new FakeRefreshTokens();
@@ -117,15 +144,20 @@ const build = (check: CredentialCheck | null) => {
     refreshTokenGenerator,
     tenancy,
     unitOfWork,
+    lockout,
     clock,
-    { refreshTtlSeconds: 1_000 },
+    {
+      refreshTtlSeconds: 1_000,
+      accountLockout: { threshold: 5, windowSeconds: 900 },
+      ipLockout: { threshold: 50, windowSeconds: 900 },
+    },
   );
-  return { handler, sessions, families, refreshTokens };
+  return { handler, sessions, families, refreshTokens, lockout };
 };
 
 describe('LoginHandler', () => {
   it('issues tokens and creates a session, family, and refresh token on valid credentials', async () => {
-    const { handler, sessions, families, refreshTokens } = build({
+    const { handler, sessions, families, refreshTokens, lockout } = build({
       userId: 'user-1',
       aal: 1,
       mfaRequired: false,
@@ -161,10 +193,11 @@ describe('LoginHandler', () => {
     expect(refreshTokens.added[0]?.generation).toBe(1);
     expect(refreshTokens.added[0]?.tokenHash).toBe('refresh-hash');
     expect(refreshTokens.added[0]?.familyId.value).toBe(families.created[0]?.id.value);
+    expect(lockout.resets).toEqual(expect.arrayContaining(['acct:a@b.com', 'ip:203.0.113.7']));
   });
 
-  it('returns invalid_credentials and persists nothing when the credential check fails', async () => {
-    const { handler, sessions, families, refreshTokens } = build(null);
+  it('returns invalid_credentials, registers a failure, and persists nothing', async () => {
+    const { handler, sessions, families, refreshTokens, lockout } = build(null);
 
     const result = await handler.execute({
       email: 'a@b.com',
@@ -176,8 +209,49 @@ describe('LoginHandler', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toBe('invalid_credentials');
+    expect(lockout.failures).toContain('acct:a@b.com');
     expect(sessions.created).toHaveLength(0);
     expect(families.created).toHaveLength(0);
     expect(refreshTokens.added).toHaveLength(0);
+  });
+
+  it('returns locked without verifying when the account is locked', async () => {
+    const lockout = recordingLockout();
+    lockout.lockedKeys.add('acct:a@b.com');
+    let verified = false;
+    const sessions = new FakeSessions();
+    const handler = new LoginHandler(
+      {
+        verify: () => (
+          (verified = true),
+          Promise.resolve({ userId: 'u', aal: 1, mfaRequired: false })
+        ),
+      },
+      sessions,
+      new FakeFamilies(),
+      new FakeRefreshTokens(),
+      accessTokens,
+      refreshTokenGenerator,
+      tenancy,
+      unitOfWork,
+      lockout,
+      clock,
+      {
+        refreshTtlSeconds: 1_000,
+        accountLockout: { threshold: 5, windowSeconds: 900 },
+        ipLockout: { threshold: 50, windowSeconds: 900 },
+      },
+    );
+
+    const result = await handler.execute({
+      email: 'a@b.com',
+      password: 'correct horse battery',
+      userAgent: null,
+      ip: '203.0.113.7',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'locked' });
+    expect(verified).toBe(false);
+    expect(sessions.created).toHaveLength(0);
   });
 });

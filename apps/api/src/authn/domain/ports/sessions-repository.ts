@@ -8,6 +8,7 @@ export interface SessionsRepository {
   findById(id: SessionId): Promise<Session | null>;
   listActiveByUser(userId: UserId): Promise<Session[]>;
   touch(id: SessionId, at: Date): Promise<void>;
+  elevate(id: SessionId, aal: number, authTime: Date, tx?: Tx): Promise<boolean>;
   revoke(id: SessionId, at: Date, tx?: Tx): Promise<void>;
   revokeAllForUser(userId: UserId, at: Date, tx?: Tx): Promise<string[]>;
 }

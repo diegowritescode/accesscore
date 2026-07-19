@@ -139,6 +139,9 @@ class FakeSessions implements SessionsRepository {
   touch(): Promise<void> {
     return Promise.resolve();
   }
+  elevate(): Promise<boolean> {
+    return Promise.resolve(true);
+  }
 }
 
 class FakeGraceCache implements RefreshGraceCache {

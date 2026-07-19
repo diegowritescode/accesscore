@@ -1,4 +1,5 @@
 import { type Hasher } from '../../../identity/domain/ports/hasher';
+import { type MfaCredentialsRepository } from '../../../identity/domain/ports/mfa-credentials-repository';
 import { type UsersRepository } from '../../../identity/domain/ports/users-repository';
 import { Email } from '../../../identity/domain/value-objects/email';
 import { Password } from '../../../identity/domain/value-objects/password';
@@ -8,6 +9,7 @@ export class IdentityCredentials implements Credentials {
   constructor(
     private readonly users: UsersRepository,
     private readonly hasher: Hasher,
+    private readonly mfaCredentials: MfaCredentialsRepository,
   ) {}
 
   async verify(email: string, password: string): Promise<CredentialCheck | null> {
@@ -29,6 +31,7 @@ export class IdentityCredentials implements Credentials {
       return null;
     }
 
-    return { userId: user.id.value, aal: 1 };
+    const mfaRequired = (await this.mfaCredentials.findActiveTotpByUser(user.id)) !== null;
+    return { userId: user.id.value, aal: 1, mfaRequired };
   }
 }

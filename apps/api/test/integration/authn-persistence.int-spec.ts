@@ -83,6 +83,18 @@ describe('authn persistence (integration)', () => {
     expect(loaded?.status).toBe('active');
   });
 
+  it('elevates an active session and refuses to elevate a revoked one', async () => {
+    const sessionId = await seedSession();
+
+    expect(await sessions.elevate(sessionId, 2, later)).toBe(true);
+    const loaded = await sessions.findById(sessionId);
+    expect(loaded?.aal).toBe(2);
+    expect(loaded?.authTime.getTime()).toBe(later.getTime());
+
+    await sessions.revoke(sessionId, later);
+    expect(await sessions.elevate(sessionId, 2, later)).toBe(false);
+  });
+
   it('stores hashed refresh tokens bound to a family and finds them by hash', async () => {
     const sessionId = await seedSession();
     const familyId = await seedFamily(sessionId);

@@ -25,6 +25,7 @@ export interface LoginResult {
   refreshToken: string;
   tokenType: 'Bearer';
   expiresIn: number;
+  mfaRequired: boolean;
 }
 
 export interface LoginConfig {
@@ -122,6 +123,7 @@ export class LoginHandler {
       refreshToken: refresh.raw,
       tokenType: 'Bearer',
       expiresIn: accessToken.expiresInSeconds,
+      mfaRequired: check.mfaRequired,
     });
   }
 }

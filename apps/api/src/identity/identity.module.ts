@@ -1,5 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { AuthnModule } from '../authn/authn.module';
+import { ENV } from '../config/env.module';
+import { type Env } from '../config/env';
 import { DB, type Database } from '../db/db.module';
 import { RegisterUserHandler, REGISTER_USER_HANDLER } from './application/register-user';
 import {
@@ -11,6 +13,10 @@ import { VerifyEmailHandler, VERIFY_EMAIL_HANDLER } from './application/verify-e
 import { CLOCK, type Clock } from '../shared/kernel/clock';
 import { HASHER, type Hasher } from './domain/ports/hasher';
 import { MAILER, type Mailer } from './domain/ports/mailer';
+import { MFA_CREDENTIALS_REPOSITORY } from './domain/ports/mfa-credentials-repository';
+import { RECOVERY_CODES_REPOSITORY } from './domain/ports/recovery-codes-repository';
+import { SECRET_ENCRYPTOR, type SecretEncryptor } from './domain/ports/secret-encryptor';
+import { TOTP } from './domain/ports/totp';
 import {
   PASSWORD_RESET_TOKENS_REPOSITORY,
   type PasswordResetTokensRepository,
@@ -25,8 +31,13 @@ import {
 import { SystemClock } from '../shared/kernel/system-clock';
 import { Argon2Hasher } from './infrastructure/crypto/argon2-hasher';
 import { CryptoTokenGenerator } from './infrastructure/crypto/crypto-token-generator';
+import { Rfc6238Totp } from './infrastructure/crypto/rfc6238-totp';
+import { SoftwareSecretEncryptor } from './infrastructure/crypto/software-secret-encryptor';
+import { VaultTransitSecretEncryptor } from './infrastructure/crypto/vault-transit-secret-encryptor';
 import { LogMailer } from './infrastructure/notifications/log-mailer';
+import { DrizzleMfaCredentialsRepository } from './infrastructure/persistence/drizzle-mfa-credentials.repository';
 import { DrizzlePasswordResetTokensRepository } from './infrastructure/persistence/drizzle-password-reset-tokens.repository';
+import { DrizzleRecoveryCodesRepository } from './infrastructure/persistence/drizzle-recovery-codes.repository';
 import { DrizzleUsersRepository } from './infrastructure/persistence/drizzle-users.repository';
 import { DrizzleVerificationTokensRepository } from './infrastructure/persistence/drizzle-verification-tokens.repository';
 import { AuthController } from './interface/auth.controller';
@@ -39,6 +50,31 @@ import { AuthController } from './interface/auth.controller';
     { provide: CLOCK, useClass: SystemClock },
     { provide: TOKEN_GENERATOR, useClass: CryptoTokenGenerator },
     { provide: MAILER, useClass: LogMailer },
+    { provide: TOTP, useClass: Rfc6238Totp },
+    {
+      provide: SECRET_ENCRYPTOR,
+      inject: [ENV],
+      useFactory: (env: Env): SecretEncryptor =>
+        env.SIGNER_DRIVER === 'software'
+          ? new SoftwareSecretEncryptor()
+          : new VaultTransitSecretEncryptor({
+              addr: env.VAULT_ADDR,
+              token: env.VAULT_TOKEN,
+              keyName: env.VAULT_TRANSIT_MFA_KEY,
+            }),
+    },
+    {
+      provide: MFA_CREDENTIALS_REPOSITORY,
+      inject: [DB],
+      useFactory: (db: Database): DrizzleMfaCredentialsRepository =>
+        new DrizzleMfaCredentialsRepository(db),
+    },
+    {
+      provide: RECOVERY_CODES_REPOSITORY,
+      inject: [DB],
+      useFactory: (db: Database): DrizzleRecoveryCodesRepository =>
+        new DrizzleRecoveryCodesRepository(db),
+    },
     {
       provide: USERS_REPOSITORY,
       inject: [DB],
@@ -127,6 +163,13 @@ import { AuthController } from './interface/auth.controller';
         ),
     },
   ],
-  exports: [HASHER, USERS_REPOSITORY],
+  exports: [
+    HASHER,
+    USERS_REPOSITORY,
+    TOTP,
+    SECRET_ENCRYPTOR,
+    MFA_CREDENTIALS_REPOSITORY,
+    RECOVERY_CODES_REPOSITORY,
+  ],
 })
 export class IdentityModule {}

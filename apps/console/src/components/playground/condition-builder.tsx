@@ -103,6 +103,58 @@ function compile(combinator: Combinator, clauses: Clause[]): unknown {
   return { kind: combinator, children: nodes };
 }
 
+const KNOWN_ATTRS = new Set(['principal.aal', 'env.ip', 'env.now']);
+
+function parseNode(node: unknown): Omit<Clause, 'id'> | null {
+  if (!node || typeof node !== 'object') {
+    return null;
+  }
+  const record = node as Record<string, unknown>;
+  if (record.kind === 'cmp') {
+    const left = record.left as { kind?: string; path?: string } | undefined;
+    const right = record.right as { kind?: string; value?: unknown } | undefined;
+    if (left?.kind !== 'attr' || right?.kind !== 'lit' || !KNOWN_ATTRS.has(left.path ?? '')) {
+      return null;
+    }
+    let value = String(right.value ?? '');
+    if (left.path === 'env.now' && typeof right.value === 'string') {
+      value = right.value.slice(0, 16);
+    }
+    return { attr: left.path as Attr, op: record.op as CmpOp, value };
+  }
+  if (record.kind === 'ipInCidr') {
+    const ip = record.ip as { kind?: string; path?: string } | undefined;
+    if (ip?.kind !== 'attr' || ip.path !== 'env.ip') {
+      return null;
+    }
+    const cidrs = Array.isArray(record.cidrs) ? (record.cidrs as string[]) : [];
+    return { attr: 'ip.cidr', op: 'eq', value: cidrs.join(', ') };
+  }
+  return null;
+}
+
+export function parseCondition(
+  value: unknown,
+): { combinator: Combinator; clauses: Omit<Clause, 'id'>[] } | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  if (record.kind === 'and' || record.kind === 'or') {
+    const children = record.children;
+    if (!Array.isArray(children) || children.length === 0) {
+      return null;
+    }
+    const clauses = children.map(parseNode);
+    if (clauses.some((clause) => clause === null)) {
+      return null;
+    }
+    return { combinator: record.kind, clauses: clauses as Omit<Clause, 'id'>[] };
+  }
+  const single = parseNode(value);
+  return single ? { combinator: 'and', clauses: [single] } : null;
+}
+
 const PRESETS: { labelKey: string; combinator: Combinator; clauses: Omit<Clause, 'id'>[] }[] = [
   {
     labelKey: 'builder.presetMfa',
@@ -121,13 +173,22 @@ const PRESETS: { labelKey: string; combinator: Combinator; clauses: Omit<Clause,
   },
 ];
 
-export function ConditionBuilder({ onChange }: { onChange: (condition: unknown) => void }) {
+export function ConditionBuilder({
+  onChange,
+  initial,
+}: {
+  onChange: (condition: unknown) => void;
+  initial?: unknown;
+}) {
   const t = useT();
-  const nextId = useRef(1);
-  const [combinator, setCombinator] = useState<Combinator>('and');
-  const [clauses, setClauses] = useState<Clause[]>([
-    { id: 'c0', attr: 'principal.aal', op: 'ge', value: '2' },
-  ]);
+  const seeded = initial !== undefined ? parseCondition(initial) : null;
+  const nextId = useRef(seeded ? seeded.clauses.length : 1);
+  const [combinator, setCombinator] = useState<Combinator>(seeded?.combinator ?? 'and');
+  const [clauses, setClauses] = useState<Clause[]>(
+    seeded
+      ? seeded.clauses.map((clause, index) => ({ ...clause, id: `c${index}` }))
+      : [{ id: 'c0', attr: 'principal.aal', op: 'ge', value: '2' }],
+  );
   const [showJson, setShowJson] = useState(false);
 
   useEffect(() => {

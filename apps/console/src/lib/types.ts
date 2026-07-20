@@ -60,12 +60,26 @@ export interface NamespaceSummary {
   revision: number;
 }
 
+export type Userset =
+  | { kind: 'this' }
+  | { kind: 'computedUserset'; relation: string }
+  | { kind: 'tupleToUserset'; tupleset: string; computedUserset: string }
+  | { kind: 'union'; children: Userset[] }
+  | { kind: 'intersection'; children: Userset[] }
+  | { kind: 'exclusion'; base: Userset; subtract: Userset };
+
 export interface NamespaceDetail {
   namespace: string;
   relations: string[];
   actions: Record<string, string[]>;
-  rewrites: Record<string, unknown>;
+  rewrites: Record<string, Userset>;
   revision: number;
+}
+
+export interface NamespaceDefineInput {
+  relations: string[];
+  actions: Record<string, string[]>;
+  rewrites?: Record<string, Userset>;
 }
 
 export interface TupleSubject {

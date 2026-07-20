@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { EmptyState, PageHeader, Section } from '@/components/console/kit';
+import { ButtonLink, EmptyState, PageHeader, Section } from '@/components/console/kit';
 import { Badge, Callout } from '@/components/ui';
 import { getT } from '@/lib/i18n-server';
 import { getNamespace, getNamespaces, isUnauthorized } from '@/lib/server-directory';
@@ -28,7 +28,11 @@ export default async function SchemaPage() {
 
   return (
     <>
-      <PageHeader title={t('schema.title')} description={t('schema.description')} />
+      <PageHeader
+        title={t('schema.title')}
+        description={t('schema.description')}
+        actions={<ButtonLink href="/console/schema/new">{t('schemaForm.define')}</ButtonLink>}
+      />
 
       {namespaces.length === 0 ? (
         <EmptyState>{t('schema.empty')}</EmptyState>
@@ -41,6 +45,11 @@ export default async function SchemaPage() {
                 key={ns.namespace}
                 title={ns.namespace}
                 description={t('schema.revision', { revision: ns.revision })}
+                action={
+                  <ButtonLink href={`/console/schema/${ns.namespace}/edit`} variant="secondary">
+                    {t('schemaForm.edit')}
+                  </ButtonLink>
+                }
               >
                 <div className="flex flex-col gap-6">
                   <div>

@@ -116,6 +116,46 @@ const en: Dict = {
   'schema.empty': 'No namespaces are defined in this organization.',
   'schema.revision': 'Revision {revision}',
 
+  'schemaForm.define': 'Define namespace',
+  'schemaForm.edit': 'Edit',
+  'schemaForm.newTitle': 'Define a namespace',
+  'schemaForm.newDescription':
+    'A namespace is a resource type. Declare its relations, bind each action to the relations that satisfy it, and optionally rewrite a relation to resolve from others.',
+  'schemaForm.editTitle': 'Edit namespace',
+  'schemaForm.editDescription':
+    'Update the relations, action bindings and rewrites. Saving upserts the configuration and advances the revision.',
+  'schemaForm.definition': 'Definition',
+  'schemaForm.namespace': 'Namespace',
+  'schemaForm.namespaceLocked': 'The namespace name is fixed when editing.',
+  'schemaForm.relations': 'Relations',
+  'schemaForm.noRelations': 'No relations yet — add at least one.',
+  'schemaForm.relationPlaceholder': 'viewer',
+  'schemaForm.addRelation': 'Add',
+  'schemaForm.removeRelation': 'Remove relation',
+  'schemaForm.actions': 'Actions',
+  'schemaForm.actionsHint':
+    'Each action (verb) is satisfied by one or more relations. A check for the action permits when the subject holds any bound relation.',
+  'schemaForm.actionRequires': 'is satisfied by',
+  'schemaForm.removeAction': 'Remove',
+  'schemaForm.addAction': 'Add action',
+  'schemaForm.defineRelationsFirst': 'Define relations first.',
+  'schemaForm.rewrites': 'Rewrites',
+  'schemaForm.rewritesHint':
+    'Optionally resolve a relation from others: an alias of another relation (computed_userset), or inheritance through a relation on a linked object (tuple_to_userset). Multiple terms are unioned. Left blank, a relation resolves directly from stored tuples.',
+  'schemaForm.resolvesFrom': 'resolves from',
+  'schemaForm.direct': 'Direct — stored tuples only.',
+  'schemaForm.advancedRewrite':
+    'This relation uses an advanced rewrite (intersection/exclusion). It is preserved on save and edited via the API.',
+  'schemaForm.addTerm': '+ Add term',
+  'schemaForm.removeTerm': 'Remove',
+  'schemaForm.termThis': 'Direct (stored tuples)',
+  'schemaForm.termComputed': 'Alias of relation',
+  'schemaForm.termTupleTo': 'Inherited through',
+  'schemaForm.tupleToArrow': "→ target's relation",
+  'schemaForm.saving': 'Saving…',
+  'schemaForm.save': 'Save namespace',
+  'schemaForm.create': 'Create namespace',
+
   'relationships.title': 'Relationships',
   'relationships.description':
     'The stored relationship tuples — object, relation and subject. This is the raw graph the engine walks; a userset subject (type:id#relation) points at another set. Use Expand in the Playground to resolve a relation to its full member set.',
@@ -363,6 +403,46 @@ const es: Dict = {
     'Sin reescrituras — las relaciones se resuelven directo de las tuplas almacenadas.',
   'schema.empty': 'No hay namespaces definidos en esta organización.',
   'schema.revision': 'Revisión {revision}',
+
+  'schemaForm.define': 'Definir namespace',
+  'schemaForm.edit': 'Editar',
+  'schemaForm.newTitle': 'Definir un namespace',
+  'schemaForm.newDescription':
+    'Un namespace es un tipo de recurso. Declará sus relaciones, vinculá cada acción con las relaciones que la satisfacen y, opcionalmente, reescribí una relación para que se resuelva a partir de otras.',
+  'schemaForm.editTitle': 'Editar namespace',
+  'schemaForm.editDescription':
+    'Actualizá las relaciones, los bindings de acción y los rewrites. Guardar hace upsert de la configuración y avanza la revisión.',
+  'schemaForm.definition': 'Definición',
+  'schemaForm.namespace': 'Namespace',
+  'schemaForm.namespaceLocked': 'El nombre del namespace es fijo al editar.',
+  'schemaForm.relations': 'Relaciones',
+  'schemaForm.noRelations': 'Aún no hay relaciones — agregá al menos una.',
+  'schemaForm.relationPlaceholder': 'viewer',
+  'schemaForm.addRelation': 'Agregar',
+  'schemaForm.removeRelation': 'Quitar relación',
+  'schemaForm.actions': 'Acciones',
+  'schemaForm.actionsHint':
+    'Cada acción (verbo) se satisface con una o más relaciones. Un check de la acción permite cuando el sujeto tiene cualquiera de las relaciones vinculadas.',
+  'schemaForm.actionRequires': 'se satisface con',
+  'schemaForm.removeAction': 'Quitar',
+  'schemaForm.addAction': 'Agregar acción',
+  'schemaForm.defineRelationsFirst': 'Definí primero las relaciones.',
+  'schemaForm.rewrites': 'Rewrites',
+  'schemaForm.rewritesHint':
+    'Opcionalmente resolvé una relación a partir de otras: un alias de otra relación (computed_userset), o herencia a través de una relación en un objeto vinculado (tuple_to_userset). Varios términos se unen. En blanco, la relación se resuelve directo de las tuplas almacenadas.',
+  'schemaForm.resolvesFrom': 'se resuelve desde',
+  'schemaForm.direct': 'Directo — solo tuplas almacenadas.',
+  'schemaForm.advancedRewrite':
+    'Esta relación usa un rewrite avanzado (intersection/exclusion). Se preserva al guardar y se edita vía la API.',
+  'schemaForm.addTerm': '+ Agregar término',
+  'schemaForm.removeTerm': 'Quitar',
+  'schemaForm.termThis': 'Directo (tuplas almacenadas)',
+  'schemaForm.termComputed': 'Alias de relación',
+  'schemaForm.termTupleTo': 'Heredado a través de',
+  'schemaForm.tupleToArrow': '→ relación del destino',
+  'schemaForm.saving': 'Guardando…',
+  'schemaForm.save': 'Guardar namespace',
+  'schemaForm.create': 'Crear namespace',
 
   'relationships.title': 'Relaciones',
   'relationships.description':

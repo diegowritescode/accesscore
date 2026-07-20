@@ -7,6 +7,7 @@ import type {
   ExpandResponse,
   NamespaceDefineInput,
   NamespaceSummary,
+  PolicyWriteInput,
   SimulateInput,
   SimulateResponse,
   TupleView,
@@ -159,6 +160,17 @@ export async function defineNamespace(
   config: NamespaceDefineInput,
 ): Promise<ApiResult<ConsistencyResponse>> {
   return send('PUT', `/api/namespaces/${encodeURIComponent(namespace)}`, config);
+}
+
+export async function writePolicy(
+  id: string,
+  config: PolicyWriteInput,
+): Promise<ApiResult<ConsistencyResponse>> {
+  return send('PUT', `/api/policies/${encodeURIComponent(id)}`, config);
+}
+
+export async function deletePolicy(id: string): Promise<ApiResult<ConsistencyResponse>> {
+  return send('DELETE', `/api/policies/${encodeURIComponent(id)}`, {});
 }
 
 export async function runSimulate(input: SimulateInput): Promise<ApiResult<SimulateResponse>> {

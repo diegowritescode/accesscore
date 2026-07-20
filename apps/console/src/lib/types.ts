@@ -114,6 +114,13 @@ export interface PolicyView {
   revision: number;
 }
 
+export interface PolicyWriteInput {
+  effect: PolicyEffect;
+  resourceType: string;
+  action: string;
+  condition: unknown;
+}
+
 export interface CheckAsInput {
   subject: EntityInput;
   action: string;

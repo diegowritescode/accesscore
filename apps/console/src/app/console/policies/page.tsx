@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
-import { EmptyState, PageHeader, Section } from '@/components/console/kit';
+import { ButtonLink, EmptyState, PageHeader, Section } from '@/components/console/kit';
+import { DeletePolicyButton } from '@/components/console/delete-policy-button';
 import { Badge, Callout } from '@/components/ui';
 import { getT } from '@/lib/i18n-server';
 import { getPolicies, isUnauthorized } from '@/lib/server-directory';
@@ -13,7 +14,11 @@ export default async function PoliciesPage() {
 
   return (
     <>
-      <PageHeader title={t('policies.title')} description={t('policies.description')} />
+      <PageHeader
+        title={t('policies.title')}
+        description={t('policies.description')}
+        actions={<ButtonLink href="/console/policies/new">{t('policyForm.new')}</ButtonLink>}
+      />
 
       {!result.ok ? (
         <Callout tone="error">{t('errors.policiesLoad')}</Callout>
@@ -31,7 +36,15 @@ export default async function PoliciesPage() {
                 </span>
               }
               action={
-                <Badge tone={policy.effect === 'forbid' ? 'deny' : 'permit'}>{policy.effect}</Badge>
+                <div className="flex items-center gap-3">
+                  <Badge tone={policy.effect === 'forbid' ? 'deny' : 'permit'}>
+                    {policy.effect}
+                  </Badge>
+                  <ButtonLink href={`/console/policies/${policy.id}/edit`} variant="secondary">
+                    {t('schemaForm.edit')}
+                  </ButtonLink>
+                  <DeletePolicyButton id={policy.id} />
+                </div>
               }
             >
               <div>

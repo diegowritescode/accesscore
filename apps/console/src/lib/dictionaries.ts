@@ -191,6 +191,33 @@ const en: Dict = {
   'policies.condition': 'Condition',
   'policies.empty': 'No ABAC policies are defined. Decisions fall back to the relationship graph.',
 
+  'policyForm.new': 'New policy',
+  'policyForm.newTitle': 'Write a policy',
+  'policyForm.newDescription':
+    'An ABAC policy targets a resource type and action, carries a permit or forbid effect, and gates on a condition over principal and environment attributes. Forbid always wins (deny-override).',
+  'policyForm.editTitle': 'Edit policy',
+  'policyForm.editDescription':
+    'Update the effect, target and condition. Saving upserts the policy by id and advances the revision.',
+  'policyForm.definition': 'Definition',
+  'policyForm.id': 'Policy id',
+  'policyForm.idLocked': 'The policy id is fixed when editing.',
+  'policyForm.effect': 'Effect',
+  'policyForm.resourceType': 'Resource type',
+  'policyForm.action': 'Action',
+  'policyForm.actionHint': '* targets every action on the resource type.',
+  'policyForm.condition': 'Condition',
+  'policyForm.conditionHint':
+    'The policy applies when this condition holds. A forbid denies; a permit grants only if the relationship graph already allows it.',
+  'policyForm.advancedCondition':
+    'This policy uses an advanced condition (not, in, or nested logic). It is preserved on save unless you replace it below.',
+  'policyForm.replaceWithBuilder': 'Replace with the builder',
+  'policyForm.saving': 'Saving…',
+  'policyForm.save': 'Save policy',
+  'policyForm.create': 'Create policy',
+  'policyForm.delete': 'Delete',
+  'policyForm.deleteConfirm': 'Confirm delete',
+  'policyForm.notFound': 'No policy with that id exists in this organization.',
+
   'playground.title': 'Playground',
   'playground.description':
     "Resolve, explore and simulate authorization decisions. Every call is proxied server-side through the console's backend-for-frontend — the browser never holds an access token.",
@@ -479,6 +506,33 @@ const es: Dict = {
   'policies.condition': 'Condición',
   'policies.empty':
     'No hay políticas ABAC definidas. Las decisiones recaen en el grafo de relaciones.',
+
+  'policyForm.new': 'Nueva política',
+  'policyForm.newTitle': 'Escribir una política',
+  'policyForm.newDescription':
+    'Una política ABAC apunta a un tipo de recurso y acción, lleva un efecto permit o forbid, y se activa con una condición sobre atributos del principal y el entorno. Forbid siempre gana (deny-override).',
+  'policyForm.editTitle': 'Editar política',
+  'policyForm.editDescription':
+    'Actualizá el efecto, el objetivo y la condición. Guardar hace upsert de la política por id y avanza la revisión.',
+  'policyForm.definition': 'Definición',
+  'policyForm.id': 'Id de política',
+  'policyForm.idLocked': 'El id de la política es fijo al editar.',
+  'policyForm.effect': 'Efecto',
+  'policyForm.resourceType': 'Tipo de recurso',
+  'policyForm.action': 'Acción',
+  'policyForm.actionHint': '* apunta a todas las acciones del tipo de recurso.',
+  'policyForm.condition': 'Condición',
+  'policyForm.conditionHint':
+    'La política aplica cuando esta condición se cumple. Un forbid deniega; un permit otorga solo si el grafo de relaciones ya lo permite.',
+  'policyForm.advancedCondition':
+    'Esta política usa una condición avanzada (not, in o lógica anidada). Se preserva al guardar salvo que la reemplaces abajo.',
+  'policyForm.replaceWithBuilder': 'Reemplazar con el constructor',
+  'policyForm.saving': 'Guardando…',
+  'policyForm.save': 'Guardar política',
+  'policyForm.create': 'Crear política',
+  'policyForm.delete': 'Eliminar',
+  'policyForm.deleteConfirm': 'Confirmar eliminación',
+  'policyForm.notFound': 'No existe una política con ese id en esta organización.',
 
   'playground.title': 'Playground',
   'playground.description':

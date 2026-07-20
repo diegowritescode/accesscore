@@ -4,7 +4,7 @@
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "transform": { "^.+\\.ts$": "ts-jest" },
-  "setupFiles": ["<rootDir>/test/support/silence-logs.js"],
+  "setupFiles": ["<rootDir>/test/support/silence-logs.js", "<rootDir>/test/support/e2e-env.js"],
   "globalSetup": "<rootDir>/test/support/global-setup.js",
   "collectCoverageFrom": [
     "src/**/*.ts",

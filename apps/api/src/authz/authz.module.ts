@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { AuthnModule } from '../authn/authn.module';
 import { AccessTokenGuard } from '../authn/interface/access-token.guard';
+import { MeteredDecisionLog } from '../observability/metered-decision-log';
+import { MetricsModule } from '../observability/metrics.module';
+import { MetricsService } from '../observability/metrics.service';
 import { SecurityModule } from '../security/security.module';
 import { TenancyModule } from '../tenancy/tenancy.module';
 import { DB, type Database } from '../db/db.module';
@@ -38,7 +41,7 @@ import { PapController } from './interface/pap.controller';
 import { PermissionGuard } from './interface/permission.guard';
 
 @Module({
-  imports: [AuthnModule, TenancyModule, SecurityModule],
+  imports: [AuthnModule, TenancyModule, SecurityModule, MetricsModule],
   controllers: [AuthzController, PapController, DirectoryController],
   providers: [
     { provide: CLOCK, useClass: SystemClock },
@@ -102,8 +105,9 @@ import { PermissionGuard } from './interface/permission.guard';
     },
     {
       provide: DECISION_LOG,
-      inject: [DB],
-      useFactory: (db: Database): DrizzleDecisionLog => new DrizzleDecisionLog(db),
+      inject: [DB, MetricsService],
+      useFactory: (db: Database, metrics: MetricsService): DecisionLog =>
+        new MeteredDecisionLog(new DrizzleDecisionLog(db), metrics),
     },
     {
       provide: POLICY_DECISION_POINT,

@@ -7,6 +7,7 @@ const en: Dict = {
   'common.apiReference': 'API reference',
   'common.backHome': '← Back to home',
   'common.language': 'Language',
+  'common.cancel': 'Cancel',
 
   'nav.overview': 'Overview',
   'nav.schema': 'Schema',
@@ -122,7 +123,27 @@ const en: Dict = {
   'relationships.thRelation': 'Relation',
   'relationships.thSubject': 'Subject',
   'relationships.thRev': 'Rev',
+  'relationships.thActions': 'Actions',
   'relationships.empty': 'No relationship tuples are stored in this organization.',
+  'relationships.addTitle': 'Write a relationship',
+  'relationships.addDescription':
+    'Grant a subject a relation on an object. The engine evaluates access from these tuples — writing viewer on a document lets the read action resolve. A userset subject (subject relation set) points at another set, e.g. group:eng#member.',
+  'relationships.fObjectType': 'Object type',
+  'relationships.fObjectId': 'Object id',
+  'relationships.fRelation': 'Relation',
+  'relationships.fSubjectType': 'Subject type',
+  'relationships.fSubjectId': 'Subject id',
+  'relationships.fSubjectRelation': 'Subject relation',
+  'relationships.subjectRelationHint':
+    'Optional — set for a userset subject like group:eng#member.',
+  'relationships.optional': 'optional',
+  'relationships.objectIdPlaceholder': 'onboarding',
+  'relationships.subjectIdPlaceholder': 'alice',
+  'relationships.write': 'Write relationship',
+  'relationships.writing': 'Writing…',
+  'relationships.writeOk': 'Written at',
+  'relationships.revoke': 'Revoke',
+  'relationships.revokeConfirm': 'Confirm revoke',
 
   'policies.title': 'Policies',
   'policies.description':
@@ -229,6 +250,7 @@ const es: Dict = {
   'common.apiReference': 'Referencia de la API',
   'common.backHome': '← Volver al inicio',
   'common.language': 'Idioma',
+  'common.cancel': 'Cancelar',
 
   'nav.overview': 'Resumen',
   'nav.schema': 'Esquema',
@@ -349,7 +371,27 @@ const es: Dict = {
   'relationships.thRelation': 'Relación',
   'relationships.thSubject': 'Sujeto',
   'relationships.thRev': 'Rev',
+  'relationships.thActions': 'Acciones',
   'relationships.empty': 'No hay tuplas de relación almacenadas en esta organización.',
+  'relationships.addTitle': 'Escribir una relación',
+  'relationships.addDescription':
+    'Otorgá a un sujeto una relación sobre un objeto. El motor evalúa el acceso a partir de estas tuplas — escribir viewer en un documento hace que la acción read se resuelva. Un sujeto userset (con relación de sujeto) apunta a otro conjunto, p. ej. group:eng#member.',
+  'relationships.fObjectType': 'Tipo de objeto',
+  'relationships.fObjectId': 'Id de objeto',
+  'relationships.fRelation': 'Relación',
+  'relationships.fSubjectType': 'Tipo de sujeto',
+  'relationships.fSubjectId': 'Id de sujeto',
+  'relationships.fSubjectRelation': 'Relación de sujeto',
+  'relationships.subjectRelationHint':
+    'Opcional — usala para un sujeto userset como group:eng#member.',
+  'relationships.optional': 'opcional',
+  'relationships.objectIdPlaceholder': 'onboarding',
+  'relationships.subjectIdPlaceholder': 'alice',
+  'relationships.write': 'Escribir relación',
+  'relationships.writing': 'Escribiendo…',
+  'relationships.writeOk': 'Escrita en',
+  'relationships.revoke': 'Revocar',
+  'relationships.revokeConfirm': 'Confirmar revocación',
 
   'policies.title': 'Políticas',
   'policies.description':

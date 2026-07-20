@@ -5,6 +5,7 @@ import { AC_TOKEN_COOKIE, callAccessCore } from './accesscore';
 export async function proxyAuthorized(
   request: Request,
   upstreamPath: string,
+  method: 'POST' | 'PUT' | 'DELETE' = 'POST',
 ): Promise<NextResponse> {
   const store = await cookies();
   const token = store.get(AC_TOKEN_COOKIE)?.value;
@@ -20,7 +21,7 @@ export async function proxyAuthorized(
   }
 
   try {
-    const upstream = await callAccessCore(upstreamPath, { method: 'POST', token, body });
+    const upstream = await callAccessCore(upstreamPath, { method, token, body });
     return NextResponse.json(upstream.body ?? {}, { status: upstream.status });
   } catch {
     return NextResponse.json({ error: 'service_unavailable' }, { status: 503 });

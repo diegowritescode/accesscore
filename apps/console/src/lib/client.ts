@@ -1,6 +1,7 @@
 import type {
   CheckAsInput,
   CheckInput,
+  ConsistencyResponse,
   Decision,
   ExpandInput,
   ExpandResponse,
@@ -8,6 +9,7 @@ import type {
   SimulateInput,
   SimulateResponse,
   TupleView,
+  TupleWriteInput,
 } from './types';
 
 export type ApiResult<T> =
@@ -29,11 +31,15 @@ function messageFrom(body: unknown, fallback: string): string {
   return fallback;
 }
 
-async function post<T>(path: string, payload: unknown): Promise<ApiResult<T>> {
+async function send<T>(
+  method: 'POST' | 'PUT' | 'DELETE',
+  path: string,
+  payload: unknown,
+): Promise<ApiResult<T>> {
   let response: Response;
   try {
     response = await fetch(path, {
-      method: 'POST',
+      method,
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),
     });
@@ -60,6 +66,10 @@ async function post<T>(path: string, payload: unknown): Promise<ApiResult<T>> {
   }
 
   return { status: 'ok', data: body as T };
+}
+
+function post<T>(path: string, payload: unknown): Promise<ApiResult<T>> {
+  return send('POST', path, payload);
 }
 
 async function get<T>(path: string): Promise<ApiResult<T>> {
@@ -133,6 +143,14 @@ export async function fetchNamespaces(): Promise<ApiResult<{ namespaces: Namespa
 
 export async function fetchTuples(query = ''): Promise<ApiResult<{ tuples: TupleView[] }>> {
   return get(`/api/tuples${query ? `?${query}` : ''}`);
+}
+
+export async function writeTuple(input: TupleWriteInput): Promise<ApiResult<ConsistencyResponse>> {
+  return send('POST', '/api/tuples', input);
+}
+
+export async function revokeTuple(input: TupleWriteInput): Promise<ApiResult<ConsistencyResponse>> {
+  return send('DELETE', '/api/tuples', input);
 }
 
 export async function runSimulate(input: SimulateInput): Promise<ApiResult<SimulateResponse>> {

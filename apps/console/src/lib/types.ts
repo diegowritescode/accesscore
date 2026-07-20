@@ -81,6 +81,16 @@ export interface TupleView {
   revision: number;
 }
 
+export interface TupleWriteInput {
+  object: { type: string; id: string };
+  relation: string;
+  subject: TupleSubject;
+}
+
+export interface ConsistencyResponse {
+  consistency_token: string;
+}
+
 export interface PolicyView {
   id: string;
   effect: PolicyEffect;

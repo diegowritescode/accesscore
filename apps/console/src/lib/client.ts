@@ -5,6 +5,7 @@ import type {
   Decision,
   ExpandInput,
   ExpandResponse,
+  NamespaceDefineInput,
   NamespaceSummary,
   SimulateInput,
   SimulateResponse,
@@ -151,6 +152,13 @@ export async function writeTuple(input: TupleWriteInput): Promise<ApiResult<Cons
 
 export async function revokeTuple(input: TupleWriteInput): Promise<ApiResult<ConsistencyResponse>> {
   return send('DELETE', '/api/tuples', input);
+}
+
+export async function defineNamespace(
+  namespace: string,
+  config: NamespaceDefineInput,
+): Promise<ApiResult<ConsistencyResponse>> {
+  return send('PUT', `/api/namespaces/${encodeURIComponent(namespace)}`, config);
 }
 
 export async function runSimulate(input: SimulateInput): Promise<ApiResult<SimulateResponse>> {

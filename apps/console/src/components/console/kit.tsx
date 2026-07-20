@@ -1,5 +1,30 @@
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { cn } from '../ui';
+
+export function ButtonLink({
+  href,
+  variant = 'primary',
+  children,
+}: {
+  href: string;
+  variant?: 'primary' | 'secondary';
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+        variant === 'primary'
+          ? 'bg-brand text-white shadow-sm shadow-brand/30 hover:bg-brand-strong'
+          : 'border border-line bg-surface-2 text-fg hover:border-line-strong',
+      )}
+    >
+      {children}
+    </Link>
+  );
+}
 
 export function PageHeader({
   title,

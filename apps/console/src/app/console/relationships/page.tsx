@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
-import { DataTable, EmptyState, PageHeader, Td, Th } from '@/components/console/kit';
+import { DataTable, EmptyState, PageHeader, Section, Td, Th } from '@/components/console/kit';
+import { RevokeTupleButton } from '@/components/console/revoke-tuple-button';
+import { TupleForm } from '@/components/console/tuple-form';
 import { Badge, Callout } from '@/components/ui';
 import { getT } from '@/lib/i18n-server';
 import { getTuples, isUnauthorized } from '@/lib/server-directory';
@@ -23,6 +25,15 @@ export default async function RelationshipsPage() {
     <>
       <PageHeader title={t('relationships.title')} description={t('relationships.description')} />
 
+      <div className="mb-6">
+        <Section
+          title={t('relationships.addTitle')}
+          description={t('relationships.addDescription')}
+        >
+          <TupleForm />
+        </Section>
+      </div>
+
       {!result.ok ? (
         <Callout tone="error">{t('errors.relationshipsLoad')}</Callout>
       ) : result.data.tuples.length === 0 ? (
@@ -35,6 +46,7 @@ export default async function RelationshipsPage() {
               <Th>{t('relationships.thRelation')}</Th>
               <Th>{t('relationships.thSubject')}</Th>
               <Th className="text-right">{t('relationships.thRev')}</Th>
+              <Th className="text-right">{t('relationships.thActions')}</Th>
             </tr>
           }
         >
@@ -52,6 +64,9 @@ export default async function RelationshipsPage() {
                 <span className="font-mono text-xs">{subjectLabel(tuple.subject)}</span>
               </Td>
               <Td className="text-right tabular-nums text-muted">{tuple.revision}</Td>
+              <Td className="text-right">
+                <RevokeTupleButton tuple={tuple} />
+              </Td>
             </tr>
           ))}
         </DataTable>

@@ -1,6 +1,13 @@
 import { cookies } from 'next/headers';
 import { AC_TOKEN_COOKIE, callAccessCore } from './accesscore';
-import type { NamespaceDetail, NamespaceSummary, PolicyView, TupleView } from './types';
+import type {
+  ChainVerification,
+  MfaStatus,
+  NamespaceDetail,
+  NamespaceSummary,
+  PolicyView,
+  TupleView,
+} from './types';
 
 export type DirectoryResult<T> = { ok: true; data: T } | { ok: false; status: number };
 
@@ -39,4 +46,12 @@ export function getTuples(query = ''): Promise<DirectoryResult<{ tuples: TupleVi
 
 export function getPolicies(): Promise<DirectoryResult<{ policies: PolicyView[] }>> {
   return get('/authz/policies');
+}
+
+export function getMfaStatus(): Promise<DirectoryResult<MfaStatus>> {
+  return get('/auth/mfa/status');
+}
+
+export function getAuditVerification(): Promise<DirectoryResult<ChainVerification>> {
+  return get('/authz/audit/verify');
 }

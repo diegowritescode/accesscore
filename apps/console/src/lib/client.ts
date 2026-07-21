@@ -1,13 +1,18 @@
 import type {
+  ChainVerification,
   CheckAsInput,
   CheckInput,
   ConsistencyResponse,
   Decision,
   ExpandInput,
   ExpandResponse,
+  MfaActivation,
+  MfaEnrollment,
+  MfaStatus,
   NamespaceDefineInput,
   NamespaceSummary,
   PolicyWriteInput,
+  RecoveryCodes,
   SimulateInput,
   SimulateResponse,
   TupleView,
@@ -171,6 +176,34 @@ export async function writePolicy(
 
 export async function deletePolicy(id: string): Promise<ApiResult<ConsistencyResponse>> {
   return send('DELETE', `/api/policies/${encodeURIComponent(id)}`, {});
+}
+
+export async function fetchMfaStatus(): Promise<ApiResult<MfaStatus>> {
+  return get('/api/mfa/status');
+}
+
+export async function enrollMfa(): Promise<ApiResult<MfaEnrollment>> {
+  return post('/api/mfa/enroll', {});
+}
+
+export async function activateMfa(code: string): Promise<ApiResult<MfaActivation>> {
+  return post('/api/mfa/activate', { code });
+}
+
+export async function regenerateRecoveryCodes(): Promise<ApiResult<RecoveryCodes>> {
+  return post('/api/mfa/recovery-codes', {});
+}
+
+export async function disableMfa(): Promise<ApiResult<{ status: string }>> {
+  return post('/api/mfa/disable', {});
+}
+
+export async function stepUpMfa(code: string): Promise<ApiResult<{ access_token: string }>> {
+  return post('/api/mfa/step-up', { code });
+}
+
+export async function verifyAudit(): Promise<ApiResult<ChainVerification>> {
+  return get('/api/audit/verify');
 }
 
 export async function runSimulate(input: SimulateInput): Promise<ApiResult<SimulateResponse>> {

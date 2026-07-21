@@ -127,3 +127,27 @@ export interface CheckAsInput {
   resource: EntityInput;
   aal?: number;
 }
+
+export interface MfaStatus {
+  enabled: boolean;
+  recoveryCodesRemaining: number;
+}
+
+export interface MfaEnrollment {
+  otpauthUri: string;
+}
+
+export interface MfaActivation {
+  status: string;
+  recoveryCodes: string[];
+}
+
+export interface RecoveryCodes {
+  recoveryCodes: string[];
+}
+
+export interface ChainVerification {
+  ok: boolean;
+  length: number;
+  brokenAt: number | null;
+}

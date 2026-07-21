@@ -14,6 +14,7 @@ const en: Dict = {
   'nav.relationships': 'Relationships',
   'nav.playground': 'Playground',
   'nav.policies': 'Policies',
+  'nav.security': 'Security',
 
   'brand.suffix': 'Console',
 
@@ -308,6 +309,52 @@ const en: Dict = {
   'reason.org_mismatch': 'The resource belongs to a different organization.',
   'reason.no_org_context': 'The request is not scoped to an organization.',
   'reason.consistency_unavailable': 'The store has not caught up to the requested consistency.',
+
+  'security.title': 'Account security',
+  'security.description':
+    'Manage the second factor on this account and verify the integrity of the security audit trail.',
+  'security.mfaTitle': 'Multi-factor authentication',
+  'security.mfaDescription':
+    'A TOTP authenticator app as a second factor. Step-up elevates the session to AAL 2, which policies can require.',
+  'security.auditTitle': 'Audit integrity',
+  'security.auditDescription':
+    'The security-event trail is a SHA-256 hash chain. Verification re-walks it and reports the first tampered record, if any.',
+
+  'mfa.loading': 'Loading MFA status…',
+  'mfa.disabledIntro':
+    'MFA is not enabled. Enrolling adds a TOTP authenticator and issues one-time recovery codes.',
+  'mfa.enable': 'Enable MFA',
+  'mfa.enabling': 'Starting…',
+  'mfa.enrollScan':
+    'Scan this QR with your authenticator app, then enter the 6-digit code to confirm.',
+  'mfa.qrAlt': 'TOTP enrollment QR code',
+  'mfa.enrollManual': 'Or enter this secret manually:',
+  'mfa.codeLabel': 'Authenticator code',
+  'mfa.codeHint': 'The 6-digit code from your app.',
+  'mfa.activate': 'Activate',
+  'mfa.activating': 'Activating…',
+  'mfa.codesWarning':
+    'Store these recovery codes now — each works once and they will not be shown again.',
+  'mfa.codesDone': 'I saved them',
+  'mfa.enabled': 'Enabled',
+  'mfa.codesRemaining': '{count} recovery codes remaining',
+  'mfa.regenerate': 'Regenerate recovery codes',
+  'mfa.disable': 'Disable MFA',
+  'mfa.stepUpTitle': 'Step up this session',
+  'mfa.stepUpHint':
+    'Verify a second factor to elevate this session to AAL 2. Use a TOTP code or a recovery code.',
+  'mfa.stepUp': 'Elevate to AAL 2',
+  'mfa.elevating': 'Elevating…',
+  'mfa.stepUpOk': 'Session elevated to AAL 2. The token now carries the higher assurance level.',
+
+  'audit.intro':
+    'Re-walk the security audit hash chain and confirm no record was altered or removed.',
+  'audit.intact': 'Intact',
+  'audit.records': 'The chain verifies across {count} records.',
+  'audit.broken': 'Tampered',
+  'audit.brokenAt': 'The chain breaks at record {index} of {count}.',
+  'audit.verifying': 'Verifying…',
+  'audit.reverify': 'Re-verify',
 };
 
 const es: Dict = {
@@ -324,6 +371,7 @@ const es: Dict = {
   'nav.relationships': 'Relaciones',
   'nav.playground': 'Playground',
   'nav.policies': 'Políticas',
+  'nav.security': 'Seguridad',
 
   'brand.suffix': 'Consola',
 
@@ -625,6 +673,53 @@ const es: Dict = {
   'reason.org_mismatch': 'El recurso pertenece a otra organización.',
   'reason.no_org_context': 'La petición no está en el contexto de una organización.',
   'reason.consistency_unavailable': 'El almacén no alcanzó la consistencia solicitada.',
+
+  'security.title': 'Seguridad de la cuenta',
+  'security.description':
+    'Gestioná el segundo factor de esta cuenta y verificá la integridad del registro de auditoría de seguridad.',
+  'security.mfaTitle': 'Autenticación multifactor',
+  'security.mfaDescription':
+    'Una app autenticadora TOTP como segundo factor. El step-up eleva la sesión a AAL 2, que las políticas pueden requerir.',
+  'security.auditTitle': 'Integridad de la auditoría',
+  'security.auditDescription':
+    'El registro de eventos de seguridad es una cadena de hashes SHA-256. La verificación la recorre y reporta el primer registro manipulado, si lo hay.',
+
+  'mfa.loading': 'Cargando estado de MFA…',
+  'mfa.disabledIntro':
+    'MFA no está habilitado. Al enrolar se agrega un autenticador TOTP y se emiten códigos de recuperación de un solo uso.',
+  'mfa.enable': 'Habilitar MFA',
+  'mfa.enabling': 'Iniciando…',
+  'mfa.enrollScan':
+    'Escaneá este QR con tu app autenticadora y luego ingresá el código de 6 dígitos para confirmar.',
+  'mfa.qrAlt': 'Código QR de enrolamiento TOTP',
+  'mfa.enrollManual': 'O ingresá este secreto manualmente:',
+  'mfa.codeLabel': 'Código del autenticador',
+  'mfa.codeHint': 'El código de 6 dígitos de tu app.',
+  'mfa.activate': 'Activar',
+  'mfa.activating': 'Activando…',
+  'mfa.codesWarning':
+    'Guardá estos códigos de recuperación ahora — cada uno funciona una vez y no se volverán a mostrar.',
+  'mfa.codesDone': 'Ya los guardé',
+  'mfa.enabled': 'Habilitado',
+  'mfa.codesRemaining': '{count} códigos de recuperación restantes',
+  'mfa.regenerate': 'Regenerar códigos de recuperación',
+  'mfa.disable': 'Deshabilitar MFA',
+  'mfa.stepUpTitle': 'Elevar esta sesión',
+  'mfa.stepUpHint':
+    'Verificá un segundo factor para elevar esta sesión a AAL 2. Usá un código TOTP o uno de recuperación.',
+  'mfa.stepUp': 'Elevar a AAL 2',
+  'mfa.elevating': 'Elevando…',
+  'mfa.stepUpOk':
+    'Sesión elevada a AAL 2. El token ahora lleva el nivel de aseguramiento superior.',
+
+  'audit.intro':
+    'Recorré la cadena de hashes de auditoría y confirmá que ningún registro fue alterado o eliminado.',
+  'audit.intact': 'Íntegra',
+  'audit.records': 'La cadena verifica a lo largo de {count} registros.',
+  'audit.broken': 'Manipulada',
+  'audit.brokenAt': 'La cadena se rompe en el registro {index} de {count}.',
+  'audit.verifying': 'Verificando…',
+  'audit.reverify': 'Re-verificar',
 };
 
 export const dictionaries: { en: Dict; es: Dict } = { en, es };

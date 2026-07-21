@@ -17,6 +17,7 @@ import {
   PlaygroundIcon,
   PolicyIcon,
   SchemaIcon,
+  ShieldIcon,
 } from '../icons';
 import { Badge, Spinner, cn } from '../ui';
 
@@ -33,6 +34,7 @@ const NAV: NavItem[] = [
   { href: '/console/relationships', labelKey: 'nav.relationships', icon: GraphIcon },
   { href: '/console/playground', labelKey: 'nav.playground', icon: PlaygroundIcon },
   { href: '/console/policies', labelKey: 'nav.policies', icon: PolicyIcon },
+  { href: '/console/security', labelKey: 'nav.security', icon: ShieldIcon },
 ];
 
 const API_REFERENCE = 'https://auth.deviego.xyz/reference';

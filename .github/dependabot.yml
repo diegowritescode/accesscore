@@ -13,15 +13,13 @@ updates:
         dependency-type: development
         update-types: [minor, patch]
     ignore:
-      # Framework/tooling majors need a deliberate migration, not an auto-PR.
-      - dependency-name: next
+      # Majors are deliberate manual migrations, never auto-PRs.
+      - dependency-name: '*'
         update-types: [version-update:semver-major]
-      - dependency-name: eslint
-        update-types: [version-update:semver-major]
-      - dependency-name: eslint-config-next
-        update-types: [version-update:semver-major]
+      # argon2 is 0.x: a "minor" bump (0.41 -> 0.45) is a breaking change, so pin
+      # to patch-only and upgrade deliberately.
       - dependency-name: argon2
-        update-types: [version-update:semver-major]
+        update-types: [version-update:semver-minor]
 
   - package-ecosystem: github-actions
     directory: /
@@ -38,6 +36,5 @@ updates:
     schedule:
       interval: weekly
     ignore:
-      # Stay on the Node LTS the project targets (.nvmrc / engines / CI).
       - dependency-name: node
         update-types: [version-update:semver-major]

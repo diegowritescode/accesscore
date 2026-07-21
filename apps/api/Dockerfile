@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Build context is the repository root (pnpm + Turborepo workspace).
-FROM node:22-alpine AS base
+FROM node:26-alpine AS base
 RUN corepack enable
 WORKDIR /repo
 
@@ -22,7 +22,7 @@ RUN pnpm --filter @accesscore/api build \
   && pnpm --filter @accesscore/api deploy --prod /app
 
 # --- runtime: minimal image with the compiled API, prod deps, and migrations ---
-FROM node:22-alpine AS runtime
+FROM node:26-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build --chown=node:node /app ./

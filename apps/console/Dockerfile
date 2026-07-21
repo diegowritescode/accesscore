@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Build context is the repository root (pnpm + Turborepo workspace).
-FROM node:22-alpine AS base
+FROM node:26-alpine AS base
 RUN corepack enable
 WORKDIR /repo
 
@@ -22,7 +22,7 @@ COPY . .
 RUN pnpm --filter @accesscore/console build
 
 # --- runtime: minimal image running the standalone server ---
-FROM node:22-alpine AS runtime
+FROM node:26-alpine AS runtime
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3001

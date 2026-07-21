@@ -4,16 +4,32 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     groups:
-      dev-dependencies:
+      production:
+        dependency-type: production
+        update-types: [minor, patch]
+      development:
         dependency-type: development
         update-types: [minor, patch]
+    ignore:
+      # Framework/tooling majors need a deliberate migration, not an auto-PR.
+      - dependency-name: next
+        update-types: [version-update:semver-major]
+      - dependency-name: eslint
+        update-types: [version-update:semver-major]
+      - dependency-name: eslint-config-next
+        update-types: [version-update:semver-major]
+      - dependency-name: argon2
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      github-actions:
+        patterns: ['*']
 
   - package-ecosystem: docker
     directories:
@@ -21,3 +37,7 @@ updates:
       - /apps/console
     schedule:
       interval: weekly
+    ignore:
+      # Stay on the Node LTS the project targets (.nvmrc / engines / CI).
+      - dependency-name: node
+        update-types: [version-update:semver-major]

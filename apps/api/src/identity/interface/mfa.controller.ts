@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Inject, Post, UseGuards } from '@nestj
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AccessTokenGuard, type AuthTokenClaims } from '../../authn/interface/access-token.guard';
 import { AuthToken } from '../../authn/interface/auth-token.decorator';
+import { StepUpGuard } from '../../authn/interface/step-up.guard';
 import { ProblemException } from '../../shared/http/problem-details';
 import { openApiSchema } from '../../shared/http/openapi-schema';
 import { UserId } from '../../shared/kernel/user-id';
@@ -71,8 +72,17 @@ export class MfaController {
     const result = await this.activateHandler.execute({
       userId: UserId.fromString(token.sub),
       code: parsed.data.code,
+      steppedUp: token.aal >= 2,
     });
     if (!result.ok) {
+      if (result.error === 'step_up_required') {
+        throw new ProblemException({
+          type: 'about:blank',
+          title: 'Step-up required',
+          status: 403,
+          detail: 'step_up_required',
+        });
+      }
       const status = result.error === 'no_pending_credential' ? 409 : 400;
       throw new ProblemException({
         type: 'about:blank',
@@ -85,9 +95,12 @@ export class MfaController {
 
   @Post('recovery-codes')
   @HttpCode(200)
+  @UseGuards(StepUpGuard)
   @ApiOperation({
     summary: 'Regenerate recovery codes',
-    description: 'Replaces the recovery-code batch and returns the new codes once.',
+    description:
+      'Replaces the recovery-code batch and returns the new codes once. Requires a stepped-up ' +
+      '(AAL2) session.',
   })
   async regenerate(@AuthToken() token: AuthTokenClaims): Promise<{ recoveryCodes: string[] }> {
     const result = await this.regenerateHandler.execute({ userId: UserId.fromString(token.sub) });
@@ -103,7 +116,11 @@ export class MfaController {
 
   @Post('disable')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Disable the active MFA factor' })
+  @UseGuards(StepUpGuard)
+  @ApiOperation({
+    summary: 'Disable the active MFA factor',
+    description: 'Requires a stepped-up (AAL2) session — the second factor must be proven first.',
+  })
   async disable(@AuthToken() token: AuthTokenClaims): Promise<{ status: string }> {
     const result = await this.disableHandler.execute({ userId: UserId.fromString(token.sub) });
     if (!result.ok) {

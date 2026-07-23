@@ -121,18 +121,26 @@ describe('Tamper-evident security audit (e2e)', () => {
 
     expect(await verify(token)).toEqual({ ok: true, length: 1, brokenAt: null });
 
+    const stepUp = await request(server())
+      .post('/auth/mfa/step-up')
+      .set('Authorization', bearer(token))
+      .send({ code: totpCode(secret ?? '', new Date(Date.now() + 30_000)) })
+      .expect(200);
+    const stepped = (stepUp.body as { access_token: string }).access_token;
+
     await request(server())
       .post('/auth/mfa/disable')
-      .set('Authorization', bearer(token))
+      .set('Authorization', bearer(stepped))
       .expect(200);
 
-    expect(await verify(token)).toEqual({ ok: true, length: 2, brokenAt: null });
+    // activated + step_up + disabled
+    expect(await verify(token)).toEqual({ ok: true, length: 3, brokenAt: null });
 
     await pool.query(
       `UPDATE security_audit SET subject = 'user:mallory' WHERE seq = (SELECT min(seq) FROM security_audit)`,
     );
 
-    expect(await verify(token)).toEqual({ ok: false, length: 2, brokenAt: 0 });
+    expect(await verify(token)).toEqual({ ok: false, length: 3, brokenAt: 0 });
   });
 
   it('requires an authenticated owner to read the verifier', async () => {

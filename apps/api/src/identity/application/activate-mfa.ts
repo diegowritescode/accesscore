@@ -10,13 +10,14 @@ import { type RecoveryCodeIssuer } from './recovery-code-issuer';
 export interface ActivateMfaInput {
   userId: UserId;
   code: string;
+  steppedUp: boolean;
 }
 
 export interface ActivateMfaResult {
   recoveryCodes: string[];
 }
 
-export type ActivateMfaError = 'no_pending_credential' | 'invalid_code';
+export type ActivateMfaError = 'no_pending_credential' | 'invalid_code' | 'step_up_required';
 
 const DRIFT_WINDOW = 1;
 
@@ -45,6 +46,9 @@ export class ActivateMfaHandler {
 
     const active = await this.credentials.findActiveTotpByUser(input.userId);
     if (active) {
+      if (!input.steppedUp) {
+        return err('step_up_required');
+      }
       active.revoke(now);
       await this.credentials.save(active);
     }

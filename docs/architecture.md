@@ -28,6 +28,22 @@ Layers (per module):
 - **Interface** — NestJS controllers (REST + OIDC endpoints), guards (PEP), admin API, the
   SDK contract.
 
+### Boundaries are enforced, not aspirational
+
+The layering above is a **fitness function** in CI, not a convention that erodes over time.
+[`dependency-cruiser`](../apps/api/.dependency-cruiser.cjs) (run via `pnpm run arch` inside the
+`verify` job) fails the build on any import that crosses a forbidden boundary:
+
+- the **domain points inward only** — it may not import application, infrastructure, or interface;
+- the **domain is framework-free** — zero `npm` imports (Node core allowed), so it stays pure and
+  unit-testable; a library need is a design decision, wrapped behind a port;
+- **application uses ports, not adapters** — it never imports `infrastructure/`;
+- neither application nor infrastructure may depend on the **interface** layer;
+- **no circular dependencies**.
+
+Composition roots (`*.module.ts`, `main.ts`) are excluded — wiring adapters to ports is their
+job. The rules are effectively executable ADRs: a PR that violates the hexagon goes red before review.
+
 ## System context
 
 AccessCore is both an **authentication provider** (issues/validates tokens, OIDC) and an

@@ -46,6 +46,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
+      - run: pnpm run arch
       - run: pnpm run typecheck
       - run: pnpm run build
       - run: pnpm --filter @accesscore/api run db:migrate

@@ -53,7 +53,14 @@ function RecoveryCodes({
   );
 }
 
-export function MfaManager({ initialStatus }: { initialStatus: MfaStatus | null }) {
+export function MfaManager({
+  initialStatus,
+  aal,
+}: {
+  initialStatus: MfaStatus | null;
+  aal: number;
+}) {
+  const steppedUp = aal >= 2;
   const t = useT();
   const router = useRouter();
 
@@ -253,11 +260,18 @@ export function MfaManager({ initialStatus }: { initialStatus: MfaStatus | null 
 
       {error ? <Callout tone="error">{error}</Callout> : null}
 
+      {!steppedUp ? <Callout tone="warning">{t('mfa.manageNeedsStepUp')}</Callout> : null}
+
       <div className="flex flex-wrap gap-3">
-        <Button type="button" variant="secondary" onClick={regenerate} disabled={busy}>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={regenerate}
+          disabled={busy || !steppedUp}
+        >
           {t('mfa.regenerate')}
         </Button>
-        <Button type="button" variant="secondary" onClick={disable} disabled={busy}>
+        <Button type="button" variant="secondary" onClick={disable} disabled={busy || !steppedUp}>
           {t('mfa.disable')}
         </Button>
       </div>

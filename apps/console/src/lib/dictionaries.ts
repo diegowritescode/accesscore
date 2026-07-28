@@ -346,6 +346,8 @@ const en: Dict = {
   'mfa.stepUp': 'Elevate to AAL 2',
   'mfa.elevating': 'Elevating…',
   'mfa.stepUpOk': 'Session elevated to AAL 2. The token now carries the higher assurance level.',
+  'mfa.manageNeedsStepUp':
+    'Step up to AAL 2 below to disable MFA or regenerate recovery codes — you must prove the second factor first.',
 
   'audit.intro':
     'Re-walk the security audit hash chain and confirm no record was altered or removed.',
@@ -711,6 +713,8 @@ const es: Dict = {
   'mfa.elevating': 'Elevando…',
   'mfa.stepUpOk':
     'Sesión elevada a AAL 2. El token ahora lleva el nivel de aseguramiento superior.',
+  'mfa.manageNeedsStepUp':
+    'Elevá a AAL 2 abajo para desactivar MFA o regenerar códigos de recuperación — primero tenés que probar el segundo factor.',
 
   'audit.intro':
     'Recorré la cadena de hashes de auditoría y confirmá que ningún registro fue alterado o eliminado.',

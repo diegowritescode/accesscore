@@ -59,6 +59,19 @@ const withPending = (id = 'p1'): MemoryCredentials => {
   return credentials;
 };
 
+const withActivePlusPending = (): MemoryCredentials => {
+  const credentials = withPending();
+  const previous = MfaCredential.enroll({
+    id: 'active-old',
+    userId,
+    secretCiphertext: 'ct:old',
+    now,
+  });
+  previous.activate(now);
+  credentials.items.set('active-old', previous);
+  return credentials;
+};
+
 const handlerFor = (
   credentials: MemoryCredentials,
   verification: TotpVerification,
@@ -75,7 +88,7 @@ const handlerFor = (
 describe('ActivateMfaHandler', () => {
   it('rejects when there is no pending credential', async () => {
     const handler = handlerFor(new MemoryCredentials(), { valid: false, step: -1 });
-    expect(await handler.execute({ userId, code: '000000' })).toEqual({
+    expect(await handler.execute({ userId, code: '000000', steppedUp: true })).toEqual({
       ok: false,
       error: 'no_pending_credential',
     });
@@ -83,7 +96,7 @@ describe('ActivateMfaHandler', () => {
 
   it('rejects an invalid code', async () => {
     const handler = handlerFor(withPending(), { valid: false, step: -1 });
-    expect(await handler.execute({ userId, code: '000000' })).toEqual({
+    expect(await handler.execute({ userId, code: '000000', steppedUp: true })).toEqual({
       ok: false,
       error: 'invalid_code',
     });
@@ -93,7 +106,7 @@ describe('ActivateMfaHandler', () => {
     const credentials = withPending();
     const handler = handlerFor(credentials, { valid: true, step: 7 });
 
-    const result = await handler.execute({ userId, code: '287082' });
+    const result = await handler.execute({ userId, code: '287082', steppedUp: false });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -103,20 +116,30 @@ describe('ActivateMfaHandler', () => {
     expect(active?.lastUsedStep).toBe(7);
   });
 
-  it('supersedes a previously active credential', async () => {
-    const credentials = withPending();
-    const previous = MfaCredential.enroll({
-      id: 'active-old',
-      userId,
-      secretCiphertext: 'ct:old',
-      now,
-    });
-    previous.activate(now);
-    credentials.items.set('active-old', previous);
+  it('supersedes a previously active credential when stepped up', async () => {
+    const credentials = withActivePlusPending();
 
-    await handlerFor(credentials, { valid: true, step: 9 }).execute({ userId, code: '123456' });
+    await handlerFor(credentials, { valid: true, step: 9 }).execute({
+      userId,
+      code: '123456',
+      steppedUp: true,
+    });
 
     expect(credentials.items.get('active-old')?.status).toBe('revoked');
     expect((await credentials.findActiveTotpByUser(userId))?.id).toBe('p1');
+  });
+
+  it('refuses to supersede an active credential without step-up', async () => {
+    const credentials = withActivePlusPending();
+
+    const result = await handlerFor(credentials, { valid: true, step: 9 }).execute({
+      userId,
+      code: '123456',
+      steppedUp: false,
+    });
+
+    expect(result).toEqual({ ok: false, error: 'step_up_required' });
+    expect(credentials.items.get('active-old')?.status).toBe('active');
+    expect((await credentials.findActiveTotpByUser(userId))?.id).toBe('active-old');
   });
 });

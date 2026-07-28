@@ -1,0 +1,36 @@
+name: Mutation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/src/authz/domain/**'
+      - 'apps/api/stryker.conf.json'
+      - '.github/workflows/mutation.yml'
+  pull_request:
+    paths:
+      - 'apps/api/src/authz/domain/**'
+      - 'apps/api/stryker.conf.json'
+      - '.github/workflows/mutation.yml'
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @accesscore/api run mutation
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-report
+          path: apps/api/reports/mutation/
+          if-no-files-found: ignore

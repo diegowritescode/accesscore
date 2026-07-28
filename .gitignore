@@ -10,3 +10,7 @@ coverage/
 .env.*
 !.env.example
 .DS_Store
+
+# mutation testing (Stryker) — sandbox may contain a copied .env, never commit it
+.stryker-tmp/
+**/reports/mutation/

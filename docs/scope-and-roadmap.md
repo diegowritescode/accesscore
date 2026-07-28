@@ -42,6 +42,9 @@ glass · workload identity federation (OIDC/SPIFFE) · full multi-region/HA · k
 
 ## Build order — vertical slices
 
+**Status: Slices 0–8 are shipped and deployed** (the hybrid ReBAC + RBAC + ABAC engine, account
+security, the admin console, the SDK, and the observability/ops floor). Remaining work is the rings.
+
 Each slice is end-to-end (domain → API → tests → CI) and independently deployable.
 
 0. **Walking skeleton** — health/readiness, config validation, DB + first migration, one
@@ -52,7 +55,8 @@ Each slice is end-to-end (domain → API → tests → CI) and independently dep
 4. **PDP v2 (ReBAC)** — namespaces, userset rewrites, `expand`, consistency tokens.
 5. **PDP v3 (ABAC)** — policy DSL parser/evaluator, conditions, deny-override, permission boundaries, simulation/shadow.
 6. **Account security** — email verification, password reset, MFA (TOTP), lockout, tamper-evident audit.
-7. **Admin console** — Users/Sessions, RBAC editor, Authorization Playground, Audit verifier.
+7. **Admin console** — schema/relationships/policies read + write, Authorization Playground, account security (MFA + audit verifier), EN/ES.
+8. **Observability & ops floor** — Prometheus `/metrics` (HTTP + authz-domain), least-privilege DB role, structured logging, supply-chain CI (SAST/secret-scan/SBOM/Dependabot).
 
 Then rings, in value order, each shippable on its own.
 

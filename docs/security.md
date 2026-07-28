@@ -26,9 +26,9 @@ app ↔ PostgreSQL; app ↔ Redis.
 - **Information disclosure** — no user enumeration; **no secrets in tokens or logs**;
   encryption at rest for MFA secrets and signing private keys; PII minimization; TLS in transit.
 - **Denial of service** — per-IP rate limiting (stricter on the credential endpoints), request
-  body-size limits, and DTO length caps that bound Argon2 work; brute-force **lockout**
-  (per-account with backoff) is planned; the PDP **fails closed**, is cached, and is protected by
-  circuit breakers and query limits.
+  body-size limits, and DTO length caps that bound Argon2 work; per-account / per-IP / per-MFA
+  brute-force **lockout** (Redis, atomic); the PDP **fails closed**, is cached, and is protected by
+  query limits.
 - **Elevation of privilege** — deterministic **deny-override** evaluation; **permission
   boundaries**; object-level authorization via the PDP prevents **IDOR/BOLA**; **step-up**
   (MFA) required for sensitive actions; admin API separated from the user API; least privilege.
@@ -87,32 +87,43 @@ Pressure-tested by an adversarial security review; the material changes:
 - **Rings:** signed entity store, sender-constrained tokens (DPoP/mTLS), external audit anchoring,
   OIDC-provider hardening (exact `redirect_uri`, PKCE, single-use codes, `nonce`).
 
-## Implementation status (2026-07-12, end of Slice 2.5)
+## Implementation status (2026-07-28, Slices 0–8 shipped)
 
 This document is the target threat model; controls land incrementally across the spine. What is
-enforced in code today, and what is scheduled, so the doc never overclaims:
+enforced in code today, and what is still on the roadmap, so the doc never overclaims:
 
 - **Enforced now** — Argon2id + timing-safe compare + dummy verify for unknown users;
   anti-enumeration on login/register/reset; asymmetric (EdDSA) token signatures verified against
-  a published JWKS; `iss`/`aud`/`exp`/`nbf` binding with bounded clock skew; refresh **reuse
-  detection** revoking the family + TTL-bounded access-token blocklist; per-IP rate limiting
-  (global default plus a tighter budget on `login`/`refresh`); `helmet` security headers; request
-  body-size limit and DTO length caps; **fail-fast config guards** (production refuses the
-  software signer and the dev default Vault token); non-exportable Vault Transit signing keys;
-  **object-level authorization** via the PDP (`@RequirePermission`, IDOR/BOLA prevention); ReBAC
-  relationship evaluation (userset rewrites, nested groups) with **consistency tokens** and an
-  append-only **decision log**; `orgId` tenant isolation at every graph hop; per-IP throttling
-  resolves the client address through a single trusted proxy hop. The API connects as a
-  **least-privilege, non-owner DB role** so the append-only `decision_log`/`revisions` cannot be
-  `UPDATE`/`DELETE`d at runtime ([ADR-018](adr/018-least-privilege-db-role.md)).
-- **Scheduled — Slice 5 (PDP v3, ABAC):** deny-override evaluation, policy-DSL conditions,
-  permission boundaries, and org guardrails (the DSL/caching rows in the target model above).
+  a published JWKS with `kid → alg` binding (algorithm-confusion / `none` rejected); `iss`/`aud`/
+  `exp`/`nbf` binding with bounded clock skew; refresh **reuse detection** revoking the family +
+  TTL-bounded access-token blocklist; per-IP rate limiting (global default plus a tighter budget
+  on `login`/`refresh`/`step-up`); per-account / per-IP / per-MFA brute-force **lockout** (Redis,
+  atomic); `helmet` security headers; request body-size limit and DTO length caps; **fail-fast
+  config guards** (production refuses the software signer and the dev default Vault token);
+  non-exportable Vault Transit signing keys.
+- **Authorization (the full hybrid PDP) enforced now** — **object-level authorization** via the
+  PDP (`@RequirePermission`, IDOR/BOLA prevention); ReBAC relationship evaluation (userset
+  rewrites, nested groups) with **consistency tokens** and an append-only **decision log**;
+  **ABAC** — policy-DSL conditions, deterministic **`forbid` deny-override**, permission
+  boundaries, and org guardrails — with `simulate`/`check-as` for analysis; `orgId` tenant
+  isolation at every graph hop. The API connects as a **least-privilege, non-owner DB role** so
+  the append-only `decision_log` / `revisions` / `security_audit` tables cannot be `UPDATE`/
+  `DELETE`d at runtime ([ADR-018](adr/018-least-privilege-db-role.md)).
+- **Account security enforced now** — TOTP **MFA** + **step-up to AAL 2** (which ABAC policies can
+  require); **step-up is required to manage MFA** — disable, recovery-code regeneration, and
+  superseding an active factor all demand a stepped-up session, so a known-password adversary
+  cannot strip MFA ([ADR-020](adr/020-mfa-and-step-up.md)); a **tamper-evident audit hash chain**
+  (SHA-256, advisory-lock-serialized) with an owner-gated verifier
+  ([ADR-021](adr/021-tamper-evident-audit.md)).
+- **Supply chain / CI** — CodeQL SAST, gitleaks secret scanning, dependency review, a CycloneDX
+  SBOM, and Dependabot run in CI; the published SDK ships a signed provenance attestation.
 - **Known residuals (accepted for the current demo):** `forgot-password` closes the status/body
   enumeration oracle (generic `202`) but not the timing side-channel; constant-time dispatch is
   deferred to the async outbox path. The live API authenticates to Vault with a privileged
   (dev-mode) token — least-privilege via a Transit-scoped policy token is documented in
   `deploy-dokploy.md`.
-- **Scheduled — Slice 6 (hardening):** per-account brute-force **lockout** with backoff, and the
-  **tamper-evident audit** hash chain (per-org monotonic sequence + signed checkpoints). Both are
-  designed above and tracked as portfolio deliverables; they are deliberately deferred, not
-  dropped.
+- **Roadmap (designed, deliberately deferred — not dropped):** the audit chain's **per-org
+  monotonic sequence + KMS-signed checkpoints** (today it is a single verifiable SHA-256 chain);
+  automated **authz-policy analysis** (over-permission / reachability / separation-of-duties);
+  distributed tracing (OTel); passkeys; a full OIDC provider (exact `redirect_uri`, PKCE,
+  single-use codes, `nonce`); federation + SCIM.

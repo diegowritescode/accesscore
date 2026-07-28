@@ -1,12 +1,15 @@
 # AccessCore — Architecture
 
 > **Implementation status.** This document describes the **target architecture**. Shipped today
-> (Slices 0–3): `identity`, `authn` (tokens/JWKS/sessions/revocation), `tenancy`, and the **authz
-> PDP v1** — relationship-tuple store, namespace + action→relation config, the pure evaluator +
-> `expand`, the async-orchestrated `check` with a consistency token, a **synchronous** decision
-> log, and the `@RequirePermission` PEP. **Not yet built** (planned in later slices/rings and
-> flagged inline below): the outbox **relay/publisher**, OpenTelemetry, ABAC conditions &
-> `forbid`s, the PAP HTTP API, MFA/OIDC/federation, and the admin console.
+> (Slices 0–8): `identity`, `authn` (tokens/JWKS/sessions/revocation), `tenancy`, the `security`
+> module (MFA + step-up + tamper-evident audit), `observability` (Prometheus metrics), and the
+> full **authz PDP** — relationship-tuple store, rewrite-aware namespace config, the pure evaluator
+> with `expand`, **ABAC** (policy-DSL conditions, `forbid` deny-override, boundaries, guardrails),
+> the async-orchestrated `check` / `batchCheck` / `simulate` with consistency tokens, a
+> **synchronous** decision log, the `@RequirePermission` PEP, the **PAP HTTP API**, a published
+> **SDK**, and a **Next.js admin console**. **Not yet built** (rings, flagged inline below): the
+> outbox **relay/publisher**, OpenTelemetry tracing, a full OIDC provider, and
+> federation/SCIM/access-analyzer.
 
 ## Architectural style
 
@@ -39,6 +42,9 @@ console, and machines — talk to it over REST/OIDC and via a typed SDK.
 - **authz** — the decision engine (PDP): policies, roles, permissions, relationship tuples,
   conditions, decision logs. **The core.** Aggregates: `Policy`, `RoleDefinition`, `RelationTuple`.
 - **tenancy** — organizations, membership, tenant scoping. Aggregate: `Organization`.
+- **security** — MFA credentials + recovery codes, step-up, and the tamper-evident audit hash
+  chain. Aggregates: `MfaCredential`, `RecoveryCode`, the `security_audit` chain.
+- **observability** — Prometheus metrics (HTTP + authz-domain) exposed at `/metrics`.
 - **federation** _(ring)_ — OIDC provider endpoints, external IdP (OIDC/SAML) relying party, SCIM.
 - **machine** _(ring)_ — service accounts, API keys, workload identity federation, assume-role.
 - **governance** _(ring)_ — tamper-evident audit, decision logs, access analyzer, access reviews, SoD.

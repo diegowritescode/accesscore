@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import type { Redis } from 'ioredis';
 import { AuthnModule } from '../authn/authn.module';
 import { AccessTokenGuard } from '../authn/interface/access-token.guard';
 import { MeteredDecisionLog } from '../observability/metered-decision-log';
@@ -7,6 +8,9 @@ import { MetricsService } from '../observability/metrics.service';
 import { SecurityModule } from '../security/security.module';
 import { TenancyModule } from '../tenancy/tenancy.module';
 import { DB, type Database } from '../db/db.module';
+import { type Env } from '../config/env';
+import { ENV } from '../config/env.module';
+import { REDIS } from '../redis/redis.module';
 import { CLOCK, type Clock } from '../shared/kernel/clock';
 import { SystemClock } from '../shared/kernel/system-clock';
 import {
@@ -23,6 +27,7 @@ import { PdpService } from './application/pdp-service';
 import { POLICY_WRITER, PolicyWriter } from './application/policy-writer';
 import { RELATION_TUPLE_WRITER, RelationTupleWriter } from './application/relation-tuple-writer';
 import { POLICY_DECISION_POINT } from './domain/policy-decision-point';
+import { DECISION_CACHE, type DecisionCache } from './domain/ports/decision-cache';
 import { DECISION_LOG, type DecisionLog } from './domain/ports/decision-log';
 import {
   NAMESPACE_DEFINITIONS_REPOSITORY,
@@ -30,6 +35,7 @@ import {
 } from './domain/ports/namespace-definitions-repository';
 import { POLICIES_REPOSITORY, type PoliciesRepository } from './domain/ports/policies-repository';
 import { RELATION_TUPLE_STORE, type RelationTupleStore } from './domain/ports/relation-tuple-store';
+import { NoopDecisionCache, RedisDecisionCache } from './infrastructure/cache/redis-decision-cache';
 import { DrizzleDecisionLog } from './infrastructure/persistence/drizzle-decision-log';
 import { DrizzleNamespaceDefinitionsRepository } from './infrastructure/persistence/drizzle-namespace-definitions.repository';
 import { DrizzlePoliciesRepository } from './infrastructure/persistence/drizzle-policies.repository';
@@ -110,6 +116,14 @@ import { PermissionGuard } from './interface/permission.guard';
         new MeteredDecisionLog(new DrizzleDecisionLog(db), metrics),
     },
     {
+      provide: DECISION_CACHE,
+      inject: [REDIS, ENV],
+      useFactory: (redis: Redis, env: Env): DecisionCache =>
+        env.DECISION_CACHE_ENABLED
+          ? new RedisDecisionCache(redis, 'authz:dec:v1', env.DECISION_CACHE_TTL_SECONDS)
+          : new NoopDecisionCache(),
+    },
+    {
       provide: POLICY_DECISION_POINT,
       inject: [
         NAMESPACE_DEFINITIONS_REPOSITORY,
@@ -119,6 +133,7 @@ import { PermissionGuard } from './interface/permission.guard';
         DECISION_LOG,
         UNIT_OF_WORK,
         CLOCK,
+        DECISION_CACHE,
       ],
       useFactory: (
         namespaces: NamespaceDefinitionsRepository,
@@ -128,8 +143,18 @@ import { PermissionGuard } from './interface/permission.guard';
         decisionLog: DecisionLog,
         unitOfWork: UnitOfWork,
         clock: Clock,
+        decisionCache: DecisionCache,
       ): PdpService =>
-        new PdpService(namespaces, tuples, policies, revisions, decisionLog, unitOfWork, clock),
+        new PdpService(
+          namespaces,
+          tuples,
+          policies,
+          revisions,
+          decisionLog,
+          unitOfWork,
+          clock,
+          decisionCache,
+        ),
     },
   ],
   exports: [

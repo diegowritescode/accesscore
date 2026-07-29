@@ -8,6 +8,8 @@ import { revisions } from './schema';
 const REVISION_LOCK_KEY = 4242442442;
 
 export class DrizzleRevisionsRepository implements RevisionsRepository {
+  constructor(private readonly db: Executor) {}
+
   async allocate(tx: Tx): Promise<Revision> {
     const executor = tx.executor as Executor;
     await executor.execute(sql`SELECT pg_advisory_xact_lock(${REVISION_LOCK_KEY})`);
@@ -22,8 +24,8 @@ export class DrizzleRevisionsRepository implements RevisionsRepository {
     return Revision.fromValue(row.revision);
   }
 
-  async current(tx: Tx): Promise<Revision> {
-    const executor = tx.executor as Executor;
+  async current(tx?: Tx): Promise<Revision> {
+    const executor = (tx?.executor as Executor | undefined) ?? this.db;
     const rows = await executor
       .select({ value: sql<number>`COALESCE(MAX(${revisions.revision}), 0)` })
       .from(revisions);

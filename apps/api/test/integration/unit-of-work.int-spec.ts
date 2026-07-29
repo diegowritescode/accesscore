@@ -9,7 +9,7 @@ const DATABASE_URL =
 describe('UnitOfWork + revisions changelog (integration)', () => {
   const pool = new Pool({ connectionString: DATABASE_URL });
   const uow = new DrizzleUnitOfWork(drizzle(pool));
-  const revisions = new DrizzleRevisionsRepository();
+  const revisions = new DrizzleRevisionsRepository(drizzle(pool));
 
   beforeEach(async () => {
     await pool.query('TRUNCATE TABLE revisions RESTART IDENTITY');

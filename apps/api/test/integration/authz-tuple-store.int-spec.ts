@@ -29,7 +29,7 @@ describe('authz relation-tuple store (integration)', () => {
   const store = new DrizzleRelationTupleStore(db);
   const writer = new RelationTupleWriter(
     store,
-    new DrizzleRevisionsRepository(),
+    new DrizzleRevisionsRepository(db),
     new DrizzleUnitOfWork(db),
     {
       now: () => now,

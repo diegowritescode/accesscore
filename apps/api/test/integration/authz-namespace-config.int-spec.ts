@@ -24,7 +24,7 @@ describe('authz namespace config (integration)', () => {
   const repo = new DrizzleNamespaceDefinitionsRepository(db);
   const writer = new NamespaceConfigWriter(
     repo,
-    new DrizzleRevisionsRepository(),
+    new DrizzleRevisionsRepository(db),
     new DrizzleUnitOfWork(db),
     { now: () => now },
   );

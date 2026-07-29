@@ -25,6 +25,11 @@ export const envSchema = z.object({
   LOCKOUT_THRESHOLD: z.coerce.number().int().positive().default(5),
   LOCKOUT_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
   LOCKOUT_IP_THRESHOLD: z.coerce.number().int().positive().default(50),
+  DECISION_CACHE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+  DECISION_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(60),
 });
 
 export type Env = z.infer<typeof envSchema>;

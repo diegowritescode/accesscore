@@ -7,8 +7,10 @@ import { Action } from '../domain/action';
 import { type Principal, type RequestContext } from '../domain/authorization-request';
 import { ConsistencyToken } from '../domain/consistency-token';
 import { type EntityRef } from '../domain/entity-ref';
+import { type Decision } from '../domain/decision';
 import { NamespaceConfig } from '../domain/namespace-config';
 import { NamespaceDefinition } from '../domain/namespace-definition';
+import { type DecisionCache, type DecisionCacheKey } from '../domain/ports/decision-cache';
 import { type DecisionLog, type DecisionLogRecord } from '../domain/ports/decision-log';
 import {
   type ObjectRelationQuery,
@@ -81,6 +83,24 @@ class RecordingDecisionLog implements DecisionLog {
   readonly records: DecisionLogRecord[] = [];
   record(entry: DecisionLogRecord): Promise<void> {
     this.records.push(entry);
+    return Promise.resolve();
+  }
+}
+
+class FakeDecisionCache implements DecisionCache {
+  readonly store = new Map<string, Decision>();
+  gets = 0;
+  sets = 0;
+  private keyOf(key: DecisionCacheKey): string {
+    return `${key.orgId.value}:${key.revision.value}:${key.subject}:${key.action}:${key.resource}`;
+  }
+  get(key: DecisionCacheKey): Promise<Decision | null> {
+    this.gets += 1;
+    return Promise.resolve(this.store.get(this.keyOf(key)) ?? null);
+  }
+  set(key: DecisionCacheKey, decision: Decision): Promise<void> {
+    this.sets += 1;
+    this.store.set(this.keyOf(key), decision);
     return Promise.resolve();
   }
 }
@@ -218,18 +238,27 @@ function build(options: {
   tuples?: RelationTuple[];
   policies?: Policy[];
   revision?: number;
-}): { pdp: PdpService; log: RecordingDecisionLog } {
+  cache?: FakeDecisionCache;
+}): {
+  pdp: PdpService;
+  log: RecordingDecisionLog;
+  cache: FakeDecisionCache;
+  tuples: FakeTuples;
+} {
   const log = new RecordingDecisionLog();
+  const cache = options.cache ?? new FakeDecisionCache();
+  const tuples = new FakeTuples(options.tuples ?? []);
   const pdp = new PdpService(
     new FakeNamespaces(options.definition ?? null),
-    new FakeTuples(options.tuples ?? []),
+    tuples,
     new FakePolicies(options.policies ?? []),
     new FakeRevisions(options.revision ?? 0),
     log,
     new ImmediateUnitOfWork(),
     clock,
+    cache,
   );
-  return { pdp, log };
+  return { pdp, log, cache, tuples };
 }
 
 describe('PdpService', () => {
@@ -489,10 +518,9 @@ describe('PdpService', () => {
     expect(decision.effect).toBe('deny');
   });
 
-  it('batchCheck reads the revision once and shares the closure across queries', async () => {
+  it('batchCheck evaluates its misses against one shared snapshot', async () => {
     const tuples = new FakeTuples([tuple('viewer', { kind: 'subject', ref: alice })]);
     const revisions = new FakeRevisions(5);
-    const currentSpy = jest.spyOn(revisions, 'current');
     const listSpy = jest.spyOn(tuples, 'listByObject');
     const log = new RecordingDecisionLog();
     const pdp = new PdpService(
@@ -503,6 +531,7 @@ describe('PdpService', () => {
       log,
       new ImmediateUnitOfWork(),
       clock,
+      new FakeDecisionCache(),
     );
 
     const decisions = await pdp.batchCheck([
@@ -511,7 +540,6 @@ describe('PdpService', () => {
     ]);
 
     expect(decisions.map((decision) => decision.effect)).toEqual(['permit', 'permit']);
-    expect(currentSpy).toHaveBeenCalledTimes(1);
     const viewerLoads = listSpy.mock.calls.filter(
       ([query]) => query.object.type === 'document' && query.relation === 'viewer',
     );
@@ -608,5 +636,120 @@ describe('PdpService', () => {
     const members = await pdp.expand(principal(null), resource, 'viewer');
 
     expect(members).toEqual([]);
+  });
+
+  describe('decision cache', () => {
+    it('serves a warm hit without touching the tuple store, identical to the cold miss, logging both', async () => {
+      const { pdp, cache, tuples, log } = build({
+        definition: namespaceDef(),
+        tuples: [tuple('viewer', { kind: 'subject', ref: alice })],
+        revision: 5,
+      });
+      const listSpy = jest.spyOn(tuples, 'listByObject');
+
+      const cold = await pdp.check(principal(orgId.value), read, resource, fullContext);
+      expect(cold.effect).toBe('permit');
+      expect(cache.sets).toBe(1);
+      const loadsAfterCold = listSpy.mock.calls.length;
+      expect(loadsAfterCold).toBeGreaterThan(0);
+
+      const warm = await pdp.check(principal(orgId.value), read, resource, fullContext);
+      expect(warm).toEqual(cold);
+      expect(listSpy.mock.calls.length).toBe(loadsAfterCold);
+      expect(log.records).toHaveLength(2);
+    });
+
+    it('caches a pure-ReBAC deny as well as a permit', async () => {
+      const { pdp, cache, tuples } = build({ definition: namespaceDef(), revision: 5 });
+      const listSpy = jest.spyOn(tuples, 'listByObject');
+
+      const cold = await pdp.check(principal(orgId.value), read, resource, fullContext);
+      expect(cold.effect).toBe('deny');
+      expect(cache.sets).toBe(1);
+      const loadsAfterCold = listSpy.mock.calls.length;
+
+      const warm = await pdp.check(principal(orgId.value), read, resource, fullContext);
+      expect(warm).toEqual(cold);
+      expect(listSpy.mock.calls.length).toBe(loadsAfterCold);
+    });
+
+    it('never caches a decision with an applicable policy (ABAC context-dependence)', async () => {
+      const forbid: Policy = {
+        id: 'require-mfa',
+        orgId,
+        effect: 'forbid',
+        resourceType: 'document',
+        action: 'read',
+        condition: {
+          kind: 'cmp',
+          op: 'lt',
+          left: { kind: 'attr', path: 'principal.aal' },
+          right: { kind: 'lit', value: 2 },
+        } satisfies Condition,
+        revision: Revision.fromValue(0),
+      };
+      const { pdp, cache } = build({
+        definition: namespaceDef(),
+        tuples: [tuple('viewer', { kind: 'subject', ref: alice })],
+        policies: [forbid],
+        revision: 5,
+      });
+
+      await pdp.check(principal(orgId.value), read, resource, fullContext);
+      await pdp.check(principal(orgId.value), read, resource, fullContext);
+
+      expect(cache.sets).toBe(0);
+      expect(cache.store.size).toBe(0);
+    });
+
+    it('does not serve a stale permit after a write advances the revision', async () => {
+      const cache = new FakeDecisionCache();
+      const before = build({
+        definition: namespaceDef(),
+        tuples: [tuple('viewer', { kind: 'subject', ref: alice })],
+        revision: 5,
+        cache,
+      });
+      const permit = await before.pdp.check(principal(orgId.value), read, resource, fullContext);
+      expect(permit.effect).toBe('permit');
+
+      const after = build({ definition: namespaceDef(), tuples: [], revision: 6, cache });
+      const decision = await after.pdp.check(principal(orgId.value), read, resource, fullContext);
+      expect(decision.effect).toBe('deny');
+    });
+
+    it('bypasses the cache for a bounded-staleness (at-least) request', async () => {
+      const { pdp, cache } = build({
+        definition: namespaceDef(),
+        tuples: [tuple('viewer', { kind: 'subject', ref: alice })],
+        revision: 5,
+      });
+      const atLeast: RequestContext = {
+        ...fullContext,
+        consistency: {
+          mode: 'at-least',
+          token: ConsistencyToken.fromRevision(Revision.fromValue(5)).encode(),
+        },
+      };
+
+      const decision = await pdp.check(principal(orgId.value), read, resource, atLeast);
+
+      expect(decision.effect).toBe('permit');
+      expect(cache.gets).toBe(0);
+      expect(cache.sets).toBe(0);
+    });
+
+    it('does not cache a request without an organization', async () => {
+      const { pdp, cache } = build({
+        definition: namespaceDef(),
+        tuples: [tuple('viewer', { kind: 'subject', ref: alice })],
+        revision: 5,
+      });
+
+      await pdp.check(principal(null), read, resource, fullContext);
+
+      expect(cache.gets).toBe(0);
+      expect(cache.sets).toBe(0);
+    });
   });
 });

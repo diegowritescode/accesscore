@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "plugins": ["@stryker-mutator/jest-runner"],
+  "testRunner": "jest",
+  "jest": {
+    "configFile": "jest.config.js"
+  },
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/authz/domain/**/*.ts",
+    "!src/authz/domain/**/*.spec.ts",
+    "!src/authz/domain/ports/**"
+  ],
+  "reporters": ["progress", "clear-text", "html"],
+  "htmlReporter": { "fileName": "reports/mutation/index.html" },
+  "clearTextReporter": { "maxTestsToLog": 1 },
+  "thresholds": { "high": 85, "low": 75, "break": 72 },
+  "concurrency": 4,
+  "disableTypeChecks": true
+}

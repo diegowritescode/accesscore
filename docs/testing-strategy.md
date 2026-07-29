@@ -51,6 +51,34 @@ with no I/O, precisely so it can be hammered with `fast-check`. The properties w
 `fast-check` is wired now (see `email.property.spec.ts` for the pattern) so Slice 3 lands with
 property tests, not after.
 
+## Mutation testing (do the tests actually catch bugs?)
+
+Line coverage answers "did a test _execute_ this line?" — not "would a test _fail_ if this line were
+wrong?". [Stryker](https://stryker-mutator.io) answers the second question: it systematically injects
+faults (flip a `&&`, drop a `return`, swap `+`/`-`, replace a literal) into the **authz domain — the
+PDP, the heart of the system** — and reports how many mutants the test suite kills.
+
+Run it with `pnpm --filter @accesscore/api run mutation` (scoped to `src/authz/domain/**`). Current
+score (1,179 mutants):
+
+| Area                                                                                                             | Mutation score |
+| ---------------------------------------------------------------------------------------------------------------- | -------------- |
+| ReBAC/RBAC decision core + value objects (`evaluate`, `userset`, `namespace-*`, `tuple-index`, `subject-ref`, …) | **~88%**       |
+| ABAC condition DSL (`policy/condition`, `policy/evaluate-condition`)                                             | ~73%           |
+| **Overall (authz domain)**                                                                                       | **~80%**       |
+
+The decision core — where an escaped mutant would mean a **wrong authorization verdict** — sits near
+90%; the surviving mutants there are equivalent (e.g. a redundant `case` fall-through). The lower
+number on the ABAC condition-DSL evaluator is an honest, tracked gap (its operator/coercion matrix
+is the next mutation-testing target), not hidden behind a coverage average. The mutation exercise
+already paid for itself: it surfaced that `userset` exclusion and the `expand` traversal bounds were
+only tested indirectly (38% → 92% after adding the missing cases), and those gaps became real tests.
+
+CI runs Stryker in a dedicated [`Mutation`](../.github/workflows/mutation.yml) workflow (on domain
+changes, weekly, and on demand) with a **`break` threshold that fails the build if the score
+regresses** — a ratchet, not a vanity badge. It is intentionally not on the critical `verify` path:
+a full run is minutes, and mutation score is a trend to defend, not a per-commit blocker.
+
 ## Fixtures
 
 Integration/e2e run a `globalSetup` (`test/support/global-setup.js`) that migrates the database, so

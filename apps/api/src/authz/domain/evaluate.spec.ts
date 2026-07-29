@@ -525,3 +525,119 @@ describe('expand', () => {
     expect(members).toHaveLength(2);
   });
 });
+
+const intersectConfig = def(
+  ['viewer', 'editor', 'auditor'],
+  { read: ['viewer'] },
+  orgA,
+  'document',
+  {
+    viewer: {
+      kind: 'intersection',
+      children: [
+        { kind: 'computedUserset', relation: 'editor' },
+        { kind: 'computedUserset', relation: 'auditor' },
+      ],
+    },
+  },
+);
+
+const excludeConfig = def(['viewer', 'editor', 'banned'], { read: ['viewer'] }, orgA, 'document', {
+  viewer: {
+    kind: 'exclusion',
+    base: { kind: 'computedUserset', relation: 'editor' },
+    subtract: { kind: 'computedUserset', relation: 'banned' },
+  },
+});
+
+const memberChainTo = (object: EntityRef, relation: string, length: number): RelationTuple[] => {
+  const grp = (id: string): EntityRef => ({ type: 'group', id });
+  const member = (id: string): SubjectRef => userset(grp(id), 'member');
+  const chain: RelationTuple[] = [tuple(object, relation, member('c0'))];
+  for (let i = 0; i < length - 1; i += 1) {
+    chain.push(tuple(grp(`c${i}`), 'member', member(`c${i + 1}`)));
+  }
+  chain.push(tuple(grp(`c${length - 1}`), 'member', asSubject(alice)));
+  return chain;
+};
+
+describe('evaluate — compound rewrites', () => {
+  const query = { orgId: orgA, subject: alice, action: read, resource };
+
+  it('ignores an id match across entity types (refEquals is type-and-id, not id alone)', () => {
+    const decision = evaluate(
+      { orgId: orgA, subject: { type: 'group', id: 'alice' }, action: read, resource },
+      snap(readConfig, [tuple(resource, 'viewer', asSubject(alice))]),
+    );
+    expect(decision.effect).toBe('deny');
+    expect(decision.reasons[0]?.code).toBe('default_deny');
+  });
+
+  it('fails closed with walk_truncated when an intersection branch exceeds the depth bound', () => {
+    const decision = evaluate(
+      query,
+      snap(intersectConfig, memberChainTo(resource, 'editor', MAX_USERSET_DEPTH + 1)),
+    );
+    expect(decision.effect).toBe('deny');
+    expect(decision.reasons.map((reason) => reason.code)).toContain('walk_truncated');
+  });
+
+  it('fails closed with walk_truncated when an exclusion base exceeds the depth bound', () => {
+    const decision = evaluate(
+      query,
+      snap(excludeConfig, memberChainTo(resource, 'editor', MAX_USERSET_DEPTH + 1)),
+    );
+    expect(decision.effect).toBe('deny');
+    expect(decision.reasons.map((reason) => reason.code)).toContain('walk_truncated');
+  });
+
+  it('fails closed with walk_truncated when an exclusion subtraction exceeds the depth bound', () => {
+    const decision = evaluate(
+      query,
+      snap(excludeConfig, [
+        tuple(resource, 'editor', asSubject(alice)),
+        ...memberChainTo(resource, 'banned', MAX_USERSET_DEPTH + 1),
+      ]),
+    );
+    expect(decision.effect).toBe('deny');
+    expect(decision.reasons.map((reason) => reason.code)).toContain('walk_truncated');
+  });
+});
+
+describe('expand — traversal bounds', () => {
+  it('drops members that sit beyond the depth bound', () => {
+    const members = expand(
+      orgA,
+      resource,
+      'viewer',
+      snap(readConfig, memberChainTo(resource, 'viewer', MAX_USERSET_DEPTH + 2)),
+    );
+    expect(members).not.toContainEqual(alice);
+  });
+
+  it('terminates on a cyclic userset graph and yields no concrete members', () => {
+    const g0: EntityRef = { type: 'group', id: 'g0' };
+    const g1: EntityRef = { type: 'group', id: 'g1' };
+    const members = expand(
+      orgA,
+      resource,
+      'viewer',
+      snap(readConfig, [
+        tuple(resource, 'viewer', userset(g0, 'member')),
+        tuple(g0, 'member', userset(g1, 'member')),
+        tuple(g1, 'member', userset(g0, 'member')),
+      ]),
+    );
+    expect(members).toEqual([]);
+  });
+
+  it('collects a member reachable exactly at the depth bound', () => {
+    const members = expand(
+      orgA,
+      resource,
+      'viewer',
+      snap(readConfig, memberChainTo(resource, 'viewer', MAX_USERSET_DEPTH)),
+    );
+    expect(members).toContainEqual(alice);
+  });
+});

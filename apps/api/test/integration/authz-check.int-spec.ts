@@ -12,6 +12,7 @@ import {
 import { ConsistencyToken } from '../../src/authz/domain/consistency-token';
 import { type EntityRef } from '../../src/authz/domain/entity-ref';
 import { type NamespaceConfigData } from '../../src/authz/domain/namespace-config';
+import { NoopDecisionCache } from '../../src/authz/infrastructure/cache/redis-decision-cache';
 import { DrizzleDecisionLog } from '../../src/authz/infrastructure/persistence/drizzle-decision-log';
 import { DrizzleNamespaceDefinitionsRepository } from '../../src/authz/infrastructure/persistence/drizzle-namespace-definitions.repository';
 import { DrizzlePoliciesRepository } from '../../src/authz/infrastructure/persistence/drizzle-policies.repository';
@@ -37,7 +38,7 @@ describe('authz check orchestration (integration)', () => {
   const db = drizzle(pool);
   const tuples = new DrizzleRelationTupleStore(db);
   const namespaces = new DrizzleNamespaceDefinitionsRepository(db);
-  const revisions = new DrizzleRevisionsRepository();
+  const revisions = new DrizzleRevisionsRepository(db);
   const uow = new DrizzleUnitOfWork(db);
   const policies = new DrizzlePoliciesRepository(db);
   const tupleWriter = new RelationTupleWriter(tuples, revisions, uow, clock);
@@ -50,6 +51,7 @@ describe('authz check orchestration (integration)', () => {
     new DrizzleDecisionLog(db),
     uow,
     clock,
+    new NoopDecisionCache(),
   );
 
   const orgA = OrgId.generate();

@@ -32,7 +32,11 @@ export type Executor = Database;
       inject: [DB],
       useFactory: (db: Database): DrizzleUnitOfWork => new DrizzleUnitOfWork(db),
     },
-    { provide: REVISIONS_REPOSITORY, useClass: DrizzleRevisionsRepository },
+    {
+      provide: REVISIONS_REPOSITORY,
+      inject: [DB],
+      useFactory: (db: Database): DrizzleRevisionsRepository => new DrizzleRevisionsRepository(db),
+    },
   ],
   exports: [PG_POOL, DB, UNIT_OF_WORK, REVISIONS_REPOSITORY],
 })

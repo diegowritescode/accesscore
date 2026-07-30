@@ -30,6 +30,7 @@ import {
   type PolicyDecisionPoint,
   type SimulationResult,
 } from '../domain/policy-decision-point';
+import { type DecisionCache, type DecisionCacheKey } from '../domain/ports/decision-cache';
 import { type DecisionLog } from '../domain/ports/decision-log';
 import { type NamespaceDefinitionsRepository } from '../domain/ports/namespace-definitions-repository';
 import { type PoliciesRepository } from '../domain/ports/policies-repository';
@@ -46,6 +47,7 @@ const deny = (code: string, message: string): Decision => ({
 interface EvaluationResult {
   readonly decision: Decision;
   readonly revisionUsed: Revision;
+  readonly cacheable: boolean;
 }
 
 interface EvaluationContext {
@@ -76,7 +78,28 @@ export class PdpService implements PolicyDecisionPoint {
     private readonly decisionLog: DecisionLog,
     private readonly unitOfWork: UnitOfWork,
     private readonly clock: Clock,
+    private readonly decisionCache: DecisionCache,
   ) {}
+
+  private cacheKeyFor(
+    orgId: OrgId,
+    principal: Principal,
+    action: Action,
+    resource: Resource,
+    context: RequestContext,
+    revision: Revision,
+  ): DecisionCacheKey | null {
+    if (context.consistency.mode !== 'full') {
+      return null;
+    }
+    return {
+      orgId,
+      subject: formatEntityRef(principal.subject),
+      action: action.name,
+      resource: formatEntityRef(resource),
+      revision,
+    };
+  }
 
   async check(
     principal: Principal,
@@ -86,11 +109,36 @@ export class PdpService implements PolicyDecisionPoint {
   ): Promise<Decision> {
     const startedAt = this.clock.now();
     const orgId = principal.orgId ? OrgId.fromString(principal.orgId) : null;
+
+    const key = orgId
+      ? this.cacheKeyFor(
+          orgId,
+          principal,
+          action,
+          resource,
+          context,
+          await this.revisions.current(),
+        )
+      : null;
+    if (key) {
+      const cached = await this.decisionCache.get(key);
+      if (cached) {
+        return this.log(startedAt, orgId, principal, action, resource, {
+          decision: cached,
+          revisionUsed: key.revision,
+          cacheable: true,
+        });
+      }
+    }
+
     const result = await this.unitOfWork.withTransaction<EvaluationResult>(
       async (tx) =>
         this.evaluateWithin(principal, action, resource, context, await this.openContext(tx)),
       { readOnly: true, isolationLevel: 'repeatable read' },
     );
+    if (key && result.cacheable) {
+      await this.decisionCache.set({ ...key, revision: result.revisionUsed }, result.decision);
+    }
     return this.log(startedAt, orgId, principal, action, resource, result);
   }
 
@@ -98,41 +146,75 @@ export class PdpService implements PolicyDecisionPoint {
     if (requests.length === 0) {
       return [];
     }
-    const evaluated = await this.unitOfWork.withTransaction(
-      async (tx) => {
-        const context = await this.openContext(tx);
-        const pending: Array<{
-          startedAt: Date;
-          orgId: OrgId | null;
-          request: BatchCheckRequest;
-          result: EvaluationResult;
-        }> = [];
-        for (const request of requests) {
-          const startedAt = this.clock.now();
-          const orgId = request.principal.orgId ? OrgId.fromString(request.principal.orgId) : null;
-          const result = await this.evaluateWithin(
+    const revisionNow = await this.revisions.current();
+    interface Slot {
+      readonly startedAt: Date;
+      readonly orgId: OrgId | null;
+      readonly request: BatchCheckRequest;
+      readonly key: DecisionCacheKey | null;
+      result: EvaluationResult | null;
+    }
+    const slots: Slot[] = requests.map((request) => {
+      const orgId = request.principal.orgId ? OrgId.fromString(request.principal.orgId) : null;
+      const key = orgId
+        ? this.cacheKeyFor(
+            orgId,
             request.principal,
             request.action,
             request.resource,
             request.context,
-            context,
+            revisionNow,
+          )
+        : null;
+      return { startedAt: this.clock.now(), orgId, request, key, result: null };
+    });
+
+    for (const slot of slots) {
+      if (!slot.key) {
+        continue;
+      }
+      const cached = await this.decisionCache.get(slot.key);
+      if (cached) {
+        slot.result = { decision: cached, revisionUsed: slot.key.revision, cacheable: true };
+      }
+    }
+
+    const misses = slots.filter((slot) => slot.result === null);
+    if (misses.length > 0) {
+      await this.unitOfWork.withTransaction(
+        async (tx) => {
+          const context = await this.openContext(tx);
+          for (const slot of misses) {
+            slot.result = await this.evaluateWithin(
+              slot.request.principal,
+              slot.request.action,
+              slot.request.resource,
+              slot.request.context,
+              context,
+            );
+          }
+        },
+        { readOnly: true, isolationLevel: 'repeatable read' },
+      );
+      for (const slot of misses) {
+        if (slot.key && slot.result?.cacheable) {
+          await this.decisionCache.set(
+            { ...slot.key, revision: slot.result.revisionUsed },
+            slot.result.decision,
           );
-          pending.push({ startedAt, orgId, request, result });
         }
-        return pending;
-      },
-      { readOnly: true, isolationLevel: 'repeatable read' },
-    );
+      }
+    }
 
     return Promise.all(
-      evaluated.map((entry) =>
+      slots.map((slot) =>
         this.log(
-          entry.startedAt,
-          entry.orgId,
-          entry.request.principal,
-          entry.request.action,
-          entry.request.resource,
-          entry.result,
+          slot.startedAt,
+          slot.orgId,
+          slot.request.principal,
+          slot.request.action,
+          slot.request.resource,
+          slot.result as EvaluationResult,
         ),
       ),
     );
@@ -218,12 +300,13 @@ export class PdpService implements PolicyDecisionPoint {
   ): Promise<EvaluationResult> {
     const prepared = await this.prepare(principal, action, resource, request, context);
     if (prepared.outcome === 'deny') {
-      return { decision: prepared.decision, revisionUsed: prepared.revisionUsed };
+      return { decision: prepared.decision, revisionUsed: prepared.revisionUsed, cacheable: false };
     }
     const decided = decide(prepared.rebac, prepared.applicable, prepared.policyContext);
     return {
       decision: applyBounds(decided, prepared.target, prepared.subject, UNBOUNDED),
       revisionUsed: prepared.revisionUsed,
+      cacheable: prepared.applicable.length === 0,
     };
   }
 

@@ -10,6 +10,7 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "arch": "depcruise src --config .dependency-cruiser.cjs",
     "mutation": "stryker run",
+    "perf": "k6 run perf/authz.k6.js",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",

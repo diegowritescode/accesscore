@@ -4,6 +4,10 @@ import { type RevisionsRepository } from '../../shared/persistence/revisions-rep
 import { type Tx, type UnitOfWork } from '../../shared/persistence/unit-of-work';
 import { type EntityRef } from '../domain/entity-ref';
 import {
+  type RelationTupleChangelog,
+  type TupleChange,
+} from '../domain/ports/relation-tuple-changelog';
+import {
   type ObjectRelationQuery,
   type RelationTupleKey,
   type RelationTupleStore,
@@ -44,6 +48,7 @@ class RecordingRevisions implements RevisionsRepository {
 class RecordingStore implements RelationTupleStore {
   readonly upserts: { tuple: RelationTuple; tx?: Tx }[] = [];
   readonly deletes: { key: RelationTupleKey; tx?: Tx }[] = [];
+  deleted = 1;
 
   upsert(tuple: RelationTuple, tx?: Tx): Promise<void> {
     this.upserts.push({ tuple, tx });
@@ -52,7 +57,7 @@ class RecordingStore implements RelationTupleStore {
 
   delete(key: RelationTupleKey, tx?: Tx): Promise<number> {
     this.deletes.push({ key, tx });
-    return Promise.resolve(1);
+    return Promise.resolve(this.deleted);
   }
 
   listByObject(_query: ObjectRelationQuery): Promise<RelationTuple[]> {
@@ -60,6 +65,19 @@ class RecordingStore implements RelationTupleStore {
   }
 
   list(): Promise<RelationTuple[]> {
+    return Promise.resolve([]);
+  }
+}
+
+class RecordingChangelog implements RelationTupleChangelog {
+  readonly appended: { change: TupleChange; tx: Tx }[] = [];
+
+  append(change: TupleChange, tx: Tx): Promise<void> {
+    this.appended.push({ change, tx });
+    return Promise.resolve();
+  }
+
+  since(): Promise<TupleChange[]> {
     return Promise.resolve([]);
   }
 }
@@ -74,13 +92,15 @@ describe('RelationTupleWriter', () => {
   let store: RecordingStore;
   let revisions: RecordingRevisions;
   let uow: SingleTxUnitOfWork;
+  let changelog: RecordingChangelog;
   let writer: RelationTupleWriter;
 
   beforeEach(() => {
     store = new RecordingStore();
     revisions = new RecordingRevisions();
     uow = new SingleTxUnitOfWork();
-    writer = new RelationTupleWriter(store, revisions, uow, { now: () => now });
+    changelog = new RecordingChangelog();
+    writer = new RelationTupleWriter(store, revisions, uow, { now: () => now }, changelog);
   });
 
   it('persists the tuple stamped with the allocated revision and returns that zookie', async () => {
@@ -112,5 +132,53 @@ describe('RelationTupleWriter', () => {
     expect(revoked.key).toEqual({ orgId, object, relation: 'viewer', subject });
     expect(revoked.tx).toBe(uow.tx);
     expect(token.revision.value).toBe(1);
+  });
+
+  it('records the write in the changelog at the allocated revision, in the same transaction', async () => {
+    await writer.write(command);
+
+    expect(changelog.appended).toHaveLength(1);
+    const recorded = required(changelog.appended[0]);
+    expect(recorded.tx).toBe(uow.tx);
+    expect(recorded.change).toEqual({
+      orgId,
+      revision: Revision.fromValue(1),
+      op: 'upsert',
+      object,
+      relation: 'viewer',
+      subject,
+      recordedAt: now,
+    });
+  });
+
+  it('records a revoke as a delete change so watchers see the tombstone', async () => {
+    await writer.revoke(command);
+
+    expect(changelog.appended).toHaveLength(1);
+    const recorded = required(changelog.appended[0]);
+    expect(recorded.tx).toBe(uow.tx);
+    expect(recorded.change.op).toBe('delete');
+    expect(recorded.change.revision.value).toBe(1);
+    expect(recorded.change.subject).toEqual(subject);
+  });
+
+  it('records nothing when a revoke matches no tuple, but still advances the revision', async () => {
+    store.deleted = 0;
+
+    const token = await writer.revoke(command);
+
+    expect(store.deletes).toHaveLength(1);
+    expect(changelog.appended).toHaveLength(0);
+    expect(token.revision.value).toBe(1);
+  });
+
+  it('keeps the changelog cursor aligned with the zookie across a sequence of writes', async () => {
+    const first = await writer.write(command);
+    const second = await writer.revoke(command);
+
+    expect(first.revision.value).toBe(1);
+    expect(second.revision.value).toBe(2);
+    expect(changelog.appended.map((entry) => entry.change.revision.value)).toEqual([1, 2]);
+    expect(changelog.appended.map((entry) => entry.change.op)).toEqual(['upsert', 'delete']);
   });
 });

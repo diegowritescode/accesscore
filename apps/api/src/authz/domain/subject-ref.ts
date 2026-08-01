@@ -10,6 +10,8 @@ export type SubjectRef =
   | { readonly kind: 'subject'; readonly ref: EntityRef }
   | { readonly kind: 'userset'; readonly ref: EntityRef; readonly relation: string };
 
+export type UsersetSubject = Extract<SubjectRef, { kind: 'userset' }>;
+
 export function assertWritableSubject(subject: SubjectRef): void {
   assertWritableEntityRef(subject.ref);
   if (subject.kind === 'userset' && !isIdentifier(subject.relation)) {

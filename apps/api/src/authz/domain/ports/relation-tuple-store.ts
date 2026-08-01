@@ -2,7 +2,7 @@ import { type OrgId } from '../../../shared/kernel/org-id';
 import { type Tx } from '../../../shared/persistence/unit-of-work';
 import { type EntityRef } from '../entity-ref';
 import { type RelationTuple } from '../relation-tuple';
-import { type SubjectRef } from '../subject-ref';
+import { type SubjectRef, type UsersetSubject } from '../subject-ref';
 
 export interface RelationTupleKey {
   readonly orgId: OrgId;
@@ -32,6 +32,7 @@ export interface RelationTupleStore {
   delete(key: RelationTupleKey, tx?: Tx): Promise<number>;
   listByObject(query: ObjectRelationQuery, tx?: Tx): Promise<RelationTuple[]>;
   list(filter: TupleFilter, tx?: Tx): Promise<RelationTuple[]>;
+  listReferencedUsersets(orgId: OrgId, tx?: Tx): Promise<UsersetSubject[]>;
 }
 
 export const RELATION_TUPLE_STORE = Symbol('RELATION_TUPLE_STORE');

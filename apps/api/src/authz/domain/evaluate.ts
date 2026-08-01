@@ -267,6 +267,11 @@ export function evaluate(query: AuthorizationQuery, snapshot: EvaluationSnapshot
   return deny(reasons);
 }
 
+export interface FlatMember {
+  readonly ref: EntityRef;
+  readonly depth: number;
+}
+
 function collectRewrite(
   object: EntityRef,
   relation: string,
@@ -274,13 +279,13 @@ function collectRewrite(
   snapshot: EvaluationSnapshot,
   depth: number,
   visited: Set<string>,
-): EntityRef[] {
+): FlatMember[] {
   switch (rewrite.kind) {
     case 'this': {
-      const members: EntityRef[] = [];
+      const members: FlatMember[] = [];
       for (const subject of snapshot.tuples.subjectsOf(object, relation)) {
         if (subject.kind === 'subject') {
-          members.push(subject.ref);
+          members.push({ ref: subject.ref, depth });
         } else {
           members.push(
             ...collectMembers(subject.ref, subject.relation, snapshot, depth + 1, visited),
@@ -292,7 +297,7 @@ function collectRewrite(
     case 'computedUserset':
       return collectMembers(object, rewrite.relation, snapshot, depth, visited);
     case 'tupleToUserset': {
-      const members: EntityRef[] = [];
+      const members: FlatMember[] = [];
       for (const subject of snapshot.tuples.subjectsOf(object, rewrite.tupleset)) {
         if (subject.kind === 'subject') {
           members.push(
@@ -307,13 +312,18 @@ function collectRewrite(
         collectRewrite(object, relation, child, snapshot, depth, visited),
       );
     case 'intersection': {
-      let members: EntityRef[] | null = null;
+      let members: FlatMember[] | null = null;
       for (const child of rewrite.children) {
         const childMembers = collectRewrite(object, relation, child, snapshot, depth, new Set());
         members =
           members === null
             ? childMembers
-            : members.filter((member) => childMembers.some((other) => refEquals(other, member)));
+            : members.flatMap((member) => {
+                const match = childMembers.find((other) => refEquals(other.ref, member.ref));
+                return match
+                  ? [{ ref: member.ref, depth: Math.max(member.depth, match.depth) }]
+                  : [];
+              });
       }
       return members ?? [];
     }
@@ -327,7 +337,7 @@ function collectRewrite(
         depth,
         new Set(),
       );
-      return base.filter((member) => !subtract.some((other) => refEquals(other, member)));
+      return base.filter((member) => !subtract.some((other) => refEquals(other.ref, member.ref)));
     }
   }
 }
@@ -338,7 +348,7 @@ function collectMembers(
   snapshot: EvaluationSnapshot,
   depth: number,
   visited: Set<string>,
-): EntityRef[] {
+): FlatMember[] {
   if (depth > MAX_USERSET_DEPTH) {
     return [];
   }
@@ -351,6 +361,24 @@ function collectMembers(
   return collectRewrite(object, relation, rewrite, snapshot, depth, visited);
 }
 
+export function flatten(
+  object: EntityRef,
+  relation: string,
+  snapshot: EvaluationSnapshot,
+): FlatMember[] {
+  const byRef = new Map<string, FlatMember>();
+  for (const member of collectMembers(object, relation, snapshot, 0, new Set())) {
+    const key = formatEntityRef(member.ref);
+    const seen = byRef.get(key);
+    if (!seen) {
+      byRef.set(key, member);
+    } else if (member.depth < seen.depth) {
+      byRef.set(key, { ref: seen.ref, depth: member.depth });
+    }
+  }
+  return [...byRef.values()];
+}
+
 export function expand(
   orgId: OrgId,
   resource: EntityRef,
@@ -360,14 +388,5 @@ export function expand(
   if (!snapshot.tuples.orgId.equals(orgId)) {
     return [];
   }
-  const seen = new Set<string>();
-  const out: EntityRef[] = [];
-  for (const ref of collectMembers(resource, relation, snapshot, 0, new Set())) {
-    const key = formatEntityRef(ref);
-    if (!seen.has(key)) {
-      seen.add(key);
-      out.push(ref);
-    }
-  }
-  return out;
+  return flatten(resource, relation, snapshot).map((member) => member.ref);
 }

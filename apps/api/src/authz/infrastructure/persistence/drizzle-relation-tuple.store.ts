@@ -1,4 +1,4 @@
-import { and, asc, eq, type SQL } from 'drizzle-orm';
+import { and, asc, eq, like, type SQL } from 'drizzle-orm';
 import { type Database, type Executor } from '../../../db/db.module';
 import { OrgId } from '../../../shared/kernel/org-id';
 import { Revision } from '../../../shared/kernel/revision';
@@ -10,7 +10,7 @@ import {
   type TupleFilter,
 } from '../../domain/ports/relation-tuple-store';
 import { RelationTuple } from '../../domain/relation-tuple';
-import { encodeSubject, parseSubject } from '../../domain/subject-ref';
+import { encodeSubject, parseSubject, type UsersetSubject } from '../../domain/subject-ref';
 import { relationTuples } from './schema';
 
 export class DrizzleRelationTupleStore implements RelationTupleStore {
@@ -101,6 +101,23 @@ export class DrizzleRelationTupleStore implements RelationTupleStore {
       .limit(filter.limit)
       .offset(filter.offset);
     return rows.map((row) => this.toDomain(row));
+  }
+
+  async listReferencedUsersets(orgId: OrgId, tx?: Tx): Promise<UsersetSubject[]> {
+    const executor = (tx?.executor as Executor) ?? this.db;
+    const rows = await executor
+      .selectDistinct({ subject: relationTuples.subject })
+      .from(relationTuples)
+      .where(and(eq(relationTuples.orgId, orgId.value), like(relationTuples.subject, '%#%')))
+      .orderBy(asc(relationTuples.subject));
+    const usersets: UsersetSubject[] = [];
+    for (const row of rows) {
+      const subject = parseSubject(row.subject);
+      if (subject.kind === 'userset') {
+        usersets.push(subject);
+      }
+    }
+    return usersets;
   }
 
   private toDomain(row: typeof relationTuples.$inferSelect): RelationTuple {

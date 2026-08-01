@@ -64,6 +64,54 @@ export const relationTupleChangelog = pgTable(
   ],
 );
 
+export const flattenedMembershipSets = pgTable(
+  'flattened_membership_sets',
+  {
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id),
+    setType: text('set_type').notNull(),
+    setId: text('set_id').notNull(),
+    setRelation: text('set_relation').notNull(),
+    validAtRevision: bigint('valid_at_revision', { mode: 'number' }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.orgId, table.setType, table.setId, table.setRelation] }),
+  ],
+);
+
+export const flattenedMemberships = pgTable(
+  'flattened_memberships',
+  {
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id),
+    setType: text('set_type').notNull(),
+    setId: text('set_id').notNull(),
+    setRelation: text('set_relation').notNull(),
+    memberType: text('member_type').notNull(),
+    memberId: text('member_id').notNull(),
+    depth: integer('depth').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [
+        table.orgId,
+        table.setType,
+        table.setId,
+        table.setRelation,
+        table.memberType,
+        table.memberId,
+      ],
+    }),
+  ],
+);
+
+export const indexCursors = pgTable('index_cursors', {
+  name: text('name').primaryKey(),
+  revision: bigint('revision', { mode: 'number' }).notNull(),
+});
+
 export const namespaceDefinitions = pgTable(
   'namespace_definitions',
   {

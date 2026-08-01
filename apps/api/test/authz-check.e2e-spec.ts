@@ -3,6 +3,10 @@ import { Test } from '@nestjs/testing';
 import { Pool } from 'pg';
 import request from 'supertest';
 import { ConsistencyToken } from '../src/authz/domain/consistency-token';
+import {
+  DECISION_LOG_WRITER,
+  type FlushableDecisionLog,
+} from '../src/authz/infrastructure/persistence/buffered-decision-log';
 import { Revision } from '../src/shared/kernel/revision';
 import { AppModule } from '../src/app.module';
 
@@ -22,6 +26,7 @@ describe('Authorization check endpoint (e2e)', () => {
   beforeAll(async () => {
     process.env.DATABASE_URL ??= DATABASE_URL;
     process.env.SIGNER_DRIVER = 'software';
+    process.env.DECISION_LOG_FLUSH_INTERVAL_MS = '3600000';
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
     await app.init();
@@ -39,6 +44,9 @@ describe('Authorization check endpoint (e2e)', () => {
   });
 
   const server = (): ReturnType<INestApplication['getHttpServer']> => app.getHttpServer();
+
+  const flushDecisionLog = (): Promise<void> =>
+    app.get<FlushableDecisionLog>(DECISION_LOG_WRITER, { strict: false }).flush();
 
   const newUser = async (): Promise<{ email: string; password: string }> => {
     counter += 1;
@@ -61,7 +69,7 @@ describe('Authorization check endpoint (e2e)', () => {
       .expect(401);
   });
 
-  it('returns a deny for an authenticated caller with no grants and logs the decision', async () => {
+  it('returns a deny for an authenticated caller with no grants and logs it asynchronously', async () => {
     const { access_token } = await login(await newUser());
 
     const response = await request(server())
@@ -71,6 +79,13 @@ describe('Authorization check endpoint (e2e)', () => {
       .expect(200);
 
     expect(response.body.effect).toBe('deny');
+
+    const beforeFlush = await pool.query<{ n: number }>(
+      'SELECT count(*)::int AS n FROM decision_log',
+    );
+    expect(beforeFlush.rows[0]?.n).toBe(0);
+
+    await flushDecisionLog();
 
     const logged = await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM decision_log');
     expect(logged.rows[0]?.n).toBeGreaterThanOrEqual(1);

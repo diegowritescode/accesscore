@@ -106,8 +106,15 @@ layer instead of re-implementing auth per service. Full context in
   to the browser): dashboard, schema/relationships/policies **read and write** screens, an
   Authorization **Playground** (`check` / `expand` / `simulate` with a condition builder), account
   security (MFA + audit verifier), and an **EN/ES** toggle.
+- **Hot-path scale work** — a **revision-keyed decision cache** (Redis) that caches only
+  context-independent decisions, so a write to any tuple/policy invalidates it implicitly and a
+  cached `permit` can never bypass a later step-up ([ADR-023](docs/adr/023-decision-cache-consistency-model.md)),
+  and an **async batched decision log** that keeps the audit insert off the check hot path while
+  degrading to synchronous writes rather than losing entries
+  ([ADR-024](docs/adr/024-async-decision-log.md)).
 - **Observability** — a Prometheus `GET /metrics` floor: process/runtime metrics, per-route HTTP
-  latency, and **authz-domain** metrics (`authz_decisions_total{effect}`, PDP latency); structured
+  latency, **authz-domain** metrics (`authz_decisions_total{effect}`, PDP latency), and
+  decision-log writer health (buffer depth, flush lag, degraded/dropped counts); structured
   pino logs with correlation IDs.
 - **Hardening** — `helmet` headers, per-IP rate limiting (tighter on `login`/`refresh`), a 32 KB
   body limit and DTO length caps, boot-time config validation, production guards that refuse the
@@ -210,7 +217,8 @@ local setup are in [`docs/deployment.md`](docs/deployment.md) and
 ## Trade-offs
 
 The significant decisions and the costs accepted (modular monolith vs microservices, Drizzle vs
-TypeORM, the throughput-bounded advisory-lock revision, the synchronous decision log, the
+TypeORM, the throughput-bounded advisory-lock revision, the revision-keyed decision cache, the
+async batched decision log, the
 bounded-depth evaluator, the operator-tree rewrite model, session-owned AAL, an open `/metrics`
 scrape target, token-forwarding vs on-behalf-of, Vault Transit signing) are consolidated in
 [`docs/trade-offs.md`](docs/trade-offs.md), each pointing at the ADR that owns it.

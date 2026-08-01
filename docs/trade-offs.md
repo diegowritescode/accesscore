@@ -5,17 +5,18 @@ each. This page is the map; the full reasoning (context, consequences, escape ha
 the ADR each entry links to. The theme throughout: prefer a small, correct, provable core with
 an explicit seam over a large, unproven surface.
 
-| Decision             | We chose                                              | Over                                                 | Cost accepted                                                           | ADR                                                                          |
-| -------------------- | ----------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Architecture style   | Hexagonal modular monolith + DDD                      | Microservices / layered CRUD                         | More upfront structure & boilerplate                                    | [001](adr/001-architecture-style.md)                                         |
-| Authorization model  | One hybrid engine we build (ReBAC + RBAC + ABAC)      | Adopting OpenFGA/SpiceDB or embedding Cedar/OPA      | Significant design + test effort — the hardest part, by intent          | [002](adr/002-authorization-model.md)                                        |
-| ORM                  | Drizzle + hand-written mappers                        | TypeORM / Prisma / Kysely                            | Manual row↔domain mapping and an explicit Unit of Work                  | [005](adr/005-persistence-and-orm.md)                                        |
-| Consistency          | Commit-ordered revision via advisory-locked changelog | Bare sequence / always-consistent / `xmin` snapshots | A serialization point that bounds write throughput                      | [004](adr/004-authorization-consistency-model.md)                            |
-| Evaluator scope (v1) | One userset level, no ABAC/forbids yet                | The full ADR-002 model at once                       | Nested groups silently do not grant in v1                               | [012](adr/012-pdp-evaluation-algorithm.md)                                   |
-| Decision log (v1)    | Written synchronously after the read tx               | Async/outbox off the hot path                        | Log latency counts against the p99 budget                               | [012](adr/012-pdp-evaluation-algorithm.md) / [architecture](architecture.md) |
-| Cross-service authz  | End-user token forwarding                             | Machine on-behalf-of / caller-asserted identity      | No user token ⇒ can't authorize (async flows wait for the machine ring) | [013](adr/013-cross-service-authorization-contract.md)                       |
-| Key management       | Non-exportable Vault Transit signing                  | Keys in env/DB, app-held KEK, cloud-KMS-only         | A Vault dependency and a signing network call                           | [009](adr/009-key-management-and-cryptography.md)                            |
-| PDP core location    | Pure domain service in `apps/api`                     | Extract `@accesscore/policy-engine` now              | The package stays a stub until a real second consumer exists            | [011](adr/011-pdp-core-location.md)                                          |
+| Decision             | We chose                                              | Over                                                 | Cost accepted                                                           | ADR                                                    |
+| -------------------- | ----------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------ |
+| Architecture style   | Hexagonal modular monolith + DDD                      | Microservices / layered CRUD                         | More upfront structure & boilerplate                                    | [001](adr/001-architecture-style.md)                   |
+| Authorization model  | One hybrid engine we build (ReBAC + RBAC + ABAC)      | Adopting OpenFGA/SpiceDB or embedding Cedar/OPA      | Significant design + test effort — the hardest part, by intent          | [002](adr/002-authorization-model.md)                  |
+| ORM                  | Drizzle + hand-written mappers                        | TypeORM / Prisma / Kysely                            | Manual row↔domain mapping and an explicit Unit of Work                  | [005](adr/005-persistence-and-orm.md)                  |
+| Consistency          | Commit-ordered revision via advisory-locked changelog | Bare sequence / always-consistent / `xmin` snapshots | A serialization point that bounds write throughput                      | [004](adr/004-authorization-consistency-model.md)      |
+| Evaluator scope (v1) | One userset level, no ABAC/forbids yet                | The full ADR-002 model at once                       | Nested groups silently do not grant in v1                               | [012](adr/012-pdp-evaluation-algorithm.md)             |
+| Decision caching     | Revision-keyed, zero-policy decisions only            | Keying by (subject, action, resource); caching ABAC  | One `MAX(revision)` read per check; any write flushes the whole cache   | [023](adr/023-decision-cache-consistency-model.md)     |
+| Decision log         | Buffered in memory, flushed as one batched `INSERT`   | Synchronous write / outbox relay / drop on overflow  | A bounded loss window on an ungraceful stop (never on the audit chain)  | [024](adr/024-async-decision-log.md)                   |
+| Cross-service authz  | End-user token forwarding                             | Machine on-behalf-of / caller-asserted identity      | No user token ⇒ can't authorize (async flows wait for the machine ring) | [013](adr/013-cross-service-authorization-contract.md) |
+| Key management       | Non-exportable Vault Transit signing                  | Keys in env/DB, app-held KEK, cloud-KMS-only         | A Vault dependency and a signing network call                           | [009](adr/009-key-management-and-cryptography.md)      |
+| PDP core location    | Pure domain service in `apps/api`                     | Extract `@accesscore/policy-engine` now              | The package stays a stub until a real second consumer exists            | [011](adr/011-pdp-core-location.md)                    |
 
 ## Modular monolith over microservices — [ADR-001](adr/001-architecture-style.md)
 
@@ -78,14 +79,23 @@ single depth knob are the seams that make raising the cap cheap. A notable upsid
 `context` parameter: the ADR-008 provenance invariance holds _by construction_ — there is no
 channel through which a forged attribute could arrive.
 
-## Synchronous decision log in v1 — [ADR-012](adr/012-pdp-evaluation-algorithm.md) / [architecture.md](architecture.md)
+## Async batched decision log — [ADR-024](adr/024-async-decision-log.md)
 
-Every `check` persists its inputs, effect, reasons, revision, and latency to an append-only
-decision log **synchronously**, after the read transaction. **Rejected (for now):** buffering the
-log or emitting it via the outbox relay off the hot path. **Cost accepted:** the write counts
-against the PDP's p99 latency budget. Chosen for v1 because it is simple and correct, and because
-the outbox relay/publisher is itself deferred to the EventBridge phase; moving the log off the hot
-path is planned and the write-side seam already exists.
+Every `check` persists its inputs, effect, reasons, revision, and latency to an append-only decision
+log. v1 wrote it **synchronously** after the read transaction — simple and correct, but the k6
+harness showed it was the hot path's floor cost, paid even by decision-cache hits. It is now
+**buffered in memory and flushed as one multi-row `INSERT`** on an interval / size trigger and on
+shutdown. **Rejected:** keeping it synchronous (the measured problem), fire-and-forget without a
+buffer (no batching, no backpressure, unbounded concurrency), routing it through the outbox relay
+(still a synchronous insert on the hot path — the relay is the right home for durable delivery when
+EventBridge lands), and dropping entries on overflow (audit completeness is the property being
+protected — the writer degrades to synchronous writes instead). **Cost accepted:** at most one flush
+interval of entries is lost on an ungraceful stop, and a log-write failure no longer fails the check
+closed until the buffer saturates. That is affordable **only** because
+[ADR-021](adr/021-tamper-evident-audit.md) deliberately keeps `decision_log` off the tamper-evident
+hash chain — `security_audit` appends stay synchronous and advisory-lock-serialized, so no
+tamper-evidence or ordering property is weakened. Buffer depth, flush lag and drops are exported as
+metrics, and `DECISION_LOG_ASYNC=false` restores the v1 behaviour exactly.
 
 ## Token forwarding over on-behalf-of — [ADR-013](adr/013-cross-service-authorization-contract.md)
 

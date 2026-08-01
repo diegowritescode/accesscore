@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
 import type { Redis } from 'ioredis';
 import { AuthnModule } from '../authn/authn.module';
 import { AccessTokenGuard } from '../authn/interface/access-token.guard';
@@ -36,6 +36,12 @@ import {
 import { POLICIES_REPOSITORY, type PoliciesRepository } from './domain/ports/policies-repository';
 import { RELATION_TUPLE_STORE, type RelationTupleStore } from './domain/ports/relation-tuple-store';
 import { NoopDecisionCache, RedisDecisionCache } from './infrastructure/cache/redis-decision-cache';
+import {
+  BufferedDecisionLog,
+  DECISION_LOG_WRITER,
+  type FlushableDecisionLog,
+  ImmediateDecisionLog,
+} from './infrastructure/persistence/buffered-decision-log';
 import { DrizzleDecisionLog } from './infrastructure/persistence/drizzle-decision-log';
 import { DrizzleNamespaceDefinitionsRepository } from './infrastructure/persistence/drizzle-namespace-definitions.repository';
 import { DrizzlePoliciesRepository } from './infrastructure/persistence/drizzle-policies.repository';
@@ -110,10 +116,29 @@ import { PermissionGuard } from './interface/permission.guard';
       ): PolicyWriter => new PolicyWriter(policies, revisions, unitOfWork),
     },
     {
+      provide: DECISION_LOG_WRITER,
+      inject: [DB, MetricsService, CLOCK, ENV],
+      useFactory: (
+        db: Database,
+        metrics: MetricsService,
+        clock: Clock,
+        env: Env,
+      ): FlushableDecisionLog => {
+        const sink = new DrizzleDecisionLog(db);
+        return env.DECISION_LOG_ASYNC
+          ? new BufferedDecisionLog(sink, metrics, clock, {
+              maxBufferSize: env.DECISION_LOG_BUFFER_SIZE,
+              flushBatchSize: env.DECISION_LOG_FLUSH_BATCH_SIZE,
+              flushIntervalMs: env.DECISION_LOG_FLUSH_INTERVAL_MS,
+            })
+          : new ImmediateDecisionLog(sink);
+      },
+    },
+    {
       provide: DECISION_LOG,
-      inject: [DB, MetricsService],
-      useFactory: (db: Database, metrics: MetricsService): DecisionLog =>
-        new MeteredDecisionLog(new DrizzleDecisionLog(db), metrics),
+      inject: [DECISION_LOG_WRITER, MetricsService],
+      useFactory: (writer: FlushableDecisionLog, metrics: MetricsService): DecisionLog =>
+        new MeteredDecisionLog(writer, metrics),
     },
     {
       provide: DECISION_CACHE,
@@ -167,6 +192,13 @@ import { PermissionGuard } from './interface/permission.guard';
     POLICY_WRITER,
     AUTHZ_DIRECTORY,
     DECISION_LOG,
+    DECISION_LOG_WRITER,
   ],
 })
-export class AuthzModule {}
+export class AuthzModule implements OnApplicationShutdown {
+  constructor(@Inject(DECISION_LOG_WRITER) private readonly decisionLog: FlushableDecisionLog) {}
+
+  async onApplicationShutdown(): Promise<void> {
+    await this.decisionLog.close();
+  }
+}

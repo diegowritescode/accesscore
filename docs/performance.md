@@ -57,15 +57,32 @@ script doubles as a local regression gate.
 
 - **A single `check` is ~22 ms, but the graph walk is not the cost.** The evaluator is a pure,
   in-memory function that resolves this graph in well under a millisecond (it is the same code the
-  mutation suite hammers). The ~22 ms is dominated by the **synchronous decision-log write** and
-  the per-request tuple-snapshot load — one Postgres round-trip each. That is a deliberate
-  correctness choice (every decision is durably logged for audit before it is returned), and it is
-  the obvious first optimization if throughput ever needs it (async/batched decision log, cached
-  snapshots keyed by the consistency revision).
+  mutation suite hammers). The ~22 ms was dominated by two Postgres round-trips: the per-request
+  tuple-snapshot load and the **synchronous decision-log write**. Both have since been addressed —
+  see below.
 - **Batching amortizes the fixed cost.** `batch-check` resolves 20 decisions in ~105 ms — about
   **5.3 ms per decision, ~4× cheaper** than 20 individual calls — because the snapshot load and
   round-trip are paid once for the whole batch. This is exactly why the endpoint exists, and the
   measurement confirms the design pays off.
+
+## What the measurement changed
+
+The numbers above are the baseline these two changes were designed against, and they are the reason
+the "Scale ring" slices exist at all:
+
+- **Snapshot load → [ADR-023](adr/023-decision-cache-consistency-model.md), the revision-keyed
+  decision cache.** A cache hit skips the read transaction and the graph walk entirely, leaving one
+  `MAX(revision)` read. Only context-independent (pure ReBAC) decisions are cached, and the global
+  revision in the key is what invalidates them.
+- **Synchronous decision-log write → [ADR-024](adr/024-async-decision-log.md), the async batched
+  decision log.** Entries are buffered in memory and flushed as one multi-row `INSERT`, so the hot
+  path no longer contains a database write at all; a `batch-check` of N queries writes one statement
+  instead of N. Under backpressure the writer degrades to synchronous inserts rather than dropping
+  entries, so audit completeness is preserved.
+
+Together they remove both round-trips from a cache-hit path. Re-measure with the harness above
+before quoting new numbers — the table is deliberately left as the recorded baseline rather than an
+estimate.
 
 ## Why this is not a CI gate
 

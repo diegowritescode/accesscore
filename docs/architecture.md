@@ -6,7 +6,8 @@
 > full **authz PDP** — relationship-tuple store, rewrite-aware namespace config, the pure evaluator
 > with `expand`, **ABAC** (policy-DSL conditions, `forbid` deny-override, boundaries, guardrails),
 > the async-orchestrated `check` / `batchCheck` / `simulate` with consistency tokens, a
-> **synchronous** decision log, the `@RequirePermission` PEP, the **PAP HTTP API**, a published
+> revision-keyed **decision cache** and an **async batched** decision log, the
+> `@RequirePermission` PEP, the **PAP HTTP API**, a published
 > **SDK**, and a **Next.js admin console**. **Not yet built** (rings, flagged inline below): the
 > outbox **relay/publisher**, OpenTelemetry tracing, a full OIDC provider, and
 > federation/SCIM/access-analyzer.
@@ -180,8 +181,9 @@ ADRs:
 - **Tenancy** ([ADR-007](adr/007-tenancy-model.md)) — global identity + per-org membership;
   `orgId` enforced at every traversal hop.
 - **UnitOfWork port** — Drizzle's `tx` never leaks into application ports; an explicit
-  **credential port** between `identity` and `authn`. _(v1 writes the decision log **synchronously**
-  after the read transaction; moving it off the hot path via the outbox relay is planned.)_
+  **credential port** between `identity` and `authn`. The decision log is written outside the read
+  transaction and, since [ADR-024](adr/024-async-decision-log.md), **asynchronously in batches**
+  behind a bounded buffer that degrades to synchronous writes rather than dropping entries.
 - **Keys** ([ADR-009](adr/009-key-management-and-cryptography.md)) — `Signer`/`KeyStore` port;
   non-exportable KMS/HSM signing (Vault Transit reference), envelope encryption, dual-control on
   privileged ops.

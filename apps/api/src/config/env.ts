@@ -37,6 +37,10 @@ export const envSchema = z.object({
   DECISION_LOG_BUFFER_SIZE: z.coerce.number().int().positive().default(10000),
   DECISION_LOG_FLUSH_BATCH_SIZE: z.coerce.number().int().positive().default(500),
   DECISION_LOG_FLUSH_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
+  WATCH_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(500),
+  WATCH_PAGE_SIZE: z.coerce.number().int().positive().max(1000).default(200),
+  WATCH_HEARTBEAT_SECONDS: z.coerce.number().int().positive().default(15),
+  WATCH_MAX_STREAM_SECONDS: z.coerce.number().int().positive().default(300),
 });
 
 export type Env = z.infer<typeof envSchema>;

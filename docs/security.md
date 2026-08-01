@@ -110,8 +110,10 @@ enforced in code today, and what is still on the roadmap, so the doc never overc
   **ABAC** — policy-DSL conditions, deterministic **`forbid` deny-override**, permission
   boundaries, and org guardrails — with `simulate`/`check-as` for analysis; `orgId` tenant
   isolation at every graph hop. The API connects as a **least-privilege, non-owner DB role** so
-  the append-only `decision_log` / `revisions` / `security_audit` tables cannot be `UPDATE`/
-  `DELETE`d at runtime ([ADR-018](adr/018-least-privilege-db-role.md)).
+  the append-only `decision_log` / `revisions` / `security_audit` / `relation_tuple_changelog`
+  tables cannot be `UPDATE`/`DELETE`d at runtime ([ADR-018](adr/018-least-privilege-db-role.md)).
+  The changelog also makes **revocations observable after the fact** — the tuple table hard-deletes,
+  so before it a removed grant left no trace ([ADR-025](adr/025-watch-api-and-tuple-changelog.md)).
 - **Account security enforced now** — TOTP **MFA** + **step-up to AAL 2** (which ABAC policies can
   require); **step-up is required to manage MFA** — disable, recovery-code regeneration, and
   superseding an active factor all demand a stepped-up session, so a known-password adversary

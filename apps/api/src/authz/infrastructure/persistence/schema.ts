@@ -36,6 +36,34 @@ export const relationTuples = pgTable(
   ],
 );
 
+export const relationTupleChangelog = pgTable(
+  'relation_tuple_changelog',
+  {
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id),
+    revision: bigint('revision', { mode: 'number' }).notNull(),
+    op: text('op').notNull(),
+    namespace: text('namespace').notNull(),
+    objectId: text('object_id').notNull(),
+    relation: text('relation').notNull(),
+    subject: text('subject').notNull(),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [
+        table.orgId,
+        table.revision,
+        table.namespace,
+        table.objectId,
+        table.relation,
+        table.subject,
+      ],
+    }),
+  ],
+);
+
 export const namespaceDefinitions = pgTable(
   'namespace_definitions',
   {

@@ -33,7 +33,8 @@ CREATE ROLE accesscore_app LOGIN PASSWORD '<strong-app-password>';
 ```
 
 The app connects as that non-owner role (migration 0012 grants it the minimum and forbids
-`UPDATE`/`DELETE` on the append-only `decision_log`/`revisions`):
+`UPDATE`/`DELETE` on the append-only `decision_log`/`revisions`; later migrations extend the same
+`REVOKE` to `security_audit` and `relation_tuple_changelog`):
 
 ```
 MIGRATION_DATABASE_URL = postgres://<owner>:<password>@<internal-host>:5432/<database>

@@ -77,6 +77,9 @@ class FakeTuples implements RelationTupleStore {
   list(): Promise<RelationTuple[]> {
     return Promise.resolve(this.tuples);
   }
+  listReferencedUsersets(): Promise<never[]> {
+    return Promise.resolve([]);
+  }
 }
 
 class RecordingDecisionLog implements DecisionLog {

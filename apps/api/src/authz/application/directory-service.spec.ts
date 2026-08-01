@@ -59,6 +59,9 @@ class StubTuples implements RelationTupleStore {
     this.received = filter;
     return Promise.resolve(this.tuples);
   }
+  listReferencedUsersets(): Promise<never[]> {
+    return Promise.resolve([]);
+  }
 }
 
 class StubPolicies implements PoliciesRepository {

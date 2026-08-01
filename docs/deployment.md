@@ -71,21 +71,25 @@ Every variable is documented in `.env.example` and validated at boot by a Zod sc
 
 Account-security and hot-path tuning (safe defaults; see the linked ADRs before changing them):
 
-| Variable                         | Default (dev) | Purpose                                                                  |
-| -------------------------------- | ------------- | ------------------------------------------------------------------------ |
-| `LOCKOUT_THRESHOLD`              | `5`           | Failed attempts per account before lockout.                              |
-| `LOCKOUT_WINDOW_SECONDS`         | `900`         | Lockout window / counter TTL.                                            |
-| `LOCKOUT_IP_THRESHOLD`           | `50`          | Failed attempts per IP before lockout.                                   |
-| `DECISION_CACHE_ENABLED`         | `true`        | Revision-keyed decision cache (ADR-023); `false` ⇒ always authoritative. |
-| `DECISION_CACHE_TTL_SECONDS`     | `60`          | Cache entry TTL (a memory bound — the revision is what invalidates).     |
-| `DECISION_LOG_ASYNC`             | `true`        | Batched async decision log (ADR-024); `false` ⇒ synchronous writes.      |
-| `DECISION_LOG_BUFFER_SIZE`       | `10000`       | Buffer high-watermark; beyond it writes degrade to synchronous.          |
-| `DECISION_LOG_FLUSH_BATCH_SIZE`  | `500`         | Flush size trigger and maximum rows per `INSERT`.                        |
-| `DECISION_LOG_FLUSH_INTERVAL_MS` | `1000`        | Flush interval — also the maximum loss window on an ungraceful stop.     |
-| `WATCH_POLL_INTERVAL_MS`         | `500`         | Watch poll interval (ADR-025) — the change-propagation latency.          |
-| `WATCH_PAGE_SIZE`                | `200`         | Max changes read per poll; bounds per-stream read-ahead.                 |
-| `WATCH_HEARTBEAT_SECONDS`        | `15`          | Idle heartbeat; also advances the consumer's cursor.                     |
-| `WATCH_MAX_STREAM_SECONDS`       | `300`         | Stream lifetime; clients resume via `Last-Event-ID`.                     |
+| Variable                              | Default (dev) | Purpose                                                                  |
+| ------------------------------------- | ------------- | ------------------------------------------------------------------------ |
+| `LOCKOUT_THRESHOLD`                   | `5`           | Failed attempts per account before lockout.                              |
+| `LOCKOUT_WINDOW_SECONDS`              | `900`         | Lockout window / counter TTL.                                            |
+| `LOCKOUT_IP_THRESHOLD`                | `50`          | Failed attempts per IP before lockout.                                   |
+| `DECISION_CACHE_ENABLED`              | `true`        | Revision-keyed decision cache (ADR-023); `false` ⇒ always authoritative. |
+| `DECISION_CACHE_TTL_SECONDS`          | `60`          | Cache entry TTL (a memory bound — the revision is what invalidates).     |
+| `DECISION_LOG_ASYNC`                  | `true`        | Batched async decision log (ADR-024); `false` ⇒ synchronous writes.      |
+| `DECISION_LOG_BUFFER_SIZE`            | `10000`       | Buffer high-watermark; beyond it writes degrade to synchronous.          |
+| `DECISION_LOG_FLUSH_BATCH_SIZE`       | `500`         | Flush size trigger and maximum rows per `INSERT`.                        |
+| `DECISION_LOG_FLUSH_INTERVAL_MS`      | `1000`        | Flush interval — also the maximum loss window on an ungraceful stop.     |
+| `WATCH_POLL_INTERVAL_MS`              | `500`         | Watch poll interval (ADR-025) — the change-propagation latency.          |
+| `WATCH_PAGE_SIZE`                     | `200`         | Max changes read per poll; bounds per-stream read-ahead.                 |
+| `WATCH_HEARTBEAT_SECONDS`             | `15`          | Idle heartbeat; also advances the consumer's cursor.                     |
+| `WATCH_MAX_STREAM_SECONDS`            | `300`         | Stream lifetime; clients resume via `Last-Event-ID`.                     |
+| `MEMBERSHIP_INDEX_ENABLED`            | `true`        | Flattened membership indexer (ADR-026); `false` stops the refresher.     |
+| `MEMBERSHIP_INDEX_INTERVAL_MS`        | `2000`        | Refresh tick; one instance works at a time (advisory lock).              |
+| `MEMBERSHIP_INDEX_CHANGE_PAGE_SIZE`   | `500`         | Changelog entries drained per tick.                                      |
+| `MEMBERSHIP_INDEX_MAX_TUPLES_PER_ORG` | `50000`       | Flattening bound; larger orgs are left stale (and logged).               |
 
 No secret is ever committed; `.env` is gitignored and `.env.example` holds only non-secret dev
 defaults.

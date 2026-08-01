@@ -2,7 +2,7 @@ import { OrgId } from '../../shared/kernel/org-id';
 import { Revision } from '../../shared/kernel/revision';
 import { Action } from './action';
 import { type EntityRef } from './entity-ref';
-import { evaluate, expand, type EvaluationSnapshot, MAX_USERSET_DEPTH } from './evaluate';
+import { evaluate, expand, type EvaluationSnapshot, flatten, MAX_USERSET_DEPTH } from './evaluate';
 import { NamespaceConfig } from './namespace-config';
 import { NamespaceDefinition } from './namespace-definition';
 import { NamespaceRegistry } from './namespace-registry';
@@ -639,5 +639,70 @@ describe('expand — traversal bounds', () => {
       snap(readConfig, memberChainTo(resource, 'viewer', MAX_USERSET_DEPTH)),
     );
     expect(members).toContainEqual(alice);
+  });
+});
+
+describe('flatten', () => {
+  it('reports a direct member at depth zero', () => {
+    const members = flatten(
+      group,
+      'member',
+      snap(def(['member'], { read: ['member'] }, orgA, 'group'), [
+        tuple(group, 'member', asSubject(alice)),
+      ]),
+    );
+
+    expect(members).toEqual([{ ref: alice, depth: 0 }]);
+  });
+
+  it('counts one hop per nested userset', () => {
+    const leads: EntityRef = { type: 'group', id: 'leads' };
+    const members = flatten(
+      group,
+      'member',
+      snap(def(['member'], { read: ['member'] }, orgA, 'group'), [
+        tuple(group, 'member', userset(leads, 'member')),
+        tuple(leads, 'member', asSubject(alice)),
+      ]),
+    );
+
+    expect(members).toEqual([{ ref: alice, depth: 1 }]);
+  });
+
+  it('keeps the shallowest depth when a member is reachable two ways', () => {
+    const leads: EntityRef = { type: 'group', id: 'leads' };
+    const members = flatten(
+      group,
+      'member',
+      snap(def(['member'], { read: ['member'] }, orgA, 'group'), [
+        tuple(group, 'member', userset(leads, 'member')),
+        tuple(leads, 'member', asSubject(alice)),
+        tuple(group, 'member', asSubject(alice)),
+      ]),
+    );
+
+    expect(members).toEqual([{ ref: alice, depth: 0 }]);
+  });
+
+  it('reports each member once, and agrees with expand on the member set', () => {
+    const leads: EntityRef = { type: 'group', id: 'leads' };
+    const snapshot = snap(def(['member'], { read: ['member'] }, orgA, 'group'), [
+      tuple(group, 'member', asSubject(alice)),
+      tuple(group, 'member', userset(leads, 'member')),
+      tuple(leads, 'member', asSubject(alice)),
+      tuple(leads, 'member', asSubject(bob)),
+    ]);
+
+    const flattened = flatten(group, 'member', snapshot);
+
+    expect(flattened.map((member) => member.ref)).toEqual(expand(orgA, group, 'member', snapshot));
+    expect(flattened).toEqual([
+      { ref: alice, depth: 0 },
+      { ref: bob, depth: 1 },
+    ]);
+  });
+
+  it('yields nothing for a set with no members', () => {
+    expect(flatten(group, 'member', snap(null, []))).toEqual([]);
   });
 });

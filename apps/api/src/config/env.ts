@@ -41,6 +41,13 @@ export const envSchema = z.object({
   WATCH_PAGE_SIZE: z.coerce.number().int().positive().max(1000).default(200),
   WATCH_HEARTBEAT_SECONDS: z.coerce.number().int().positive().default(15),
   WATCH_MAX_STREAM_SECONDS: z.coerce.number().int().positive().default(300),
+  MEMBERSHIP_INDEX_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+  MEMBERSHIP_INDEX_INTERVAL_MS: z.coerce.number().int().positive().default(2000),
+  MEMBERSHIP_INDEX_CHANGE_PAGE_SIZE: z.coerce.number().int().positive().max(5000).default(500),
+  MEMBERSHIP_INDEX_MAX_TUPLES_PER_ORG: z.coerce.number().int().positive().default(50000),
 });
 
 export type Env = z.infer<typeof envSchema>;

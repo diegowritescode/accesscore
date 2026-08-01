@@ -22,9 +22,15 @@ export interface TupleChangeQuery {
   readonly limit: number;
 }
 
+export interface GlobalTupleChangeQuery {
+  readonly afterRevision: Revision;
+  readonly limit: number;
+}
+
 export interface RelationTupleChangelog {
   append(change: TupleChange, tx: Tx): Promise<void>;
   since(query: TupleChangeQuery, tx?: Tx): Promise<TupleChange[]>;
+  sinceAll(query: GlobalTupleChangeQuery, tx?: Tx): Promise<TupleChange[]>;
 }
 
 export const RELATION_TUPLE_CHANGELOG = Symbol('RELATION_TUPLE_CHANGELOG');

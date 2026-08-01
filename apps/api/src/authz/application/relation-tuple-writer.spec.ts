@@ -67,6 +67,9 @@ class RecordingStore implements RelationTupleStore {
   list(): Promise<RelationTuple[]> {
     return Promise.resolve([]);
   }
+  listReferencedUsersets(): Promise<never[]> {
+    return Promise.resolve([]);
+  }
 }
 
 class RecordingChangelog implements RelationTupleChangelog {
@@ -78,6 +81,9 @@ class RecordingChangelog implements RelationTupleChangelog {
   }
 
   since(): Promise<TupleChange[]> {
+    return Promise.resolve([]);
+  }
+  sinceAll(): Promise<never[]> {
     return Promise.resolve([]);
   }
 }

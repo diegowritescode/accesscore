@@ -93,6 +93,19 @@ Every tuple/policy write advances the global `Revision` sequence and stamps the 
 accepts a consistency token; reads are filtered to be "at least as fresh as" that revision.
 Cache entries are keyed by revision so a stale entry cannot satisfy a fresher token.
 
+## Relationship-tuple changelog (see ADR-025)
+
+`relation_tuples` is a **current-state** table: an upsert overwrites the row's revision and a revoke
+hard-deletes it, so neither history nor deletions survive there. `relation_tuple_changelog(org_id,
+revision, op, namespace, object_id, relation, subject, recorded_at)` is the durable history —
+appended **in the same transaction** as the tuple mutation and its revision allocation, with the
+global revision as its cursor, and `op = 'delete'` entries acting as the tombstones the tuple table
+does not keep. Its composite primary key
+`(org_id, revision, namespace, object_id, relation, subject)` doubles as the read index
+(`WHERE org_id = ? AND revision > cursor ORDER BY revision`) and as the dedup key for at-least-once
+consumers. Append-only at the role level: `REVOKE UPDATE, DELETE` for `accesscore_app`
+([ADR-018](adr/018-least-privilege-db-role.md)).
+
 ## Drizzle & migrations
 
 - Schemas declared with `pgTable`; enums via `pgEnum`; constraints (unique, FK, check) declared

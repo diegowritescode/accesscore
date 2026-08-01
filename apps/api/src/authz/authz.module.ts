@@ -30,6 +30,10 @@ import { POLICY_DECISION_POINT } from './domain/policy-decision-point';
 import { DECISION_CACHE, type DecisionCache } from './domain/ports/decision-cache';
 import { DECISION_LOG, type DecisionLog } from './domain/ports/decision-log';
 import {
+  RELATION_TUPLE_CHANGELOG,
+  type RelationTupleChangelog,
+} from './domain/ports/relation-tuple-changelog';
+import {
   NAMESPACE_DEFINITIONS_REPOSITORY,
   type NamespaceDefinitionsRepository,
 } from './domain/ports/namespace-definitions-repository';
@@ -43,6 +47,7 @@ import {
   ImmediateDecisionLog,
 } from './infrastructure/persistence/buffered-decision-log';
 import { DrizzleDecisionLog } from './infrastructure/persistence/drizzle-decision-log';
+import { DrizzleRelationTupleChangelog } from './infrastructure/persistence/drizzle-relation-tuple-changelog';
 import { DrizzleNamespaceDefinitionsRepository } from './infrastructure/persistence/drizzle-namespace-definitions.repository';
 import { DrizzlePoliciesRepository } from './infrastructure/persistence/drizzle-policies.repository';
 import { DrizzleRelationTupleStore } from './infrastructure/persistence/drizzle-relation-tuple.store';
@@ -66,14 +71,28 @@ import { PermissionGuard } from './interface/permission.guard';
       useFactory: (db: Database): DrizzleRelationTupleStore => new DrizzleRelationTupleStore(db),
     },
     {
+      provide: RELATION_TUPLE_CHANGELOG,
+      inject: [DB],
+      useFactory: (db: Database): DrizzleRelationTupleChangelog =>
+        new DrizzleRelationTupleChangelog(db),
+    },
+    {
       provide: RELATION_TUPLE_WRITER,
-      inject: [RELATION_TUPLE_STORE, REVISIONS_REPOSITORY, UNIT_OF_WORK, CLOCK],
+      inject: [
+        RELATION_TUPLE_STORE,
+        REVISIONS_REPOSITORY,
+        UNIT_OF_WORK,
+        CLOCK,
+        RELATION_TUPLE_CHANGELOG,
+      ],
       useFactory: (
         tuples: RelationTupleStore,
         revisions: RevisionsRepository,
         unitOfWork: UnitOfWork,
         clock: Clock,
-      ): RelationTupleWriter => new RelationTupleWriter(tuples, revisions, unitOfWork, clock),
+        changelog: RelationTupleChangelog,
+      ): RelationTupleWriter =>
+        new RelationTupleWriter(tuples, revisions, unitOfWork, clock, changelog),
     },
     {
       provide: NAMESPACE_DEFINITIONS_REPOSITORY,
@@ -186,6 +205,7 @@ import { PermissionGuard } from './interface/permission.guard';
     POLICY_DECISION_POINT,
     RELATION_TUPLE_STORE,
     RELATION_TUPLE_WRITER,
+    RELATION_TUPLE_CHANGELOG,
     NAMESPACE_DEFINITIONS_REPOSITORY,
     NAMESPACE_CONFIG_WRITER,
     POLICIES_REPOSITORY,

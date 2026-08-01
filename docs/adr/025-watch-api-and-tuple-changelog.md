@@ -1,7 +1,7 @@
 # ADR-025: Watch API — a durable relationship-tuple changelog, streamed over SSE
 
-- **Status:** Accepted (2026-08-01). **Implementation:** the durable changelog (this ADR's
-  foundation) is built; the SSE `watch` endpoint follows in the next slice.
+- **Status:** Accepted (2026-08-01). **Implementation:** complete — the durable changelog and the
+  SSE `GET /authz/watch` endpoint both ship in this slice.
 - **Date:** 2026-08-01
 - Record every relationship-tuple mutation into an append-only `relation_tuple_changelog` in the
   **same transaction** as the tuple write and its revision allocation, cursored by the global
@@ -90,13 +90,13 @@ uniqueness constraint that makes a replayed append idempotent, (b) the exact ind
 wants — `WHERE org_id = ? AND revision > ? ORDER BY revision` uses it as a prefix — and (c) the
 natural dedup key for at-least-once consumers.
 
-### 7. Transport: Server-Sent Events
+### 7. Transport: Server-Sent Events, `GET /authz/watch`
 
-The streaming endpoint (next slice) will be SSE, not gRPC or long-polling:
+SSE, not gRPC or long-polling:
 
 - **`Last-Event-ID` is the resume cursor.** The browser and any conforming client resend the last
-  event id on reconnect; setting `id: <revision>` on each event makes reconnection _exactly_
-  "resume after this revision" with no bespoke protocol.
+  event id on reconnect, so setting `id` on every event makes reconnection _exactly_ "resume after
+  this point" with no bespoke protocol. It takes precedence over `?since=` for that reason.
 - **It passes the infrastructure we already run** — plain HTTP/1.1 through the existing Nginx/
   Dokploy edge, no HTTP/2 requirement, no separate port, no proxy configuration.
 - **Native consumers on both sides:** `EventSource` in the Next.js console, a plain `fetch` stream
@@ -104,11 +104,42 @@ The streaming endpoint (next slice) will be SSE, not gRPC or long-polling:
 - **gRPC stays the escape hatch** for high-fanout internal consumers (bidirectional flow control,
   binary framing) if a real one appears; it would read the same changelog through the same port.
 
+**The event id is a consistency token, not a raw revision.** Revisions are opaque outside the system
+by design (ADR-004 exposes them only as zookies), so each event's `id` is
+`ConsistencyToken.fromRevision(...)`. That buys a genuinely useful property: the cursor a consumer
+resumed from is directly usable as a `check` consistency token — "read at exactly the point I have
+seen".
+
+**Two named events.** `change` carries the mutation; `heartbeat` keeps proxies from closing an idle
+connection **and doubles as a cursor advance** — it carries the current high-water mark, so a
+consumer that reconnects after a quiet period does not rescan the revisions in between. Advancing on
+a heartbeat is only safe because the high-water mark is read **before** the changelog page: read the
+other way round, a change committing between the two reads would be skipped (there is a unit test
+pinning exactly that order).
+
+**Change detection is polling, not `LISTEN`/`NOTIFY`.** Each stream re-queries the changelog on an
+interval (`WATCH_POLL_INTERVAL_MS`, default 500 ms, bounded page of `WATCH_PAGE_SIZE`), draining a
+full page immediately rather than waiting. Rationale: the query is an index prefix scan on the
+primary key, PAP write rates are low, and polling needs no dedicated connection, no
+reconnect-and-resubscribe logic, and no second delivery path to reason about. `LISTEN`/`NOTIFY` (or
+a Redis fan-out) is the documented escape hatch if sub-100 ms propagation is ever required — it
+would only change _when_ the same query runs.
+
+**Open streams do not block a shutdown.** Node's `server.close()` waits for open connections, so a
+five-minute stream would otherwise stall every redeploy. `AuthzModule`'s shutdown hook closes the
+stream service, and each generator checks that flag once per tick — so streams end within one poll
+interval and clients reconnect against the new instance.
+
 Delivery is **at-least-once**: a reconnect may replay the tail, and consumers dedup on
-`(revision, tuple key)` — which the primary key mirrors. Backpressure is a bounded per-connection
-queue; a consumer too slow to drain it is disconnected rather than allowed to grow the server's
-memory, because the changelog is durable and it can resume from its cursor. Streams are
-tenant-scoped: `orgId` comes from the verified token, never from a parameter.
+`(id, tuple key)` — which the primary key mirrors. **Backpressure is a bounded stream lifetime**
+rather than an unbounded server-side queue: the generator is pulled lazily and never reads more than
+one page ahead, and every stream closes after `WATCH_MAX_STREAM_SECONDS` (default 300) so a client
+that has stopped reading cannot make the server accumulate indefinitely. Because `Last-Event-ID`
+resumption is automatic in `EventSource`, that cap is invisible to well-behaved clients — it is the
+standard SSE lifetime pattern, and it also sidesteps idle-timeout behaviour in proxies. Streams are
+tenant-scoped: `orgId` comes from the verified token, never from a parameter, and the endpoint is
+**owner-gated** (`PapAdminGuard`) because following every relationship change in an organization is
+an administrative capability.
 
 ## Consequences
 
@@ -133,8 +164,15 @@ tenant-scoped: `orgId` comes from the verified token, never from a parameter.
   retention watermark has to respect the slowest live consumer's cursor and any index that would
   need to replay history to rebuild. Documented here rather than half-built.
 - **Not tamper-evident** (see decision 5) — prevention only, with the follow-up named.
-- **Sparse cursor space** is a real consumer-facing subtlety: a client that treats a revision gap as
-  a lost event will loop forever. Called out in the API docs when the endpoint ships.
+- **Sparse cursor space** is a real consumer-facing subtlety: a client that treats a cursor gap as a
+  lost event will loop forever. Called out explicitly in `docs/api.md`.
+- **Polling latency.** A change surfaces within one poll interval (~500 ms by default), not
+  instantly, and every open stream costs two cheap queries per tick. Acceptable for cache
+  invalidation, index materialization and a live console; the `LISTEN`/`NOTIFY` escape hatch is
+  named above if that ever stops being true.
+- **A bounded stream lifetime is a visible protocol detail** for non-`EventSource` clients: a hand-
+  rolled consumer that does not resend `Last-Event-ID` will silently stop receiving changes after
+  five minutes. Documented in the endpoint description and `docs/api.md`.
 
 ## Alternatives considered
 

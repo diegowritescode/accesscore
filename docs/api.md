@@ -201,6 +201,49 @@ provenance rule, enforced by construction: the DTO has no `subject`/`org` field)
 protected-resource demo used by the `@RequirePermission` tests lives in an e2e fixture
 (`apps/api/test/support/protected-resource.fixture.ts`), not the shipped API.
 
+### `GET /authz/watch`
+
+Streams relationship-tuple changes as **Server-Sent Events** (`text/event-stream`).
+**Owner-gated** — following every relationship change in an organization is an administrative
+capability. Backed by the durable changelog in
+[ADR-025](adr/025-watch-api-and-tuple-changelog.md).
+
+- Query: `?since=<zookie>` _(optional)_ — resume after this point. The `Last-Event-ID` header, which
+  browsers resend automatically on reconnect, **takes precedence** over it. With neither, the stream
+  starts at the current revision and only reports future changes.
+- Two **named** events (use `addEventListener`, not `onmessage`):
+
+  ```
+  event: change
+  id: <zookie>
+  data: {"op":"upsert","object":{"type":"document","id":"doc-1"},"relation":"viewer",
+         "subject":{"type":"user","id":"…"},"consistency_token":"<zookie>","recorded_at":"…"}
+
+  event: heartbeat
+  id: <zookie>
+  data: {"consistency_token":"<zookie>"}
+  ```
+
+  - `op` is `"upsert"` or `"delete"`. A `delete` is the tombstone the tuple table does not keep.
+  - `subject` carries `relation` as well when the subject is a userset (`group:eng#member`).
+  - **Every event `id` is a consistency token**, so it is both the resume cursor and a value you can
+    pass straight to `POST /authz/check` as `consistency_token`.
+  - `heartbeat` keeps the connection alive **and advances the cursor** past revisions that produced
+    no tuple change.
+
+- Contract details a consumer must handle:
+  - **At-least-once.** A reconnect may replay the tail; dedup on the event `id` plus the tuple key.
+  - **Cursor gaps are normal.** Policy and namespace writes consume revisions without producing a
+    tuple change, as does a revoke that matched nothing. A gap means "nothing you care about
+    happened", never "you missed an event" — code that treats a gap as loss will spin forever.
+  - **Streams close on purpose.** Every stream ends after a bounded lifetime
+    (`WATCH_MAX_STREAM_SECONDS`, default 300 s). `EventSource` reconnects with `Last-Event-ID`
+    automatically; a hand-rolled client **must** do the same or it will silently stop receiving
+    changes.
+  - A change surfaces within one poll interval (`WATCH_POLL_INTERVAL_MS`, default 500 ms).
+- Status semantics: `401` unauthenticated · `403` authenticated non-owner · `400` no organization in
+  the token or a malformed cursor.
+
 ## SDK — `@diegowritescode/accesscore-sdk`
 
 A zero-workspace-dependency typed client plus an optional NestJS Policy Enforcement Point. It

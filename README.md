@@ -106,6 +106,11 @@ layer instead of re-implementing auth per service. Full context in
   to the browser): dashboard, schema/relationships/policies **read and write** screens, an
   Authorization **Playground** (`check` / `expand` / `simulate` with a condition builder), account
   security (MFA + audit verifier), and an **EN/ES** toggle.
+- **Watch API** — `GET /authz/watch` streams relationship-tuple changes over **SSE**, backed by a
+  durable changelog written in the same transaction as the tuple write. Deletions become observable
+  (the tuple table hard-deletes), every event id is a **consistency token** usable both as the
+  resume cursor and as a `check` zookie, and `Last-Event-ID` resumption is automatic
+  ([ADR-025](docs/adr/025-watch-api-and-tuple-changelog.md)).
 - **Hot-path scale work** — a **revision-keyed decision cache** (Redis) that caches only
   context-independent decisions, so a write to any tuple/policy invalidates it implicitly and a
   cached `permit` can never bypass a later step-up ([ADR-023](docs/adr/023-decision-cache-consistency-model.md)),

@@ -64,9 +64,14 @@ export const tupleQuerySchema = z
     message: 'subjectType and subjectId must be provided together',
   });
 
+export const watchQuerySchema = z.object({
+  since: z.string().min(1).max(512).optional(),
+});
+
 export type CheckDto = z.infer<typeof checkSchema>;
 export type BatchCheckDto = z.infer<typeof batchCheckSchema>;
 export type ExpandDto = z.infer<typeof expandSchema>;
 export type SimulateDto = z.infer<typeof simulateSchema>;
 export type CheckAsDto = z.infer<typeof checkAsSchema>;
 export type TupleQueryDto = z.infer<typeof tupleQuerySchema>;
+export type WatchQueryDto = z.infer<typeof watchQuerySchema>;

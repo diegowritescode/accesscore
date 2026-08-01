@@ -57,6 +57,18 @@ describe('Least-privilege runtime role (integration)', () => {
     });
   });
 
+  it('may read but not rewrite the relationship-tuple changelog', async () => {
+    await expect(
+      app.query('SELECT 1 FROM relation_tuple_changelog LIMIT 1'),
+    ).resolves.toBeDefined();
+    await expect(
+      app.query('UPDATE relation_tuple_changelog SET op = op WHERE false'),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      app.query('DELETE FROM relation_tuple_changelog WHERE false'),
+    ).rejects.toMatchObject({ code: '42501' });
+  });
+
   it('may still mutate a non-append-only table', async () => {
     await expect(
       app.query('UPDATE sessions SET status = status WHERE false'),

@@ -15,6 +15,7 @@ import { type NamespaceConfigData } from '../../src/authz/domain/namespace-confi
 import { NoopDecisionCache } from '../../src/authz/infrastructure/cache/redis-decision-cache';
 import { ImmediateDecisionLog } from '../../src/authz/infrastructure/persistence/buffered-decision-log';
 import { DrizzleDecisionLog } from '../../src/authz/infrastructure/persistence/drizzle-decision-log';
+import { DrizzleRelationTupleChangelog } from '../../src/authz/infrastructure/persistence/drizzle-relation-tuple-changelog';
 import { DrizzleNamespaceDefinitionsRepository } from '../../src/authz/infrastructure/persistence/drizzle-namespace-definitions.repository';
 import { DrizzlePoliciesRepository } from '../../src/authz/infrastructure/persistence/drizzle-policies.repository';
 import { DrizzleRelationTupleStore } from '../../src/authz/infrastructure/persistence/drizzle-relation-tuple.store';
@@ -42,7 +43,13 @@ describe('authz check orchestration (integration)', () => {
   const revisions = new DrizzleRevisionsRepository(db);
   const uow = new DrizzleUnitOfWork(db);
   const policies = new DrizzlePoliciesRepository(db);
-  const tupleWriter = new RelationTupleWriter(tuples, revisions, uow, clock);
+  const tupleWriter = new RelationTupleWriter(
+    tuples,
+    revisions,
+    uow,
+    clock,
+    new DrizzleRelationTupleChangelog(db),
+  );
   const configWriter = new NamespaceConfigWriter(namespaces, revisions, uow, clock);
   const pdp = new PdpService(
     namespaces,

@@ -10,6 +10,10 @@ import {
   RELATION_TUPLE_WRITER,
   type RelationTupleWriter,
 } from '../src/authz/application/relation-tuple-writer';
+import {
+  DECISION_LOG_WRITER,
+  type FlushableDecisionLog,
+} from '../src/authz/infrastructure/persistence/buffered-decision-log';
 import { OrgId } from '../src/shared/kernel/org-id';
 import { UserId } from '../src/shared/kernel/user-id';
 import { TENANCY_SERVICE, type TenancyService } from '../src/tenancy/application/tenancy-service';
@@ -58,6 +62,9 @@ describe('@RequirePermission PEP (e2e)', () => {
 
   const server = (): ReturnType<INestApplication['getHttpServer']> => app.getHttpServer();
 
+  const flushDecisionLog = (): Promise<void> =>
+    app.get<FlushableDecisionLog>(DECISION_LOG_WRITER, { strict: false }).flush();
+
   const provisionAndLogin = async (): Promise<{ userId: UserId; orgId: OrgId; token: string }> => {
     counter += 1;
     const credentials = { email: `pep-${counter}@example.com`, password: 'correct horse staple' };
@@ -99,6 +106,8 @@ describe('@RequirePermission PEP (e2e)', () => {
       .get('/example/documents/doc-1')
       .set('Authorization', `Bearer ${token}`)
       .expect(403);
+
+    await flushDecisionLog();
 
     const logged = await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM decision_log');
     expect(logged.rows[0]?.n).toBeGreaterThanOrEqual(1);

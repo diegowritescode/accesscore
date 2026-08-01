@@ -22,7 +22,10 @@ app ↔ PostgreSQL; app ↔ Redis.
 - **Tampering** — asymmetric JWT integrity; **tamper-evident audit** (hash chain); DB-enforced
   invariants; strict input validation and DTO whitelisting to prevent **mass assignment**.
 - **Repudiation** — append-only **decision logs** + audit trail with actor identity and hash-
-  chain evidence; every authorization decision records its derivation.
+  chain evidence; every authorization decision records its derivation. The two streams have
+  deliberately different guarantees: `security_audit` is hash-chained and written **synchronously**
+  under an advisory lock, while the high-volume `decision_log` is un-chained and written
+  asynchronously in batches ([ADR-024](adr/024-async-decision-log.md)).
 - **Information disclosure** — no user enumeration; **no secrets in tokens or logs**;
   encryption at rest for MFA secrets and signing private keys; PII minimization; TLS in transit.
 - **Denial of service** — per-IP rate limiting (stricter on the credential endpoints), request
@@ -121,7 +124,11 @@ enforced in code today, and what is still on the roadmap, so the doc never overc
   enumeration oracle (generic `202`) but not the timing side-channel; constant-time dispatch is
   deferred to the async outbox path. The live API authenticates to Vault with a privileged
   (dev-mode) token — least-privilege via a Transit-scoped policy token is documented in
-  `deploy-dokploy.md`.
+  `deploy-dokploy.md`. The batched `decision_log` writer loses at most one flush interval
+  (default 1 s) of entries on an ungraceful stop and no longer fails a check closed when the log
+  write fails — bounded to the un-chained stream by design, alerted on via
+  `authz_decision_log_records_total{outcome="dropped"}`, and revertible with
+  `DECISION_LOG_ASYNC=false` ([ADR-024](adr/024-async-decision-log.md)).
 - **Roadmap (designed, deliberately deferred — not dropped):** the audit chain's **per-org
   monotonic sequence + KMS-signed checkpoints** (today it is a single verifiable SHA-256 chain);
   automated **authz-policy analysis** (over-permission / reachability / separation-of-duties);

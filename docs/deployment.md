@@ -51,12 +51,14 @@ Every variable is documented in `.env.example` and validated at boot by a Zod sc
 | ----------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------- |
 | `NODE_ENV`              | `development`                                                | `development` \| `test` \| `production`.                                    |
 | `PORT`                  | `3000`                                                       | API listen port.                                                            |
+| `LOG_LEVEL`             | `info`                                                       | pino level for structured logs.                                             |
 | `DATABASE_URL`          | `postgres://accesscore:accesscore@localhost:5432/accesscore` | Postgres connection string.                                                 |
 | `REDIS_URL`             | `redis://localhost:6379`                                     | Redis connection string.                                                    |
 | `SIGNER_DRIVER`         | `vault`                                                      | `vault` (Transit, non-exportable) or `software` (in-process, dev/test).     |
 | `VAULT_ADDR`            | `http://localhost:8200`                                      | Vault address.                                                              |
 | `VAULT_TOKEN`           | `accesscore-dev-token`                                       | Vault auth token.                                                           |
 | `VAULT_TRANSIT_KEY`     | `accesscore-signing`                                         | Transit key name used for signing.                                          |
+| `VAULT_TRANSIT_MFA_KEY` | `accesscore-mfa`                                             | Transit key used to encrypt MFA secrets at rest.                            |
 | `JWT_ISSUER`            | `https://auth.accesscore.dev`                                | `iss` claim / expected issuer.                                              |
 | `JWT_AUDIENCE`          | `accesscore`                                                 | `aud` claim / expected audience.                                            |
 | `JWT_CLOCK_SKEW`        | `30`                                                         | Allowed clock skew (seconds) on verification.                               |
@@ -66,6 +68,20 @@ Every variable is documented in `.env.example` and validated at boot by a Zod sc
 | `JWKS_CACHE_MAX_AGE`    | `300`                                                        | `Cache-Control: max-age` on the JWKS response.                              |
 | `THROTTLE_TTL_SECONDS`  | `60`                                                         | Rate-limit window.                                                          |
 | `THROTTLE_LIMIT`        | `100`                                                        | Requests per window per IP (global default; `login`/`refresh` are tighter). |
+
+Account-security and hot-path tuning (safe defaults; see the linked ADRs before changing them):
+
+| Variable                         | Default (dev) | Purpose                                                                  |
+| -------------------------------- | ------------- | ------------------------------------------------------------------------ |
+| `LOCKOUT_THRESHOLD`              | `5`           | Failed attempts per account before lockout.                              |
+| `LOCKOUT_WINDOW_SECONDS`         | `900`         | Lockout window / counter TTL.                                            |
+| `LOCKOUT_IP_THRESHOLD`           | `50`          | Failed attempts per IP before lockout.                                   |
+| `DECISION_CACHE_ENABLED`         | `true`        | Revision-keyed decision cache (ADR-023); `false` ⇒ always authoritative. |
+| `DECISION_CACHE_TTL_SECONDS`     | `60`          | Cache entry TTL (a memory bound — the revision is what invalidates).     |
+| `DECISION_LOG_ASYNC`             | `true`        | Batched async decision log (ADR-024); `false` ⇒ synchronous writes.      |
+| `DECISION_LOG_BUFFER_SIZE`       | `10000`       | Buffer high-watermark; beyond it writes degrade to synchronous.          |
+| `DECISION_LOG_FLUSH_BATCH_SIZE`  | `500`         | Flush size trigger and maximum rows per `INSERT`.                        |
+| `DECISION_LOG_FLUSH_INTERVAL_MS` | `1000`        | Flush interval — also the maximum loss window on an ungraceful stop.     |
 
 No secret is ever committed; `.env` is gitignored and `.env.example` holds only non-secret dev
 defaults.

@@ -30,6 +30,13 @@ export const envSchema = z.object({
     .default('true')
     .transform((value) => value === 'true'),
   DECISION_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(60),
+  DECISION_LOG_ASYNC: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+  DECISION_LOG_BUFFER_SIZE: z.coerce.number().int().positive().default(10000),
+  DECISION_LOG_FLUSH_BATCH_SIZE: z.coerce.number().int().positive().default(500),
+  DECISION_LOG_FLUSH_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
 });
 
 export type Env = z.infer<typeof envSchema>;

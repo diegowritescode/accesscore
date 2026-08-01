@@ -70,7 +70,8 @@ UNBOUNDED`). Any applicable policy means the decision depends on request context
 
 6. **The decision log is still written on cache hits.** The audit guarantee — every decision is
    logged — is preserved; the cached value carries the reasons, so the log entry is complete.
-   (Moving that write off the hot path is a follow-up slice; it does not affect this decision.)
+   (Moving that write off the hot path is a follow-up slice — delivered by
+   [ADR-024](024-async-decision-log.md) — and it does not affect this decision.)
 
 Config: `DECISION_CACHE_ENABLED` (default `true`; a pure toggle backed by a null-object cache when
 off) and `DECISION_CACHE_TTL_SECONDS` (default `60`; a memory / staleness bound, not the correctness

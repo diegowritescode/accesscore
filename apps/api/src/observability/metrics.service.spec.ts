@@ -27,4 +27,19 @@ describe('MetricsService', () => {
     expect(text).toMatch(/authz_decisions_total\{[^}]*effect="deny"[^}]*\} 1/);
     expect(text).toContain('authz_decision_duration_seconds_bucket');
   });
+
+  it('exposes the decision-log buffer depth, outcomes and flush lag', async () => {
+    const metrics = new MetricsService();
+    metrics.setDecisionLogBufferDepth(42);
+    metrics.observeDecisionLogRecords('flushed', 500);
+    metrics.observeDecisionLogRecords('degraded', 1);
+    metrics.observeDecisionLogRecords('dropped', 3);
+    metrics.observeDecisionLogFlushLag(0.75);
+    const text = await metrics.render();
+    expect(text).toMatch(/authz_decision_log_buffer_depth\{[^}]*\} 42/);
+    expect(text).toMatch(/authz_decision_log_records_total\{[^}]*outcome="flushed"[^}]*\} 500/);
+    expect(text).toMatch(/authz_decision_log_records_total\{[^}]*outcome="degraded"[^}]*\} 1/);
+    expect(text).toMatch(/authz_decision_log_records_total\{[^}]*outcome="dropped"[^}]*\} 3/);
+    expect(text).toMatch(/authz_decision_log_flush_lag_seconds_sum\{[^}]*\} 0\.75/);
+  });
 });

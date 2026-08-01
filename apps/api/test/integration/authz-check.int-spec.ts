@@ -13,6 +13,7 @@ import { ConsistencyToken } from '../../src/authz/domain/consistency-token';
 import { type EntityRef } from '../../src/authz/domain/entity-ref';
 import { type NamespaceConfigData } from '../../src/authz/domain/namespace-config';
 import { NoopDecisionCache } from '../../src/authz/infrastructure/cache/redis-decision-cache';
+import { ImmediateDecisionLog } from '../../src/authz/infrastructure/persistence/buffered-decision-log';
 import { DrizzleDecisionLog } from '../../src/authz/infrastructure/persistence/drizzle-decision-log';
 import { DrizzleNamespaceDefinitionsRepository } from '../../src/authz/infrastructure/persistence/drizzle-namespace-definitions.repository';
 import { DrizzlePoliciesRepository } from '../../src/authz/infrastructure/persistence/drizzle-policies.repository';
@@ -48,7 +49,7 @@ describe('authz check orchestration (integration)', () => {
     tuples,
     policies,
     revisions,
-    new DrizzleDecisionLog(db),
+    new ImmediateDecisionLog(new DrizzleDecisionLog(db)),
     uow,
     clock,
     new NoopDecisionCache(),

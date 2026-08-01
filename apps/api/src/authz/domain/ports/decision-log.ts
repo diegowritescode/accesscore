@@ -19,4 +19,8 @@ export interface DecisionLog {
   record(entry: DecisionLogRecord): Promise<void>;
 }
 
+export interface DecisionLogSink {
+  recordBatch(entries: readonly DecisionLogRecord[]): Promise<void>;
+}
+
 export const DECISION_LOG = Symbol('DECISION_LOG');

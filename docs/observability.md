@@ -50,6 +50,34 @@ sum(rate(authz_decisions_total{effect="permit"}[5m]))
 
 These are emitted by a `MeteredDecisionLog` decorator around the `DecisionLog` port, so the pure
 evaluator and the `PdpService` orchestrator carry no dependency on the metrics library (ADR-022).
+The decorator is the **outermost** layer of the log chain, so a decision is counted the moment it is
+made — not when its row reaches Postgres.
+
+### Decision log (async writer)
+
+The decision log is written asynchronously in batches ([ADR-024](adr/024-async-decision-log.md)),
+so its health is a signal of its own:
+
+- `authz_decision_log_buffer_depth` — gauge of entries waiting in memory for the next flush.
+- `authz_decision_log_records_total{outcome}` — counter of entries by write outcome:
+  `flushed` (written in a batch), `degraded` (buffer at the high-watermark, written synchronously),
+  `dropped` (a flush failed and the batch was lost).
+- `authz_decision_log_flush_lag_seconds` — histogram of the age of the oldest entry in a flush
+  batch: how far behind the log is running.
+
+Two alerts are worth having, and they mean different things:
+
+```promql
+# The buffer is saturated: writes are falling back to the synchronous path (latency, not loss).
+rate(authz_decision_log_records_total{outcome="degraded"}[5m]) > 0
+
+# Audit entries were lost: a flush failed. This should always be zero.
+increase(authz_decision_log_records_total{outcome="dropped"}[15m]) > 0
+```
+
+`decision_log` is deliberately not the tamper-evident stream — `security_audit` is, and its appends
+stay synchronous and hash-chained (ADR-021). The buffer trades a bounded window of the high-volume
+log, never the audit chain.
 
 ## Scraping
 

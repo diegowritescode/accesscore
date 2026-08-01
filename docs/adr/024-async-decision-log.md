@@ -124,6 +124,11 @@ synchronous-degradation escape valve.
   overflow.
 - **Memory.** `DECISION_LOG_BUFFER_SIZE` × record size is the ceiling (~10 000 entries ≈ a few MB);
   it is a bound, not a reservation.
+- **Flush jitter at low load, measured.** A 500-row flush is one lump of work on the same event
+  loop, so the request sharing that tick pays for it: at 5 VUs the `check` p99 rose from 11.5 ms to
+  16.6 ms even though p50 and p95 improved (`docs/performance.md`). Under saturation the inversion
+  disappears (p99 54.7 ms vs 68.4 ms) because queueing dominates. `DECISION_LOG_FLUSH_BATCH_SIZE` is
+  the knob: fewer round-trips against more work per flush.
 - **The log is now eventually consistent.** Anything asserting on `decision_log` immediately after
   a decision must flush first — the e2e suite calls `flush()` explicitly, which also documents the
   asynchrony.

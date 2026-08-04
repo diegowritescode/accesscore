@@ -50,7 +50,7 @@
     "@stryker-mutator/jest-runner": "^9.6.1",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
-    "@types/pg": "^8.11.10",
+    "@types/pg": "^8.20.3",
     "@types/supertest": "^6.0.2",
     "dependency-cruiser": "^18.1.0",
     "drizzle-kit": "^0.31.10",

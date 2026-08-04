@@ -28,7 +28,7 @@
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/swagger": "^11.4.6",
     "@nestjs/throttler": "^6.5.0",
-    "@scalar/nestjs-api-reference": "^1.2.11",
+    "@scalar/nestjs-api-reference": "^1.2.12",
     "argon2": "^0.41.1",
     "drizzle-orm": "^0.45.2",
     "helmet": "^8.3.0",

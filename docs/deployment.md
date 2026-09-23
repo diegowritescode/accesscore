@@ -1,9 +1,11 @@
 # AccessCore — Deployment
 
-> **Deployed at [auth.deviego.xyz](https://auth.deviego.xyz)** — a self-hosted
-> [Dokploy](https://dokploy.com) VPS. This document describes the deployment model and what boots
-> from a clean clone; the concrete, reproducible Dokploy recipe is in
-> [`deploy-dokploy.md`](deploy-dokploy.md). Some hardening items remain (see the end of this doc).
+> **Deployed at [auth.deviego.xyz](https://auth.deviego.xyz)** — immutable GHCR images run by
+> [`deploy/compose.yml`](../deploy/compose.yml) behind Traefik
+> ([ADR-027](adr/027-container-release-and-shared-edge-deployment.md)). This document describes the
+> deployment model and what boots from a clean clone; the reproducible host recipe is
+> [`deploy-vps.md`](deploy-vps.md), and [`deploy-dokploy.md`](deploy-dokploy.md) is an alternative
+> for a Dokploy host. Some hardening items remain (see the end of this doc).
 
 ## Runtime dependencies
 

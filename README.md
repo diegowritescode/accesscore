@@ -13,7 +13,7 @@ auditable — not a `role === 'admin'` check bolted onto a `users` table.
 > [`GET /.well-known/jwks.json`](https://auth.deviego.xyz/.well-known/jwks.json), the interactive
 > [`/reference`](https://auth.deviego.xyz/reference), or `POST /authz/check` (see
 > [`docs/api.md`](docs/api.md)). Admin console at **[console.deviego.xyz](https://console.deviego.xyz)**.
-> Both self-hosted on a Dokploy VPS.
+> Both self-hosted on a VPS as immutable GHCR images behind Traefik.
 
 > **Status — the hybrid engine is complete.** **Slices 0–8 are shipped.** Identity and password
 > auth, the EdDSA token platform, tenancy, and the full **policy decision point** —
@@ -59,7 +59,7 @@ auditable — not a `role === 'admin'` check bolted onto a `users` table.
   truncated negative operand never fails open; a PDP/store error is a `503`; the SDK normalizes
   timeouts and transport errors into `deny`. **(shipped)**
 
-Full rationale lives in **22 ADRs** under [`docs/adr/`](docs/adr/).
+Full rationale lives in **25 ADRs** under [`docs/adr/`](docs/adr/).
 
 ## Business problem
 
@@ -207,10 +207,10 @@ integration/e2e still counts. Current merged figures on core logic: roughly **~9
 via `pnpm --filter @accesscore/api db:migrate`; config is validated at boot and production refuses
 the software signer and the dev Vault token. **The API is deployed at
 [auth.deviego.xyz](https://auth.deviego.xyz) and the console at
-[console.deviego.xyz](https://console.deviego.xyz)** — a self-hosted [Dokploy](https://dokploy.com)
-VPS with managed Postgres + Redis, a Vault container, and images built from
-[`apps/api/Dockerfile`](apps/api/Dockerfile) behind Let's Encrypt TLS. The step-by-step recipe is
-[`docs/deploy-dokploy.md`](docs/deploy-dokploy.md); the deployment model, `/metrics` scraping, and
+[console.deviego.xyz](https://console.deviego.xyz)** — images built once in CI, published to
+GHCR under the commit SHA, and run by a versioned Compose file behind Traefik with Let's Encrypt TLS
+([ADR-027](docs/adr/027-container-release-and-shared-edge-deployment.md)). The step-by-step recipe is
+[`docs/deploy-vps.md`](docs/deploy-vps.md); the deployment model, `/metrics` scraping, and
 local setup are in [`docs/deployment.md`](docs/deployment.md) and
 [`docs/observability.md`](docs/observability.md).
 

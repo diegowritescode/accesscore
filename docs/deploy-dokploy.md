@@ -1,6 +1,8 @@
 # Deploying AccessCore on Dokploy
 
-> **Live instance:** [auth.deviego.xyz](https://auth.deviego.xyz), deployed with exactly this recipe.
+> **Alternative recipe.** The live instance now runs from [`deploy-vps.md`](deploy-vps.md)
+> ([ADR-027](adr/027-container-release-and-shared-edge-deployment.md)); this Dokploy recipe still works
+> for a host that runs Dokploy.
 
 A concrete recipe for a self-hosted [Dokploy](https://dokploy.com) instance. Four resources in
 one Dokploy **project** (so they share the internal network): managed **Postgres**, managed

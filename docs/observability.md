@@ -12,8 +12,9 @@ log**, and **Prometheus metrics**. This document covers the metrics floor (see A
 | `GET /metrics` | open | Prometheus scrape target (text format `0.0.4`). |
 
 `/metrics` is unauthenticated and throttling-exempt, matching standard scrape-target practice; it
-exposes only aggregate counters and process gauges — no tenant data. Restrict it at the network
-layer in production.
+exposes only aggregate counters and process gauges — no tenant data. In production the public
+Traefik router excludes `/metrics` ([ADR-027](adr/027-container-release-and-shared-edge-deployment.md)),
+so it is reachable only from a private network.
 
 ## Metrics
 

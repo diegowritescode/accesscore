@@ -16,6 +16,10 @@ topology is [`deploy/compose.yml`](../deploy/compose.yml).
                       postgres    redis    vault ◄───┘ (console ► api only)
 ```
 
+Stacks share the `edge` network, where every service name is also a DNS name. Two stacks that
+both define `api` would make `api` resolve to either one, so internal calls always use the
+stack-unique alias on the private network (`accesscore-api`), never the bare service name.
+
 ## Prerequisites
 
 - Docker with the Compose plugin, and a Traefik v3 instance on the host that owns ports 80/443 with

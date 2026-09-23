@@ -77,7 +77,9 @@ layer instead of re-implementing auth per service. Full context in
 - **Identity + password auth** — `User` aggregate, **Argon2id** hashing, timing-safe compare, a
   dummy-verify path for unknown users, and anti-enumeration on register/login/reset.
 - **Account lifecycle** — email verification and secure single-use, hashed, expiring password
-  reset; lifecycle events revoke sessions.
+  reset; lifecycle events revoke sessions. Delivery goes through a `Mailer` port; the live demo
+  binds a log-only adapter, so reviewers use the seeded demo account
+  ([trade-off](docs/trade-offs.md#log-only-mail-adapter-on-the-live-demo)).
 - **Token platform** — asymmetric **EdDSA** JWTs with `iss`/`aud`/`exp`/`nbf` binding and bounded
   clock skew; a live **JWKS** endpoint with `kid → alg` binding and cache headers; short-lived
   access tokens carrying identity + assurance level (never authorization verdicts).

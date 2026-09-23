@@ -132,3 +132,15 @@ extraction trigger, because the v1 SDK evaluates **remotely** (it forwards to th
 tuples and revisions) and therefore needs no local evaluator. Extraction becomes justified only
 when there's a genuine second consumer of the pure core — client-side/offline evaluation over
 cached tuples — which is a future ring, not v1.
+
+## Log-only mail adapter on the live demo
+
+Email verification and password reset are complete in the domain: single-use, hashed, expiring
+tokens issued behind a `Mailer` port (`identity/domain/ports/mailer.ts`). The deployed instance
+wires `LogMailer`, which records that a message was queued and sends nothing. **Rejected for now:**
+a transactional-mail adapter (Resend/SMTP) plus console screens for sign-up, verification, and
+reset. **Cost accepted:** self-service sign-up on the live instance stops at "check your email";
+reviewers use the shared demo account instead, which is seeded, protected against account-wide
+changes, and reset nightly (see [`security.md`](security.md#public-demo-instance)). Adding delivery
+is one adapter bound to the existing port plus sender-domain DNS (SPF/DKIM) — no domain or
+application change — so it waits until a real tenant needs self-service onboarding.

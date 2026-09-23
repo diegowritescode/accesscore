@@ -30,6 +30,7 @@ export const envSchema = z.object({
     .default('true')
     .transform((value) => value === 'true'),
   DECISION_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(60),
+  DEMO_ACCOUNT_EMAIL: z.string().email().optional(),
   DECISION_LOG_ASYNC: z
     .enum(['true', 'false'])
     .default('true')

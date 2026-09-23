@@ -9,6 +9,7 @@ import { SecurityModule } from '../security/security.module';
 import { ActivateMfaHandler, ACTIVATE_MFA_HANDLER } from './application/activate-mfa';
 import { DisableMfaHandler, DISABLE_MFA_HANDLER } from './application/disable-mfa';
 import { EnrollMfaHandler, ENROLL_MFA_HANDLER } from './application/enroll-mfa';
+import { DemoAccountPolicy, DEMO_ACCOUNT_POLICY } from './application/demo-account';
 import { GetMfaStatusHandler, GET_MFA_STATUS_HANDLER } from './application/get-mfa-status';
 import { RecoveryCodeIssuer, RECOVERY_CODE_ISSUER } from './application/recovery-code-issuer';
 import {
@@ -63,6 +64,7 @@ import { DrizzleRecoveryCodesRepository } from './infrastructure/persistence/dri
 import { DrizzleUsersRepository } from './infrastructure/persistence/drizzle-users.repository';
 import { DrizzleVerificationTokensRepository } from './infrastructure/persistence/drizzle-verification-tokens.repository';
 import { AuthController } from './interface/auth.controller';
+import { DemoAccountGuard } from './interface/demo-account.guard';
 import { MfaController } from './interface/mfa.controller';
 
 @Module({
@@ -148,6 +150,13 @@ import { MfaController } from './interface/mfa.controller';
         audit: AuditLog,
       ): DisableMfaHandler => new DisableMfaHandler(credentials, clock, audit),
     },
+    {
+      provide: DEMO_ACCOUNT_POLICY,
+      inject: [USERS_REPOSITORY, CLOCK, ENV],
+      useFactory: (users: UsersRepository, clock: Clock, env: Env): DemoAccountPolicy =>
+        new DemoAccountPolicy(users, clock, env.DEMO_ACCOUNT_EMAIL),
+    },
+    DemoAccountGuard,
     {
       provide: GET_MFA_STATUS_HANDLER,
       inject: [MFA_CREDENTIALS_REPOSITORY, RECOVERY_CODES_REPOSITORY],
@@ -262,6 +271,8 @@ import { MfaController } from './interface/mfa.controller';
     },
   ],
   exports: [
+    DEMO_ACCOUNT_POLICY,
+    DemoAccountGuard,
     HASHER,
     USERS_REPOSITORY,
     TOTP,

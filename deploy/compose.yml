@@ -82,6 +82,7 @@ services:
       VAULT_TOKEN: ${VAULT_TOKEN}
       JWT_ISSUER: https://${API_HOST:?set API_HOST in deploy/.env}
       JWT_AUDIENCE: accesscore
+      DEMO_ACCOUNT_EMAIL: ${DEMO_ACCOUNT_EMAIL:-}
     expose: ['3000']
     healthcheck:
       test:

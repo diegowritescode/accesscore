@@ -63,7 +63,25 @@ request to each hostname.
 docker compose exec api node dist/seed.js
 ```
 
-Demo login: `demo@accesscore.dev` / `correct horse battery staple`.
+Demo login: `demo@accesscore.dev` / `correct horse battery staple`. The seed also defines the
+`ledger` namespace and makes the demo user `operator` of `ledger:miniledger`, so MiniLedger works
+with the same login.
+
+## Shared demo: restrictions and nightly reset
+
+With `DEMO_ACCOUNT_EMAIL` set, the demo login cannot change account-wide state that would affect
+other visitors (see [`security.md`](security.md#public-demo-instance)). Visitor writes are undone
+nightly: set `DEMO_RESET_ENABLED=true` in `deploy/.env`, then schedule the reset. It recreates the
+database, Redis and Vault, and reseeds (about 30 s of downtime):
+
+```bash
+crontab -e
+0 4 * * * /opt/portfolio/accesscore/deploy/demo-reset.sh >> /opt/portfolio/demo-reset.log 2>&1
+```
+
+The script refuses to run unless `DEMO_RESET_ENABLED=true`, so it cannot wipe a real instance by
+accident. MiniLedger's own reset runs after it, because its demo accounts are owned by the reseeded
+user.
 
 ## 5. Verify
 

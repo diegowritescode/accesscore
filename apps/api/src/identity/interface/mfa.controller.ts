@@ -18,6 +18,7 @@ import {
   REGENERATE_RECOVERY_CODES_HANDLER,
   type RegenerateRecoveryCodesHandler,
 } from '../application/regenerate-recovery-codes';
+import { DemoAccountGuard } from './demo-account.guard';
 import { activateMfaSchema } from './mfa.dto';
 
 @ApiTags('mfa')
@@ -42,6 +43,7 @@ export class MfaController {
 
   @Post('enroll')
   @HttpCode(200)
+  @UseGuards(DemoAccountGuard)
   @ApiOperation({
     summary: 'Start TOTP enrollment',
     description: 'Provisions a pending TOTP secret and returns the otpauth:// URI to scan.',
@@ -56,6 +58,7 @@ export class MfaController {
 
   @Post('activate')
   @HttpCode(200)
+  @UseGuards(DemoAccountGuard)
   @ApiOperation({
     summary: 'Activate the pending TOTP factor',
     description: 'Verifies the first code against the pending secret and enables MFA.',
@@ -95,7 +98,7 @@ export class MfaController {
 
   @Post('recovery-codes')
   @HttpCode(200)
-  @UseGuards(StepUpGuard)
+  @UseGuards(DemoAccountGuard, StepUpGuard)
   @ApiOperation({
     summary: 'Regenerate recovery codes',
     description:
@@ -116,7 +119,7 @@ export class MfaController {
 
   @Post('disable')
   @HttpCode(200)
-  @UseGuards(StepUpGuard)
+  @UseGuards(DemoAccountGuard, StepUpGuard)
   @ApiOperation({
     summary: 'Disable the active MFA factor',
     description: 'Requires a stepped-up (AAL2) session — the second factor must be proven first.',

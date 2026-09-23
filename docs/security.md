@@ -90,6 +90,23 @@ Pressure-tested by an adversarial security review; the material changes:
 - **Rings:** signed entity store, sender-constrained tokens (DPoP/mTLS), external audit anchoring,
   OIDC-provider hardening (exact `redirect_uri`, PKCE, single-use codes, `nonce`).
 
+## Public demo instance
+
+The live instance exposes one shared login so reviewers can try it without registering. A shared
+credential turns account-wide actions into a denial-of-service against every other visitor, so
+when `DEMO_ACCOUNT_EMAIL` is set that account is restricted by `DemoAccountGuard`:
+
+- **Blocked (403 `demo_account_restricted`):** MFA enroll/activate/disable, recovery-code
+  regeneration, `logout-all`, and listing or revoking sessions. Enabling MFA would lock everyone
+  out; session listing would reveal other visitors' IP addresses and user agents.
+- **Allowed:** everything the demo exists to show — `check`/`expand`/`simulate`, PAP writes, MFA
+  status, and logging out the caller's own session.
+
+Writes by visitors are undone by a nightly reset (`deploy/demo-reset.sh`, see
+[`deploy-vps.md`](deploy-vps.md)), which recreates the database and reseeds it. The guard resolves
+the account by email with a one-minute cache, so a reseeded demo user (new id) is picked up without
+a restart. Registered accounts are never restricted.
+
 ## Implementation status (2026-07-28, Slices 0–8 shipped)
 
 This document is the target threat model; controls land incrementally across the spine. What is

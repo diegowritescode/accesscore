@@ -101,6 +101,23 @@ async function main(): Promise<void> {
       throw new Error(`failed to define namespace: ${defined.error}`);
     }
 
+    const ledger = await namespaces.define({
+      orgId,
+      namespace: 'ledger',
+      config: {
+        relations: ['operator'],
+        actions: {
+          open: ['operator'],
+          transfer: ['operator'],
+          audit: ['operator'],
+          reverse: ['operator'],
+        },
+      },
+    });
+    if (!ledger.ok) {
+      throw new Error(`failed to define namespace: ${ledger.error}`);
+    }
+
     const grants: Array<{ object: EntityRef; relation: string; subject: SubjectRef }> = [
       {
         object: object('document', 'onboarding'),
@@ -132,6 +149,11 @@ async function main(): Promise<void> {
         relation: 'viewer',
         subject: asSubject('user', 'carol'),
       },
+      {
+        object: object('ledger', 'miniledger'),
+        relation: 'operator',
+        subject: asSubject('user', userId.value),
+      },
     ];
     for (const grant of grants) {
       await tuples.write({ orgId, ...grant });
@@ -141,7 +163,7 @@ async function main(): Promise<void> {
       [
         'Seed applied.',
         `  org:        ${orgId.value}`,
-        `  demo login: ${DEMO_EMAIL} / ${DEMO_PASSWORD}  (owner of document:onboarding)`,
+        `  demo login: ${DEMO_EMAIL} / ${DEMO_PASSWORD}  (owner of document:onboarding, operator of ledger:miniledger)`,
         '  showcase:   POST /authz/expand { resource: { type: "document", id: "onboarding" }, relation: "viewer" }',
         '              resolves the owner (you, via owner->editor->viewer), user:bob (nested group eng-leads<eng),',
         '              and user:carol (inherited from folder:handbook via tuple_to_userset).',

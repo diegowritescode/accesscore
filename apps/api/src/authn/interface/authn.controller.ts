@@ -27,6 +27,7 @@ import { REVOKE_SESSION_HANDLER, type RevokeSessionHandler } from '../applicatio
 import { SESSION_TERMINATOR, type SessionTerminator } from '../application/session-terminator';
 import { STEP_UP_HANDLER, type StepUpHandler } from '../application/step-up';
 import { AccessTokenGuard, type AuthTokenClaims } from './access-token.guard';
+import { DemoAccountGuard } from '../../identity/interface/demo-account.guard';
 import { AuthToken } from './auth-token.decorator';
 import { loginSchema } from './login.dto';
 import { refreshSchema } from './refresh.dto';
@@ -157,7 +158,7 @@ export class AuthnController {
 
   @Post('logout-all')
   @HttpCode(204)
-  @UseGuards(AccessTokenGuard)
+  @UseGuards(AccessTokenGuard, DemoAccountGuard)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Log out every session for the user' })
   async logoutAll(@AuthToken() token: AuthTokenClaims): Promise<void> {
@@ -165,7 +166,7 @@ export class AuthnController {
   }
 
   @Get('sessions')
-  @UseGuards(AccessTokenGuard)
+  @UseGuards(AccessTokenGuard, DemoAccountGuard)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'List the active sessions/devices for the user' })
   async listUserSessions(
@@ -176,7 +177,7 @@ export class AuthnController {
 
   @Delete('sessions/:id')
   @HttpCode(204)
-  @UseGuards(AccessTokenGuard)
+  @UseGuards(AccessTokenGuard, DemoAccountGuard)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Revoke one of the caller own sessions' })
   async revokeUserSession(

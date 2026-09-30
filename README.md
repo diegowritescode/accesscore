@@ -1,65 +1,77 @@
 # AccessCore
 
-> A self-hostable Identity & Access Management platform with a hybrid
-> **ReBAC + RBAC + ABAC** authorization engine — inspired by AWS IAM's evaluation
-> semantics, Google Zanzibar's relationship model, and AWS Cedar's policy language.
+**A self-hostable identity and authorization platform with a hybrid ReBAC + RBAC + ABAC policy
+engine.** Zanzibar-style relationships, IAM-style deny-override, and Cedar-like conditions are
+resolved in one call that is correct, deterministic, explainable, and consistent under concurrent writes.
 
-AccessCore is the security foundation of a larger backend portfolio: other services delegate
-authentication and authorization to it through a typed SDK. It treats authorization as a
-first-class engineering problem — correct, deterministic, explainable, consistent, and
-auditable — not a `role === 'admin'` check bolted onto a `users` table.
+[![CI](https://github.com/diegowritescode/accesscore/actions/workflows/ci.yml/badge.svg)](https://github.com/diegowritescode/accesscore/actions/workflows/ci.yml)
+[![Security](https://github.com/diegowritescode/accesscore/actions/workflows/security.yml/badge.svg)](https://github.com/diegowritescode/accesscore/actions/workflows/security.yml)
+[![Release](https://github.com/diegowritescode/accesscore/actions/workflows/release.yml/badge.svg)](https://github.com/diegowritescode/accesscore/actions/workflows/release.yml)
+![Coverage](https://img.shields.io/badge/coverage-95%25%20lines%20%28merged%29-brightgreen)
+![Mutation score](https://img.shields.io/badge/mutation%20score-80%25%20authz%20domain-blue)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-> **Live:** API at **[auth.deviego.xyz](https://auth.deviego.xyz)** — try `GET /health`,
-> [`GET /.well-known/jwks.json`](https://auth.deviego.xyz/.well-known/jwks.json), the interactive
-> [`/reference`](https://auth.deviego.xyz/reference), or `POST /authz/check` (see
-> [`docs/api.md`](docs/api.md)). Admin console at **[console.deviego.xyz](https://console.deviego.xyz)**.
-> Both self-hosted on a VPS as immutable GHCR images behind Traefik.
+|                   |                                                                                                      |
+| ----------------- | ---------------------------------------------------------------------------------------------------- |
+| **Admin console** | [console.deviego.xyz](https://console.deviego.xyz)                                                   |
+| **API reference** | [auth.deviego.xyz/reference](https://auth.deviego.xyz/reference) (OpenAPI, try it in the browser)    |
+| **Demo login**    | `demo@accesscore.dev` / `correct horse battery staple` (shared, restricted, reset nightly)           |
+| **In production** | [MiniLedger](https://github.com/diegowritescode/miniledger) authorizes every ledger call via the SDK |
 
-> **Status — the hybrid engine is complete.** **Slices 0–8 are shipped.** Identity and password
-> auth, the EdDSA token platform, tenancy, and the full **policy decision point** —
-> **ReBAC** (Zanzibar-style tuples with `computed_userset` / `tuple_to_userset` rewrites and
-> nested groups), **RBAC** (roles modeled as usersets), and **ABAC** (a Cedar-like condition
-> language with `forbid` deny-override, permission boundaries, and org guardrails) — resolved in
-> one call with consistency tokens, a decision log, and an explainable derivation path.
-> **Account security** (TOTP MFA + step-up/AAL elevation, per-account/per-IP lockout, a
-> tamper-evident audit hash chain), a **Next.js admin console** (read + write + Playground +
-> account security, EN/ES), a **published client SDK**, and a **Prometheus observability floor**
-> are all live. Remaining work is concentric **rings** (passkeys, OIDC/federation, SCIM, access
-> analyzer, HA) — see [Status & roadmap](#status--roadmap).
+![Authorization Playground: a check resolved to permit, with the relationship path that granted it](docs/assets/console-playground.png)
 
-## Why it's not another auth tutorial
+## Where to look first
 
-- A real **Policy Decision Point (PDP)**. A pure, total, deterministic evaluator turns resolved
-  relationship facts and attribute conditions into an explainable `Decision{effect, reasons[]}` —
-  Zanzibar-style tuples, roles modeled as usersets, ABAC conditions, IAM-style **deny-by-default**
-  with **`forbid` deny-override**, and a matched-tuple **derivation path** on every decision.
-  **(shipped — see [ADR-012](docs/adr/012-pdp-evaluation-algorithm.md),
-  [ADR-015](docs/adr/015-userset-rewrites-and-rebac-evaluation.md),
-  [ADR-016](docs/adr/016-abac-policy-and-deny-override.md))**
-- **Userset rewrites & nested groups.** `computed_userset` (role aliasing) and `tuple_to_userset`
-  (hierarchy/inheritance) resolve through a bounded recursive walk with a cycle guard, modeled as
-  a `Userset` operator tree that made ABAC purely additive. **(shipped)**
-- **Consistency tokens ("zookies").** Every authorization-relevant write advances a commit-ordered
-  global revision; `check` accepts a token meaning "evaluate against data at least this fresh,"
-  closing Zanzibar's _new-enemy problem_. **(shipped — see
-  [ADR-004](docs/adr/004-authorization-consistency-model.md))**
-- **Two enforcement points, one contract.** An in-process `@RequirePermission` guard and a remote
-  SDK guard share a provenance-based check contract; a downstream service physically cannot assert
-  its own `subject`/`org` — the wire DTO has no such field. **(shipped — see
-  [ADR-013](docs/adr/013-cross-service-authorization-contract.md))**
-- **Non-exportable token signing.** Asymmetric **Ed25519** keys live in **HashiCorp Vault
-  Transit**; the app signs by API call and never holds private key material. Verifiers enforce the
-  JWK's declared `alg`, defeating algorithm-confusion. **(shipped — see
-  [ADR-009](docs/adr/009-key-management-and-cryptography.md))**
-- **MFA + step-up + tamper-evident audit.** TOTP enrollment with single-use recovery codes;
-  step-up elevates the session to **AAL 2**, which ABAC policies can require; security events are
-  appended to a **SHA-256 hash chain** whose integrity anyone can re-verify. **(shipped — see
-  [ADR-020](docs/adr/020-mfa-and-step-up.md), [ADR-021](docs/adr/021-tamper-evident-audit.md))**
-- **Fail-closed everywhere.** The evaluator never throws (unknowns → deny); a `forbid` or a
-  truncated negative operand never fails open; a PDP/store error is a `503`; the SDK normalizes
-  timeouts and transport errors into `deny`. **(shipped)**
+- **The decision engine is a pure function.** [`evaluate.ts`](apps/api/src/authz/domain/evaluate.ts)
+  is total and deterministic, with no I/O and no framework. It is property-tested with `fast-check`
+  (deny-by-default, tenant isolation, cycle safety, check/expand agreement) and mutation-tested with
+  Stryker ([ADR-012](docs/adr/012-pdp-evaluation-algorithm.md), [ADR-015](docs/adr/015-userset-rewrites-and-rebac-evaluation.md)).
+- **No "new enemy" problem.** Every write advances a commit-ordered revision under a Postgres advisory
+  lock. A `check` can require "at least this fresh", and the decision cache is keyed by revision, so a
+  revoked grant is never served from a stale snapshot
+  ([ADR-004](docs/adr/004-authorization-consistency-model.md), [ADR-023](docs/adr/023-decision-cache-consistency-model.md)).
+- **Fail-closed by construction.** Unknowns deny, a `forbid` wins regardless of order, a truncated
+  negative operand never opens access, and a PDP error returns `503`, never `permit`
+  ([ADR-016](docs/adr/016-abac-policy-and-deny-override.md)).
+- **Keys the process cannot leak.** Ed25519 signing happens inside Vault Transit, and the API never
+  holds private key material ([ADR-009](docs/adr/009-key-management-and-cryptography.md)).
+- **Measured, not claimed.** `check` runs at p50 1.3 ms with the decision cache (k6, [`performance.md`](docs/performance.md)).
+  Merged unit + integration + e2e coverage is about 95%. The live instance runs immutable,
+  SHA-tagged images with a least-privilege DB role and a tamper-evident audit hash chain
+  ([ADR-027](docs/adr/027-container-release-and-shared-edge-deployment.md), [ADR-018](docs/adr/018-least-privilege-db-role.md), [ADR-021](docs/adr/021-tamper-evident-audit.md)).
 
-Full rationale lives in **25 ADRs** under [`docs/adr/`](docs/adr/).
+## Architecture at a glance
+
+```mermaid
+flowchart TB
+  browser([Browser]) --> console["Console<br/>Next.js BFF"]
+  service(["MiniLedger<br/>any service"]) -- "SDK check()" --> api
+  console -- "bearer from httpOnly cookie" --> api
+  service -. "verifies JWTs offline" .-> jwks["/.well-known/jwks.json"]
+  jwks --- api
+
+  api["<b>AccessCore API</b> · modular monolith<br/>identity · authn · authz (PDP + PAP)<br/>tenancy · security (MFA, audit chain)"]
+
+  api --> pg[("PostgreSQL<br/>tuples · revisions · decision log")]
+  api --> redis[("Redis<br/>decision cache · revocation · lockout")]
+  api --> vault["Vault Transit<br/>Ed25519 signing"]
+```
+
+Each module is split into domain, application, infrastructure, and interface layers, and
+[dependency-cruiser](apps/api/.dependency-cruiser.cjs) fails the build if a domain file imports a framework or
+an adapter. Full detail is in [`docs/architecture.md`](docs/architecture.md), and every significant
+decision is recorded as an ADR in [`docs/adr/`](docs/adr/).
+
+<details>
+<summary><b>More screenshots</b>: deny-override, expand, schema, relationships, policies</summary>
+
+|                                                                                                                                       |                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ![Deny-override: the same owner is denied document.write at AAL 1 by the seeded forbid policy](docs/assets/console-deny-override.png) | ![Expand: every subject that can view the document, across role aliasing, nested groups, and folder inheritance](docs/assets/console-expand.png) |
+| ![Policies: the seeded require-mfa-to-write forbid policy and its condition](docs/assets/console-policies.png)                        | ![Schema: namespace relations, action bindings, and userset rewrites](docs/assets/console-schema.png)                                            |
+| ![Relationships: the raw tuple graph with the revision that wrote each tuple](docs/assets/console-relationships.png)                  |                                                                                                                                                  |
+
+</details>
 
 ## Business problem
 
@@ -128,16 +140,6 @@ layer instead of re-implementing auth per service. Full context in
   software signer and the dev Vault token, and a **least-privilege runtime DB role** with
   `REVOKE UPDATE, DELETE` on the append-only decision log / revisions / audit tables.
 
-## Architecture
-
-Modular monolith with **Hexagonal (Ports & Adapters)** + **DDD** tactical patterns: one
-deployable, four layers per module (domain / application / infrastructure / interface), with
-domain logic fully decoupled from NestJS and the database — which is what lets the evaluator be
-property-tested in isolation. Modules: `identity`, `authn`, `authz` (the core PDP + PAP),
-`tenancy`, `security` (MFA + audit chain), `observability` (metrics). Rationale in
-[ADR-001](docs/adr/001-architecture-style.md); full detail in
-[`docs/architecture.md`](docs/architecture.md).
-
 ## Workspace layout
 
 A pnpm + Turborepo workspace (one repo; not a monorepo of many products):
@@ -202,10 +204,10 @@ sleeps):
   audit verifier, and the Prometheus `/metrics` surface.
 
 Coverage is collected from all three suites and **merged** (`nyc`), so an adapter exercised only by
-integration/e2e still counts. Current merged figures on core logic: roughly **~95.7% lines ·
-~95.2% statements · ~92.9% functions · ~85.9% branches**, above the CI gate floor
+integration/e2e still counts. Current merged figures on core logic: roughly **~96% lines ·
+~96% statements · ~93% functions · ~87% branches** (CI run on `main`, 2026-09-30), above the CI gate floor
 (`lines 90 / statements 90 / functions 85 / branches 75`, a ratchet that only rises). Suite sizes:
-**370 unit + 63 integration + 69 e2e** (API) and **14** SDK tests. Detail in
+**439 unit + 79 integration + 83 e2e** (API) and **14** SDK tests. Detail in
 [`docs/testing-strategy.md`](docs/testing-strategy.md).
 
 ## Deployment
@@ -248,6 +250,7 @@ concentric **rings** in value order. Deferring a ring is a decision, not an omis
 | 6     | Account security & audit — TOTP MFA + step-up (AAL 2), per-account/per-IP lockout, tamper-evident audit hash chain                             | **Shipped** |
 | 7     | Admin console (Next.js) — read + write screens (schema/relationships/policies), Authorization Playground, account security, EN/ES              | **Shipped** |
 | 8     | Observability & ops floor — Prometheus `/metrics` (HTTP + authz-domain), least-privilege DB role, structured pino logging                      | **Shipped** |
+| Scale | Zanzibar-scale ring — revision-keyed decision cache, async batched decision log, Watch API (SSE tuple changelog); Leopard index in progress    | **Shipped** |
 | Rings | Passkeys · RFC 8693 token exchange · service accounts · full OIDC provider + federation + SCIM · access analyzer/reviews/SoD · HA              | Planned     |
 
 ## Quick start

@@ -98,7 +98,10 @@ services:
       start_period: 30s
     mem_limit: 512m
     logging: *logging
-    networks: [internal, edge]
+    networks:
+      internal:
+        aliases: [accesscore-api]
+      edge: {}
     labels:
       - traefik.enable=true
       - traefik.docker.network=edge
@@ -114,7 +117,7 @@ services:
       api:
         condition: service_healthy
     environment:
-      ACCESSCORE_API_URL: http://api:3000
+      ACCESSCORE_API_URL: http://accesscore-api:3000
     expose: ['3001']
     mem_limit: 256m
     logging: *logging

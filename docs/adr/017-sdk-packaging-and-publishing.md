@@ -100,6 +100,11 @@ through the repo's Changesets flow so a `CHANGELOG.md` is generated alongside it
 `pnpm publish` (which rewrites the `workspace:*` protocol, unlike `npm publish`) with
 `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}`. Publishing is the _only_ step that needs a secret.
 
+> **Amended 2026-09-30:** the job runs only for releases tagged `sdk-v*` (or a manual dispatch).
+> Platform releases are tagged `v*` and ship container images through the `Release` workflow
+> ([ADR-027](027-container-release-and-shared-edge-deployment.md)); they must not try to republish
+> an unchanged SDK version to npm.
+
 ### 6. A publish-guard regression test
 
 `packages/sdk/src/packaging.spec.ts` runs in `pnpm --filter …sdk test` and, against the built

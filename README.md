@@ -326,6 +326,11 @@ Every `permit` carries its **derivation**: `reasons[].code` names the mechanism 
 `reasons[].path` is the exact chain of tuples that granted it — the explainability that feeds the
 decision log and the Authorization Playground.
 
+The seed also writes one ABAC policy, `require-mfa-to-write`: a `forbid` on `document.write`
+whenever `principal.aal < 2`. The owner still holds `editor`, yet a `check` of `document.write` at
+AAL 1 returns `deny` with `forbid_matched`, and the same check at AAL 2 returns `permit`. Try it in
+the console Playground by switching the assurance level, which is deny-override in one click.
+
 Author the graph and policies yourself over HTTP through the owner-gated **Policy Administration
 Point** (`PUT /authz/namespaces/:ns`, `POST`/`DELETE /authz/tuples`,
 `PUT`/`DELETE /authz/policies/:id`, [ADR-014](docs/adr/014-policy-administration-point.md)) — or

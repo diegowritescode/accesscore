@@ -75,6 +75,10 @@ Folded into the committed **core** (not deferred), from the design reviews:
 
 New / updated **rings**:
 
+- Transactional mail delivery: a Resend/SMTP adapter behind the existing `Mailer` port, sender
+  SPF/DKIM, and console screens for sign-up, verification, and reset (the live demo logs mail
+  today — see [trade-offs](trade-offs.md#log-only-mail-adapter-on-the-live-demo)).
+
 - Signed entity store (trusted caller attributes); sender-constrained tokens (DPoP/mTLS);
   external WORM/transparency anchoring of the audit head; full OIDC-provider hardening;
   introspection endpoint for high-sensitivity verifiers.

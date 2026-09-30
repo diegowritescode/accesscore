@@ -243,7 +243,7 @@ const en: Dict = {
   'check.aal2': '2 — MFA',
   'check.aal3': '3 — hardware key',
   'check.aalHint':
-    'Only changes the decision when an ABAC policy checks principal.aal. None are seeded — try the “Require MFA” preset under Simulate.',
+    'Only changes the decision when an ABAC policy checks principal.aal. The seeded require-mfa-to-write policy forbids document.write below AAL 2: compare AAL 1 and AAL 2.',
   'check.submit': 'Check',
   'check.idle': 'Run a check to see the decision.',
   'check.evaluating': 'Evaluating…',
@@ -608,7 +608,7 @@ const es: Dict = {
   'check.aal2': '2 — MFA',
   'check.aal3': '3 — llave física',
   'check.aalHint':
-    'Solo cambia la decisión cuando una política ABAC evalúa principal.aal. No hay ninguna sembrada — probá el preset “Requerir MFA” en Simular.',
+    'Solo cambia la decisión cuando una política ABAC evalúa principal.aal. La política sembrada require-mfa-to-write prohíbe document.write por debajo de AAL 2: compará AAL 1 y AAL 2.',
   'check.submit': 'Consultar',
   'check.idle': 'Ejecutá una consulta para ver la decisión.',
   'check.evaluating': 'Evaluando…',

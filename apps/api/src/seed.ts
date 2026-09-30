@@ -9,6 +9,7 @@ import {
   RELATION_TUPLE_WRITER,
   type RelationTupleWriter,
 } from './authz/application/relation-tuple-writer';
+import { POLICY_WRITER, type PolicyWriter } from './authz/application/policy-writer';
 import { type EntityRef } from './authz/domain/entity-ref';
 import { type SubjectRef } from './authz/domain/subject-ref';
 import { type Userset } from './authz/domain/userset';
@@ -58,6 +59,7 @@ async function main(): Promise<void> {
     const tenancy = app.get<TenancyService>(TENANCY_SERVICE);
     const namespaces = app.get<NamespaceConfigWriter>(NAMESPACE_CONFIG_WRITER);
     const tuples = app.get<RelationTupleWriter>(RELATION_TUPLE_WRITER);
+    const policies = app.get<PolicyWriter>(POLICY_WRITER);
 
     const email = Email.create(DEMO_EMAIL);
     if (!email.ok) {
@@ -159,6 +161,23 @@ async function main(): Promise<void> {
       await tuples.write({ orgId, ...grant });
     }
 
+    const stepUp = await policies.write({
+      orgId,
+      id: 'require-mfa-to-write',
+      effect: 'forbid',
+      resourceType: 'document',
+      action: 'write',
+      condition: {
+        kind: 'cmp',
+        op: 'lt',
+        left: { kind: 'attr', path: 'principal.aal' },
+        right: { kind: 'lit', value: 2 },
+      },
+    });
+    if (!stepUp.ok) {
+      throw new Error(`failed to write policy: ${stepUp.error}`);
+    }
+
     process.stdout.write(
       [
         'Seed applied.',
@@ -167,6 +186,8 @@ async function main(): Promise<void> {
         '  showcase:   POST /authz/expand { resource: { type: "document", id: "onboarding" }, relation: "viewer" }',
         '              resolves the owner (you, via owner->editor->viewer), user:bob (nested group eng-leads<eng),',
         '              and user:carol (inherited from folder:handbook via tuple_to_userset).',
+        '  abac:       policy require-mfa-to-write forbids document.write below AAL 2; check',
+        '              document.write as the owner at AAL 1 (deny) and AAL 2 (permit).',
         '',
       ].join('\n'),
     );

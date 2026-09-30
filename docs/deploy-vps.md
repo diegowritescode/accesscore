@@ -69,7 +69,8 @@ docker compose exec api node dist/seed.js
 
 Demo login: `demo@accesscore.dev` / `correct horse battery staple`. The seed also defines the
 `ledger` namespace and makes the demo user `operator` of `ledger:miniledger`, so MiniLedger works
-with the same login.
+with the same login, and it writes one ABAC policy, `require-mfa-to-write`, which forbids
+`document.write` below AAL 2 so the Playground shows deny-override at AAL 1 and a permit at AAL 2.
 
 ## Shared demo: restrictions and nightly reset
 

@@ -2,7 +2,7 @@
   "name": "accesscore",
   "version": "0.0.0",
   "private": true,
-  "description": "AccessCore — a self-hostable Identity & Access Management platform with a hybrid ReBAC + RBAC + ABAC authorization engine.",
+  "description": "AccessCore \u2014 a self-hostable Identity & Access Management platform with a hybrid ReBAC + RBAC + ABAC authorization engine.",
   "license": "Apache-2.0",
   "engines": {
     "node": ">=22"
@@ -40,5 +40,17 @@
     "*.{json,md,yml,yaml}": [
       "prettier --write"
     ]
+  },
+  "pnpm": {
+    "overrides": {
+      "brace-expansion@>=4.0.0 <5.0.12": "^5.0.12",
+      "browserslist@<4.28.7": "^4.28.9",
+      "fast-uri@>=3.0.0 <3.1.7": "^3.1.7",
+      "js-yaml@>=5.0.0 <5.4.1": "^5.4.1",
+      "nanoid@<3.3.18": "^3.3.19",
+      "postcss@<8.5.23": "^8.5.23",
+      "qs@<6.16.0": "^6.16.0",
+      "baseline-browser-mapping@<2.11.0": "^2.11.0"
+    }
   }
 }

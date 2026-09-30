@@ -5,6 +5,7 @@ import { ConsistencyToken } from '../../src/authz/domain/consistency-token';
 import { type EntityRef } from '../../src/authz/domain/entity-ref';
 import { type SubjectRef } from '../../src/authz/domain/subject-ref';
 import { RelationTuple } from '../../src/authz/domain/relation-tuple';
+import { DrizzleRelationTupleChangelog } from '../../src/authz/infrastructure/persistence/drizzle-relation-tuple-changelog';
 import { DrizzleRelationTupleStore } from '../../src/authz/infrastructure/persistence/drizzle-relation-tuple.store';
 import { DrizzleRevisionsRepository } from '../../src/db/drizzle-revisions.repository';
 import { DrizzleUnitOfWork } from '../../src/db/drizzle-unit-of-work';
@@ -34,6 +35,7 @@ describe('authz relation-tuple store (integration)', () => {
     {
       now: () => now,
     },
+    new DrizzleRelationTupleChangelog(db),
   );
 
   const orgA = OrgId.generate();

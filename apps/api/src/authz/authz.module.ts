@@ -24,11 +24,16 @@ import {
   NamespaceConfigWriter,
 } from './application/namespace-config-writer';
 import { PdpService } from './application/pdp-service';
+import { TUPLE_CHANGE_STREAM, TupleChangeStream } from './application/tuple-change-stream';
 import { POLICY_WRITER, PolicyWriter } from './application/policy-writer';
 import { RELATION_TUPLE_WRITER, RelationTupleWriter } from './application/relation-tuple-writer';
 import { POLICY_DECISION_POINT } from './domain/policy-decision-point';
 import { DECISION_CACHE, type DecisionCache } from './domain/ports/decision-cache';
 import { DECISION_LOG, type DecisionLog } from './domain/ports/decision-log';
+import {
+  RELATION_TUPLE_CHANGELOG,
+  type RelationTupleChangelog,
+} from './domain/ports/relation-tuple-changelog';
 import {
   NAMESPACE_DEFINITIONS_REPOSITORY,
   type NamespaceDefinitionsRepository,
@@ -43,6 +48,7 @@ import {
   ImmediateDecisionLog,
 } from './infrastructure/persistence/buffered-decision-log';
 import { DrizzleDecisionLog } from './infrastructure/persistence/drizzle-decision-log';
+import { DrizzleRelationTupleChangelog } from './infrastructure/persistence/drizzle-relation-tuple-changelog';
 import { DrizzleNamespaceDefinitionsRepository } from './infrastructure/persistence/drizzle-namespace-definitions.repository';
 import { DrizzlePoliciesRepository } from './infrastructure/persistence/drizzle-policies.repository';
 import { DrizzleRelationTupleStore } from './infrastructure/persistence/drizzle-relation-tuple.store';
@@ -51,10 +57,11 @@ import { DirectoryController } from './interface/directory.controller';
 import { PapAdminGuard } from './interface/pap-admin.guard';
 import { PapController } from './interface/pap.controller';
 import { PermissionGuard } from './interface/permission.guard';
+import { WatchController } from './interface/watch.controller';
 
 @Module({
   imports: [AuthnModule, TenancyModule, SecurityModule, MetricsModule],
-  controllers: [AuthzController, PapController, DirectoryController],
+  controllers: [AuthzController, PapController, DirectoryController, WatchController],
   providers: [
     { provide: CLOCK, useClass: SystemClock },
     AccessTokenGuard,
@@ -66,14 +73,44 @@ import { PermissionGuard } from './interface/permission.guard';
       useFactory: (db: Database): DrizzleRelationTupleStore => new DrizzleRelationTupleStore(db),
     },
     {
+      provide: RELATION_TUPLE_CHANGELOG,
+      inject: [DB],
+      useFactory: (db: Database): DrizzleRelationTupleChangelog =>
+        new DrizzleRelationTupleChangelog(db),
+    },
+    {
+      provide: TUPLE_CHANGE_STREAM,
+      inject: [RELATION_TUPLE_CHANGELOG, REVISIONS_REPOSITORY, CLOCK, ENV],
+      useFactory: (
+        changelog: RelationTupleChangelog,
+        revisions: RevisionsRepository,
+        clock: Clock,
+        env: Env,
+      ): TupleChangeStream =>
+        new TupleChangeStream(changelog, revisions, clock, {
+          pollIntervalMs: env.WATCH_POLL_INTERVAL_MS,
+          pageSize: env.WATCH_PAGE_SIZE,
+          heartbeatSeconds: env.WATCH_HEARTBEAT_SECONDS,
+          maxStreamSeconds: env.WATCH_MAX_STREAM_SECONDS,
+        }),
+    },
+    {
       provide: RELATION_TUPLE_WRITER,
-      inject: [RELATION_TUPLE_STORE, REVISIONS_REPOSITORY, UNIT_OF_WORK, CLOCK],
+      inject: [
+        RELATION_TUPLE_STORE,
+        REVISIONS_REPOSITORY,
+        UNIT_OF_WORK,
+        CLOCK,
+        RELATION_TUPLE_CHANGELOG,
+      ],
       useFactory: (
         tuples: RelationTupleStore,
         revisions: RevisionsRepository,
         unitOfWork: UnitOfWork,
         clock: Clock,
-      ): RelationTupleWriter => new RelationTupleWriter(tuples, revisions, unitOfWork, clock),
+        changelog: RelationTupleChangelog,
+      ): RelationTupleWriter =>
+        new RelationTupleWriter(tuples, revisions, unitOfWork, clock, changelog),
     },
     {
       provide: NAMESPACE_DEFINITIONS_REPOSITORY,
@@ -186,6 +223,7 @@ import { PermissionGuard } from './interface/permission.guard';
     POLICY_DECISION_POINT,
     RELATION_TUPLE_STORE,
     RELATION_TUPLE_WRITER,
+    RELATION_TUPLE_CHANGELOG,
     NAMESPACE_DEFINITIONS_REPOSITORY,
     NAMESPACE_CONFIG_WRITER,
     POLICIES_REPOSITORY,
@@ -193,12 +231,17 @@ import { PermissionGuard } from './interface/permission.guard';
     AUTHZ_DIRECTORY,
     DECISION_LOG,
     DECISION_LOG_WRITER,
+    TUPLE_CHANGE_STREAM,
   ],
 })
 export class AuthzModule implements OnApplicationShutdown {
-  constructor(@Inject(DECISION_LOG_WRITER) private readonly decisionLog: FlushableDecisionLog) {}
+  constructor(
+    @Inject(DECISION_LOG_WRITER) private readonly decisionLog: FlushableDecisionLog,
+    @Inject(TUPLE_CHANGE_STREAM) private readonly changeStream: TupleChangeStream,
+  ) {}
 
   async onApplicationShutdown(): Promise<void> {
+    this.changeStream.close();
     await this.decisionLog.close();
   }
 }

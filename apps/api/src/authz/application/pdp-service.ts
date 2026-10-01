@@ -37,7 +37,7 @@ import { type PoliciesRepository } from '../domain/ports/policies-repository';
 import { type RelationTupleStore } from '../domain/ports/relation-tuple-store';
 import { type RelationTuple } from '../domain/relation-tuple';
 import { TupleIndex } from '../domain/tuple-index';
-import { type Userset } from '../domain/userset';
+import { directUserset, type Userset } from '../domain/userset';
 
 const deny = (code: string, message: string): Decision => ({
   effect: 'deny',
@@ -228,13 +228,7 @@ export class PdpService implements PolicyDecisionPoint {
     return this.unitOfWork.withTransaction<EntityRef[]>(
       async (tx) => {
         const context = await this.openContext(tx);
-        const namespace = await this.cachedNamespace(orgId, resource.type, context);
-        const registry = NamespaceRegistry.of(namespace ? [namespace] : []);
-        const tuples = await this.loadClosure(orgId, resource, [relation], registry, context);
-        const snapshot: EvaluationSnapshot = {
-          namespaces: registry,
-          tuples: TupleIndex.of(orgId, tuples),
-        };
+        const snapshot = await this.loadClosure(orgId, resource, [relation], context);
         return expandMembers(orgId, resource, relation, snapshot);
       },
       { readOnly: true, isolationLevel: 'repeatable read' },
@@ -340,13 +334,8 @@ export class PdpService implements PolicyDecisionPoint {
     }
     const orgId = OrgId.fromString(principal.orgId);
     const namespace = await this.cachedNamespace(orgId, resource.type, context);
-    const registry = NamespaceRegistry.of(namespace ? [namespace] : []);
     const relations = namespace ? namespace.requiredRelationsFor(action) : [];
-    const tuples = await this.loadClosure(orgId, resource, relations, registry, context);
-    const snapshot: EvaluationSnapshot = {
-      namespaces: registry,
-      tuples: TupleIndex.of(orgId, tuples),
-    };
+    const snapshot = await this.loadClosure(orgId, resource, relations, context);
     const rebac = evaluate({ orgId, subject: principal.subject, action, resource }, snapshot);
     const applicable = await this.policies.listByTarget(
       orgId,
@@ -389,11 +378,19 @@ export class PdpService implements PolicyDecisionPoint {
     orgId: OrgId,
     resource: Resource,
     relations: readonly string[],
-    registry: NamespaceRegistry,
     context: EvaluationContext,
-  ): Promise<RelationTuple[]> {
+  ): Promise<EvaluationSnapshot> {
     const local = new Map<string, RelationTuple[]>();
     const walked = new Set<string>();
+    const reached = new Map<string, NamespaceDefinition>();
+
+    const namespaceOf = async (type: string): Promise<NamespaceDefinition | null> => {
+      const namespace = await this.cachedNamespace(orgId, type, context);
+      if (namespace) {
+        reached.set(type, namespace);
+      }
+      return namespace;
+    };
 
     const rowsOf = async (object: EntityRef, relation: string): Promise<RelationTuple[]> => {
       const node = `${formatEntityRef(object)}#${relation}`;
@@ -455,13 +452,19 @@ export class PdpService implements PolicyDecisionPoint {
       }
       walked.add(key);
       const node = await rowsOf(object, relation);
-      await walkRewrite(object, registry.rewritesFor(object.type, relation), node, depth);
+      const namespace = await namespaceOf(object.type);
+      const rewrite = namespace ? namespace.config.rewritesFor(relation) : directUserset;
+      await walkRewrite(object, rewrite, node, depth);
     };
 
+    await namespaceOf(resource.type);
     for (const relation of relations) {
       await walk(resource, relation, 0);
     }
-    return [...local.values()].flat();
+    return {
+      namespaces: NamespaceRegistry.of(reached.values()),
+      tuples: TupleIndex.of(orgId, [...local.values()].flat()),
+    };
   }
 
   private async log(

@@ -44,15 +44,20 @@ class FakeRevisions implements RevisionsRepository {
 }
 
 class FakeNamespaces implements NamespaceDefinitionsRepository {
-  constructor(private readonly definition: NamespaceDefinition | null) {}
+  private readonly definitions: readonly NamespaceDefinition[];
+  constructor(definitions: NamespaceDefinition | readonly NamespaceDefinition[] | null) {
+    this.definitions = definitions === null ? [] : [definitions].flat();
+  }
   save(): Promise<void> {
     return Promise.resolve();
   }
-  findByNamespace(): Promise<NamespaceDefinition | null> {
-    return Promise.resolve(this.definition);
+  findByNamespace(_orgId: OrgId, namespace: string): Promise<NamespaceDefinition | null> {
+    return Promise.resolve(
+      this.definitions.find((definition) => definition.namespace === namespace) ?? null,
+    );
   }
   listByOrg(): Promise<NamespaceDefinition[]> {
-    return Promise.resolve(this.definition ? [this.definition] : []);
+    return Promise.resolve([...this.definitions]);
   }
 }
 
@@ -193,6 +198,29 @@ function inheritNamespaceDef(org = orgId): NamespaceDefinition {
   });
 }
 
+function folderNamespaceDef(org = orgId): NamespaceDefinition {
+  const config = NamespaceConfig.create({
+    relations: ['editor', 'viewer'],
+    actions: { read: ['viewer'] },
+    rewrites: {
+      viewer: {
+        kind: 'union',
+        children: [{ kind: 'this' }, { kind: 'computedUserset', relation: 'editor' }],
+      },
+    },
+  });
+  if (!config.ok) {
+    throw new Error('invalid config');
+  }
+  return NamespaceDefinition.define({
+    orgId: org,
+    namespace: 'folder',
+    config: config.value,
+    revision: Revision.fromValue(1),
+    createdAt: now,
+  });
+}
+
 function objectTuple(object: EntityRef, relation: string, subject: SubjectRef): RelationTuple {
   return RelationTuple.write({
     orgId,
@@ -234,7 +262,7 @@ const fullContext: RequestContext = {
 };
 
 function build(options: {
-  definition?: NamespaceDefinition | null;
+  definition?: NamespaceDefinition | readonly NamespaceDefinition[] | null;
   tuples?: RelationTuple[];
   policies?: Policy[];
   revision?: number;
@@ -457,6 +485,29 @@ describe('PdpService', () => {
 
     expect(decision.effect).toBe('permit');
     expect(decision.reasons[0]?.code).toBe('grant.tuple_to_userset');
+  });
+
+  it('applies the rewrites of the namespace a tuple_to_userset hop reaches', async () => {
+    const folder: EntityRef = { type: 'folder', id: 'f1' };
+    const tuples = [
+      objectTuple(resource, 'parent', { kind: 'subject', ref: folder }),
+      objectTuple(folder, 'editor', { kind: 'subject', ref: alice }),
+    ];
+    const { pdp } = build({
+      definition: [inheritNamespaceDef(), folderNamespaceDef()],
+      tuples,
+      revision: 8,
+    });
+
+    const decision = await pdp.check(principal(orgId.value), read, resource, fullContext);
+    const members = await pdp.expand(principal(orgId.value), resource, 'viewer');
+
+    expect(decision.effect).toBe('permit');
+    expect(decision.reasons[0]?.path).toEqual([
+      'document:1#parent@folder:f1',
+      'folder:f1#editor@user:alice',
+    ]);
+    expect(members).toEqual([alice]);
   });
 
   it('resolves a grant through nested groups beyond one level', async () => {

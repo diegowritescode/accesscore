@@ -20,6 +20,13 @@ Stacks share the `edge` network, where every service name is also a DNS name. Tw
 both define `api` would make `api` resolve to either one, so internal calls always use the
 stack-unique alias on the private network (`accesscore-api`), never the bare service name.
 
+The API publishes the same alias on `edge`, so a consumer on the same host (MiniLedger) calls
+`http://accesscore-api:3000` directly instead of the public hostname. Going through the public
+hostname would hairpin through Traefik, which drops forwarded headers from untrusted sources, and
+every visitor of that consumer would share one per-IP login throttle and lockout counter. The
+consumer's backend-for-frontend forwards the visitor's address, and the API trusts exactly one
+proxy hop. Only containers on `edge` can use this route, and they belong to the same operator.
+
 ## Prerequisites
 
 - Docker with the Compose plugin, and a Traefik v3 instance on the host that owns ports 80/443 with

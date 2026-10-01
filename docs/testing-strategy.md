@@ -27,10 +27,10 @@ by integration/e2e counts. A per-run number would be misleading (unit alone leav
   Istanbul reports into `.nyc_output`, prints the summary, and runs `nyc check-coverage`.
 - Thresholds live in `apps/api/.nycrc.json` and are enforced in CI. They are a **ratchet**: set at
   a floor below the current number and only ever raised, never lowered.
-- Current core-logic coverage (merged, all three suites): **≈95% lines / ≈95% statements /
-  ≈91% functions / ≈87% branches** — above the CI gate floor (lines 90 / statements 90 /
-  functions 85 / branches 75), which is what CI actually enforces. Suite sizes are ≈215 unit +
-  37 integration + 53 e2e (API) + 11 SDK, and grow per slice.
+- Current core-logic coverage (merged, all three suites, CI on `main`, 2026-10-01): **96.1% lines /
+  95.7% statements / 92.7% functions / 87.0% branches** — above the CI gate floor (lines 90 /
+  statements 90 / functions 85 / branches 75), which is what CI actually enforces. Suite sizes are
+  465 unit + 96 integration + 84 e2e (API) + 14 SDK, plus 10 Playwright browser journeys.
 
 ## Property-based testing (the PDP)
 

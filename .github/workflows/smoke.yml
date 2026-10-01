@@ -1,0 +1,56 @@
+name: Production smoke
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      API: https://auth.deviego.xyz
+      CONSOLE: https://console.deviego.xyz
+    steps:
+      - name: API is live and ready
+        run: |
+          curl -fsS --retry 3 --retry-all-errors "$API/health"
+          curl -fsS --retry 3 --retry-all-errors "$API/ready"
+      - name: JWKS publishes an EdDSA signing key
+        run: |
+          curl -fsS --retry 3 --retry-all-errors "$API/.well-known/jwks.json" \
+            | jq -e '.keys | map(select(.alg == "EdDSA" and .use == "sig")) | length > 0'
+      - name: Metrics stay private
+        run: |
+          status=$(curl -s -o /dev/null -w '%{http_code}' "$API/metrics")
+          test "$status" = 404 || { echo "/metrics answered $status publicly"; exit 1; }
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @accesscore/console
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: apps/console
+      - name: Console journeys against production
+        run: pnpm exec playwright test --grep @smoke
+        working-directory: apps/console
+        env:
+          E2E_BASE_URL: ${{ env.CONSOLE }}
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-report
+          path: |
+            apps/console/playwright-report
+            apps/console/test-results
+          retention-days: 7

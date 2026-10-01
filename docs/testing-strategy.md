@@ -12,6 +12,7 @@ the actual failure modes. This document is the contract for how we test.
 | **Unit**        | `jest` (`src/**/*.spec.ts`)                                                   | Domain + application behavior, deterministic, with injected fakes (clock, repos, ports). The bulk of the assertions.                                       | None — pure, no I/O.                                                         |
 | **Integration** | `jest --config test/jest-integration.json` (`test/integration/*.int-spec.ts`) | Adapters against **real** Postgres / Redis / Vault: DB-enforced constraints, row-level concurrency, Vault Transit signing + rotation, Redis TTLs.          | Real infra via docker-compose.                                               |
 | **E2E**         | `jest --config test/jest-e2e.json` (`test/*.e2e-spec.ts`)                     | Full HTTP flows through the booted Nest app + real DB: the security properties end to end (blocklisted-but-valid JWT rejected, IDOR → 404, reuse cascade). | Real app + DB; signing via the in-process `software` driver for hermeticity. |
+| **Browser**     | Playwright (`apps/console/e2e/*.spec.ts`)                                     | The console's user journeys through the real BFF and API: sign-in and sign-out, Playground check/expand, the AAL step-up policy, the EN/ES toggle.         | Built API + console against a seeded DB; Chromium.                           |
 
 Determinism is non-negotiable: the `Clock` is a port injected everywhere, so time-dependent logic
 (token expiry, key-rotation drain windows, refresh grace) is tested by advancing a fake clock,
@@ -78,6 +79,22 @@ CI runs Stryker in a dedicated [`Mutation`](../.github/workflows/mutation.yml) w
 changes, weekly, and on demand) with a **`break` threshold that fails the build if the score
 regresses** — a ratchet, not a vanity badge. It is intentionally not on the critical `verify` path:
 a full run is minutes, and mutation score is a trend to defend, not a per-commit blocker.
+
+## Browser journeys and the production smoke
+
+The Playwright suite drives the console the way a visitor does. It signs in **once** as the seeded
+demo account in a setup project and reuses that session (`storageState`), so it costs one login
+however many journeys it runs; tests that need no session opt out explicitly. Selectors are
+accessible roles and names, never CSS, so a passing run also says the views are labelled.
+
+The `e2e` CI job builds the API and console, migrates and seeds a fresh database, and lets
+Playwright start both servers. On failure it uploads the HTML report and traces.
+
+Journeys tagged `@smoke` are **read-only**: they never write tuples or policies, so they can run
+against the shared public instance. The `Production smoke` workflow runs them **hourly** against
+`console.deviego.xyz`, after checking `/health`, `/ready`, a published EdDSA key in the JWKS, and
+that `/metrics` is still not exposed. A broken deploy, an expired certificate, or a regression in
+the step-up policy shows up as a failed scheduled run.
 
 ## Fixtures
 

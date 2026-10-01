@@ -7,6 +7,7 @@ resolved in one call that is correct, deterministic, explainable, and consistent
 [![CI](https://github.com/diegowritescode/accesscore/actions/workflows/ci.yml/badge.svg)](https://github.com/diegowritescode/accesscore/actions/workflows/ci.yml)
 [![Security](https://github.com/diegowritescode/accesscore/actions/workflows/security.yml/badge.svg)](https://github.com/diegowritescode/accesscore/actions/workflows/security.yml)
 [![Release](https://github.com/diegowritescode/accesscore/actions/workflows/release.yml/badge.svg)](https://github.com/diegowritescode/accesscore/actions/workflows/release.yml)
+[![Production smoke](https://github.com/diegowritescode/accesscore/actions/workflows/smoke.yml/badge.svg)](https://github.com/diegowritescode/accesscore/actions/workflows/smoke.yml)
 ![Coverage](https://img.shields.io/badge/coverage-95%25%20lines%20%28merged%29-brightgreen)
 ![Mutation score](https://img.shields.io/badge/mutation%20score-80%25%20authz%20domain-blue)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
@@ -205,6 +206,9 @@ sleeps):
 - **E2E** — full HTTP flows through the booted Nest app: blocklisted-but-valid JWT rejected, reuse
   cascade, `@RequirePermission` deny/permit, the `/authz/*` semantics, MFA + step-up, lockout, the
   audit verifier, and the Prometheus `/metrics` surface.
+- **Browser** (Playwright) — the console's journeys through the real BFF and API: sign-in/out,
+  Playground check and expand, the AAL step-up policy, EN/ES. The read-only `@smoke` subset runs
+  **hourly against the live instance** (`Production smoke` badge above).
 
 Coverage is collected from all three suites and **merged** (`nyc`), so an adapter exercised only by
 integration/e2e still counts. Current merged figures on core logic: roughly **~96% lines ·
@@ -281,6 +285,7 @@ pnpm typecheck   # tsc --noEmit
 pnpm test        # unit tests
 pnpm build       # build all packages/apps
 pnpm --filter @accesscore/api coverage   # merged unit+integration+e2e coverage + gate
+pnpm --filter @accesscore/console test:e2e   # Playwright journeys (starts the API and console)
 ```
 
 Contribution conventions and quality gates are in [`CONTRIBUTING.md`](CONTRIBUTING.md); community

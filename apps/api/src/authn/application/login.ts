@@ -33,6 +33,7 @@ export interface LoginConfig {
   refreshTtlSeconds: number;
   accountLockout: LockoutPolicy;
   ipLockout: LockoutPolicy;
+  publicCredentialEmail: string | null;
 }
 
 export type LoginError = 'invalid_credentials' | 'locked';
@@ -55,10 +56,12 @@ export class LoginHandler {
   ) {}
 
   async execute(command: LoginCommand): Promise<Result<LoginResult, LoginError>> {
-    const accountKey = `acct:${command.email.trim().toLowerCase()}`;
+    const email = command.email.trim().toLowerCase();
+    const accountKey = email === this.config.publicCredentialEmail ? null : `acct:${email}`;
     const ipKey = command.ip ? `ip:${command.ip}` : null;
 
-    const lockedByAccount = await this.lockout.isLocked(accountKey, this.config.accountLockout);
+    const lockedByAccount =
+      accountKey !== null && (await this.lockout.isLocked(accountKey, this.config.accountLockout));
     const lockedByIp =
       ipKey !== null && (await this.lockout.isLocked(ipKey, this.config.ipLockout));
     if (lockedByAccount || lockedByIp) {
@@ -67,14 +70,18 @@ export class LoginHandler {
 
     const check = await this.credentials.verify(command.email, command.password);
     if (!check) {
-      await this.lockout.registerFailure(accountKey, this.config.accountLockout);
+      if (accountKey !== null) {
+        await this.lockout.registerFailure(accountKey, this.config.accountLockout);
+      }
       if (ipKey !== null) {
         await this.lockout.registerFailure(ipKey, this.config.ipLockout);
       }
       return err('invalid_credentials');
     }
 
-    await this.lockout.reset(accountKey);
+    if (accountKey !== null) {
+      await this.lockout.reset(accountKey);
+    }
     if (ipKey !== null) {
       await this.lockout.reset(ipKey);
     }

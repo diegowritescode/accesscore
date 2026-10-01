@@ -101,7 +101,8 @@ services:
     networks:
       internal:
         aliases: [accesscore-api]
-      edge: {}
+      edge:
+        aliases: [accesscore-api]
     labels:
       - traefik.enable=true
       - traefik.docker.network=edge

@@ -8,7 +8,7 @@ resolved in one call that is correct, deterministic, explainable, and consistent
 [![Security](https://github.com/diegowritescode/accesscore/actions/workflows/security.yml/badge.svg)](https://github.com/diegowritescode/accesscore/actions/workflows/security.yml)
 [![Release](https://github.com/diegowritescode/accesscore/actions/workflows/release.yml/badge.svg)](https://github.com/diegowritescode/accesscore/actions/workflows/release.yml)
 [![Production smoke](https://github.com/diegowritescode/accesscore/actions/workflows/smoke.yml/badge.svg)](https://github.com/diegowritescode/accesscore/actions/workflows/smoke.yml)
-![Coverage](https://img.shields.io/badge/coverage-95%25%20lines%20%28merged%29-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-96%25%20lines%20%28merged%29-brightgreen)
 ![Mutation score](https://img.shields.io/badge/mutation%20score-80%25%20authz%20domain-blue)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
@@ -211,10 +211,10 @@ sleeps):
   **hourly against the live instance** (`Production smoke` badge above).
 
 Coverage is collected from all three suites and **merged** (`nyc`), so an adapter exercised only by
-integration/e2e still counts. Current merged figures on core logic: roughly **~96% lines ·
-~96% statements · ~93% functions · ~87% branches** (CI run on `main`, 2026-09-30), above the CI gate floor
+integration/e2e still counts. Current merged figures on core logic: **96.1% lines ·
+95.7% statements · 92.7% functions · 87.0% branches** (CI run on `main`, 2026-10-01), above the CI gate floor
 (`lines 90 / statements 90 / functions 85 / branches 75`, a ratchet that only rises). Suite sizes:
-**439 unit + 79 integration + 83 e2e** (API) and **14** SDK tests. Detail in
+**465 unit + 96 integration + 84 e2e** (API), **14** SDK tests, and **10** Playwright browser journeys. Detail in
 [`docs/testing-strategy.md`](docs/testing-strategy.md).
 
 ## Deployment

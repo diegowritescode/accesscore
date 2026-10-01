@@ -16,7 +16,7 @@ an explicit seam over a large, unproven surface.
 | Decision log         | Buffered in memory, flushed as one batched `INSERT`   | Synchronous write / outbox relay / drop on overflow  | A bounded loss window on an ungraceful stop (never on the audit chain)  | [024](adr/024-async-decision-log.md)                   |
 | Cross-service authz  | End-user token forwarding                             | Machine on-behalf-of / caller-asserted identity      | No user token ⇒ can't authorize (async flows wait for the machine ring) | [013](adr/013-cross-service-authorization-contract.md) |
 | Key management       | Non-exportable Vault Transit signing                  | Keys in env/DB, app-held KEK, cloud-KMS-only         | A Vault dependency and a signing network call                           | [009](adr/009-key-management-and-cryptography.md)      |
-| PDP core location    | Pure domain service in `apps/api`                     | Extract `@accesscore/policy-engine` now              | The package stays a stub until a real second consumer exists            | [011](adr/011-pdp-core-location.md)                    |
+| PDP core location    | Pure domain service in `apps/api`                     | Extract `@accesscore/policy-engine` now              | No package until a real second consumer exists                          | [011](adr/011-pdp-core-location.md)                    |
 
 ## Modular monolith over microservices — [ADR-001](adr/001-architecture-style.md)
 
@@ -125,9 +125,9 @@ token forgery — the posture the "security is the product" positioning requires
 
 ## PDP core in `apps/api`, not an extracted package — [ADR-011](adr/011-pdp-core-location.md) / [ADR-013](adr/013-cross-service-authorization-contract.md)
 
-The pure evaluator lives in `apps/api/src/authz/domain`; `packages/policy-engine` is a reserved
-empty stub. **Rejected:** extracting the evaluator into a published workspace package now.
-**Cost accepted:** the stub sits in the tree with no code. Publishing the SDK did **not** pull the
+The pure evaluator lives in `apps/api/src/authz/domain`. **Rejected:** extracting the evaluator into
+a published workspace package now. **Cost accepted:** extraction later means moving files and
+re-pointing imports (cheap, because the core is pure). Publishing the SDK did **not** pull the
 extraction trigger, because the v1 SDK evaluates **remotely** (it forwards to the API, which owns
 tuples and revisions) and therefore needs no local evaluator. Extraction becomes justified only
 when there's a genuine second consumer of the pure core — client-side/offline evaluation over

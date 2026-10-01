@@ -155,13 +155,12 @@ apps/
 packages/
   sdk/          @diegowritescode/accesscore-sdk — typed client + NestJS PEP
   contracts/    shared wire DTOs (Decision, ResourceRef, reason codes)
-  policy-engine/ reserved stub for a future extractable evaluator (see ADR-011/013)
 docs/           business context, architecture, data model, security, testing, observability, ADRs
 ```
 
-The PDP evaluator lives in `apps/api/src/authz/domain`; `packages/policy-engine` stays an empty
-stub until the SDK needs offline/edge evaluation (the documented extraction trigger in
-[ADR-011](docs/adr/011-pdp-core-location.md)/[ADR-013](docs/adr/013-cross-service-authorization-contract.md)).
+The PDP evaluator lives in `apps/api/src/authz/domain` as pure functions with no IO. It moves into
+its own package only when the SDK needs offline/edge evaluation (the documented extraction trigger
+in [ADR-011](docs/adr/011-pdp-core-location.md)/[ADR-013](docs/adr/013-cross-service-authorization-contract.md)).
 
 ## Tech stack
 

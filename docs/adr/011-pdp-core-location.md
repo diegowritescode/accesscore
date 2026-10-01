@@ -1,6 +1,8 @@
 # ADR-011: PDP core location — pure domain service vs. workspace package
 
-- **Status:** Accepted (2026-07-12)
+- **Status:** Accepted (2026-07-12). Amended 2026-10-01: the empty `@accesscore/policy-engine`
+  stub package was deleted. The decision stands; the name stays reserved for the extraction, and
+  the package is created when the trigger below fires rather than kept empty in the meantime.
 - **Date:** 2026-07-12
 - First decision of Slice 3 (US-3.0): where the PDP evaluation core lives before we build it.
 

@@ -20,6 +20,7 @@ import {
   MAX_USERSET_DEPTH,
 } from '../domain/evaluate';
 import { type NamespaceDefinition } from '../domain/namespace-definition';
+import { IndexedMemberships } from '../domain/indexed-memberships';
 import { NamespaceRegistry } from '../domain/namespace-registry';
 import { applyBounds, type BoundaryTarget, UNBOUNDED } from '../domain/policy/boundary';
 import { decide } from '../domain/policy/decide';
@@ -32,6 +33,7 @@ import {
 } from '../domain/policy-decision-point';
 import { type DecisionCache, type DecisionCacheKey } from '../domain/ports/decision-cache';
 import { type DecisionLog } from '../domain/ports/decision-log';
+import { type MembershipIndexReader } from '../domain/ports/membership-index';
 import { type NamespaceDefinitionsRepository } from '../domain/ports/namespace-definitions-repository';
 import { type PoliciesRepository } from '../domain/ports/policies-repository';
 import { type RelationTupleStore } from '../domain/ports/relation-tuple-store';
@@ -55,6 +57,7 @@ interface EvaluationContext {
   readonly revisionUsed: Revision;
   readonly namespaces: Map<string, NamespaceDefinition | null>;
   readonly tuples: Map<string, RelationTuple[]>;
+  readonly memberships: Map<string, IndexedMemberships>;
 }
 
 type Prepared =
@@ -79,6 +82,7 @@ export class PdpService implements PolicyDecisionPoint {
     private readonly unitOfWork: UnitOfWork,
     private readonly clock: Clock,
     private readonly decisionCache: DecisionCache,
+    private readonly membershipIndex: MembershipIndexReader,
   ) {}
 
   private cacheKeyFor(
@@ -228,7 +232,7 @@ export class PdpService implements PolicyDecisionPoint {
     return this.unitOfWork.withTransaction<EntityRef[]>(
       async (tx) => {
         const context = await this.openContext(tx);
-        const snapshot = await this.loadClosure(orgId, resource, [relation], context);
+        const snapshot = await this.loadClosure(orgId, resource, [relation], null, context);
         return expandMembers(orgId, resource, relation, snapshot);
       },
       { readOnly: true, isolationLevel: 'repeatable read' },
@@ -241,6 +245,7 @@ export class PdpService implements PolicyDecisionPoint {
       revisionUsed: await this.revisions.current(tx),
       namespaces: new Map<string, NamespaceDefinition | null>(),
       tuples: new Map<string, RelationTuple[]>(),
+      memberships: new Map<string, IndexedMemberships>(),
     };
   }
 
@@ -335,7 +340,7 @@ export class PdpService implements PolicyDecisionPoint {
     const orgId = OrgId.fromString(principal.orgId);
     const namespace = await this.cachedNamespace(orgId, resource.type, context);
     const relations = namespace ? namespace.requiredRelationsFor(action) : [];
-    const snapshot = await this.loadClosure(orgId, resource, relations, context);
+    const snapshot = await this.loadClosure(orgId, resource, relations, principal.subject, context);
     const rebac = evaluate({ orgId, subject: principal.subject, action, resource }, snapshot);
     const applicable = await this.policies.listByTarget(
       orgId,
@@ -374,15 +379,55 @@ export class PdpService implements PolicyDecisionPoint {
     return namespace;
   }
 
+  private async indexedMemberships(
+    orgId: OrgId,
+    member: EntityRef,
+    context: EvaluationContext,
+  ): Promise<IndexedMemberships> {
+    const key = `${orgId.value}:${formatEntityRef(member)}`;
+    const cached = context.memberships.get(key);
+    if (cached) {
+      return cached;
+    }
+    let view = IndexedMemberships.none;
+    const hits = await this.membershipIndex.membershipsOf(orgId, member, context.tx);
+    if (hits.length > 0) {
+      const version = await this.membershipIndex.organizationVersion(orgId, context.tx);
+      view = IndexedMemberships.of(
+        member,
+        hits
+          .filter((hit) => hit.validAtRevision.isAtLeast(version))
+          .map((hit) => ({ object: hit.set.object, relation: hit.set.relation, depth: hit.depth })),
+      );
+    }
+    context.memberships.set(key, view);
+    return view;
+  }
+
   private async loadClosure(
     orgId: OrgId,
     resource: Resource,
     relations: readonly string[],
+    member: EntityRef | null,
     context: EvaluationContext,
   ): Promise<EvaluationSnapshot> {
     const local = new Map<string, RelationTuple[]>();
     const walked = new Set<string>();
     const reached = new Map<string, NamespaceDefinition>();
+    let memberships: IndexedMemberships | undefined;
+
+    const indexedGrant = async (
+      set: EntityRef,
+      relation: string,
+      depth: number,
+    ): Promise<boolean> => {
+      if (!member) {
+        return false;
+      }
+      memberships ??= await this.indexedMemberships(orgId, member, context);
+      const indexed = memberships.depthOf(set, relation, member);
+      return indexed !== null && depth + indexed <= MAX_USERSET_DEPTH;
+    };
 
     const namespaceOf = async (type: string): Promise<NamespaceDefinition | null> => {
       const namespace = await this.cachedNamespace(orgId, type, context);
@@ -417,8 +462,12 @@ export class PdpService implements PolicyDecisionPoint {
       switch (rewrite.kind) {
         case 'this':
           for (const tuple of node) {
-            if (tuple.subject.kind === 'userset') {
-              await walk(tuple.subject.ref, tuple.subject.relation, depth + 1);
+            if (tuple.subject.kind !== 'userset') {
+              continue;
+            }
+            const { ref, relation } = tuple.subject;
+            if (!(await indexedGrant(ref, relation, depth + 1))) {
+              await walk(ref, relation, depth + 1);
             }
           }
           return;
@@ -464,6 +513,7 @@ export class PdpService implements PolicyDecisionPoint {
     return {
       namespaces: NamespaceRegistry.of(reached.values()),
       tuples: TupleIndex.of(orgId, [...local.values()].flat()),
+      memberships,
     };
   }
 

@@ -4,6 +4,7 @@ import { OrgId } from '../../../shared/kernel/org-id';
 import { Revision } from '../../../shared/kernel/revision';
 import { type Tx } from '../../../shared/persistence/unit-of-work';
 import {
+  type GlobalTupleChangeQuery,
   type RelationTupleChangelog,
   type TupleChange,
   type TupleChangeOp,
@@ -42,6 +43,24 @@ export class DrizzleRelationTupleChangelog implements RelationTupleChangelog {
       )
       .orderBy(
         asc(relationTupleChangelog.revision),
+        asc(relationTupleChangelog.namespace),
+        asc(relationTupleChangelog.objectId),
+        asc(relationTupleChangelog.relation),
+        asc(relationTupleChangelog.subject),
+      )
+      .limit(query.limit);
+    return rows.map((row) => this.toDomain(row));
+  }
+
+  async sinceAll(query: GlobalTupleChangeQuery, tx?: Tx): Promise<TupleChange[]> {
+    const executor = (tx?.executor as Executor | undefined) ?? this.db;
+    const rows = await executor
+      .select()
+      .from(relationTupleChangelog)
+      .where(gt(relationTupleChangelog.revision, query.afterRevision.value))
+      .orderBy(
+        asc(relationTupleChangelog.revision),
+        asc(relationTupleChangelog.orgId),
         asc(relationTupleChangelog.namespace),
         asc(relationTupleChangelog.objectId),
         asc(relationTupleChangelog.relation),

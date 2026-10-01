@@ -106,6 +106,20 @@ does not keep. Its composite primary key
 consumers. Append-only at the role level: `REVOKE UPDATE, DELETE` for `accesscore_app`
 ([ADR-018](adr/018-least-privilege-db-role.md)).
 
+## Flattened membership index (see ADR-026)
+
+`flattened_memberships(org_id, set_type, set_id, set_relation, member_type, member_id, depth)` holds
+the transitive closure of positive set membership for the sets referenced as **userset subjects**, and
+`flattened_membership_sets(…, valid_at_revision)` is the per-set freshness watermark that the read
+path gates on — a set is only consulted when its watermark reaches the organization's version (its
+newest tuple or namespace change), so a stale index can never change a decision. `depth` is the
+minimum hop count, which lets the reader respect the evaluator's depth bound exactly.
+`flattened_memberships_member_idx (org_id, member_type, member_id)` serves the read path's single
+"which sets does this subject belong to" lookup, and `relation_tuple_changelog_revision_idx` serves
+the materializer's global drain of the changelog. `index_cursors(name, revision)` is the materializer's
+durable cursor over the tuple changelog. Unlike the append-only tables, these three are **derived
+state** and are deliberately rewritable.
+
 ## Drizzle & migrations
 
 - Schemas declared with `pgTable`; enums via `pgEnum`; constraints (unique, FK, check) declared

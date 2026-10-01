@@ -1,4 +1,9 @@
-import { Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
+import {
+  Inject,
+  Module,
+  type OnApplicationBootstrap,
+  type OnApplicationShutdown,
+} from '@nestjs/common';
 import type { Redis } from 'ioredis';
 import { AuthnModule } from '../authn/authn.module';
 import { AccessTokenGuard } from '../authn/interface/access-token.guard';
@@ -23,6 +28,7 @@ import {
   NAMESPACE_CONFIG_WRITER,
   NamespaceConfigWriter,
 } from './application/namespace-config-writer';
+import { MEMBERSHIP_INDEXER, MembershipIndexer } from './application/membership-indexer';
 import { PdpService } from './application/pdp-service';
 import { TUPLE_CHANGE_STREAM, TupleChangeStream } from './application/tuple-change-stream';
 import { POLICY_WRITER, PolicyWriter } from './application/policy-writer';
@@ -30,6 +36,12 @@ import { RELATION_TUPLE_WRITER, RelationTupleWriter } from './application/relati
 import { POLICY_DECISION_POINT } from './domain/policy-decision-point';
 import { DECISION_CACHE, type DecisionCache } from './domain/ports/decision-cache';
 import { DECISION_LOG, type DecisionLog } from './domain/ports/decision-log';
+import {
+  MEMBERSHIP_INDEX_READER,
+  MEMBERSHIP_INDEX_STORE,
+  type MembershipIndexReader,
+  type MembershipIndexStore,
+} from './domain/ports/membership-index';
 import {
   RELATION_TUPLE_CHANGELOG,
   type RelationTupleChangelog,
@@ -48,6 +60,10 @@ import {
   ImmediateDecisionLog,
 } from './infrastructure/persistence/buffered-decision-log';
 import { DrizzleDecisionLog } from './infrastructure/persistence/drizzle-decision-log';
+import {
+  DrizzleMembershipIndexStore,
+  NoopMembershipIndexReader,
+} from './infrastructure/persistence/drizzle-membership-index';
 import { DrizzleRelationTupleChangelog } from './infrastructure/persistence/drizzle-relation-tuple-changelog';
 import { DrizzleNamespaceDefinitionsRepository } from './infrastructure/persistence/drizzle-namespace-definitions.repository';
 import { DrizzlePoliciesRepository } from './infrastructure/persistence/drizzle-policies.repository';
@@ -92,6 +108,44 @@ import { WatchController } from './interface/watch.controller';
           pageSize: env.WATCH_PAGE_SIZE,
           heartbeatSeconds: env.WATCH_HEARTBEAT_SECONDS,
           maxStreamSeconds: env.WATCH_MAX_STREAM_SECONDS,
+        }),
+    },
+    {
+      provide: MEMBERSHIP_INDEX_STORE,
+      inject: [DB],
+      useFactory: (db: Database): DrizzleMembershipIndexStore =>
+        new DrizzleMembershipIndexStore(db),
+    },
+    {
+      provide: MEMBERSHIP_INDEX_READER,
+      inject: [MEMBERSHIP_INDEX_STORE, ENV],
+      useFactory: (store: DrizzleMembershipIndexStore, env: Env): MembershipIndexReader =>
+        env.MEMBERSHIP_INDEX_ENABLED ? store : new NoopMembershipIndexReader(),
+    },
+    {
+      provide: MEMBERSHIP_INDEXER,
+      inject: [
+        RELATION_TUPLE_CHANGELOG,
+        MEMBERSHIP_INDEX_STORE,
+        RELATION_TUPLE_STORE,
+        NAMESPACE_DEFINITIONS_REPOSITORY,
+        REVISIONS_REPOSITORY,
+        UNIT_OF_WORK,
+        ENV,
+      ],
+      useFactory: (
+        changelog: RelationTupleChangelog,
+        index: MembershipIndexStore,
+        tuples: RelationTupleStore,
+        namespaces: NamespaceDefinitionsRepository,
+        revisions: RevisionsRepository,
+        unitOfWork: UnitOfWork,
+        env: Env,
+      ): MembershipIndexer =>
+        new MembershipIndexer(changelog, index, tuples, namespaces, revisions, unitOfWork, {
+          changePageSize: env.MEMBERSHIP_INDEX_CHANGE_PAGE_SIZE,
+          maxTuplesPerOrg: env.MEMBERSHIP_INDEX_MAX_TUPLES_PER_ORG,
+          intervalMs: env.MEMBERSHIP_INDEX_INTERVAL_MS,
         }),
     },
     {
@@ -196,6 +250,7 @@ import { WatchController } from './interface/watch.controller';
         UNIT_OF_WORK,
         CLOCK,
         DECISION_CACHE,
+        MEMBERSHIP_INDEX_READER,
       ],
       useFactory: (
         namespaces: NamespaceDefinitionsRepository,
@@ -206,6 +261,7 @@ import { WatchController } from './interface/watch.controller';
         unitOfWork: UnitOfWork,
         clock: Clock,
         decisionCache: DecisionCache,
+        membershipIndex: MembershipIndexReader,
       ): PdpService =>
         new PdpService(
           namespaces,
@@ -216,6 +272,7 @@ import { WatchController } from './interface/watch.controller';
           unitOfWork,
           clock,
           decisionCache,
+          membershipIndex,
         ),
     },
   ],
@@ -232,15 +289,26 @@ import { WatchController } from './interface/watch.controller';
     DECISION_LOG,
     DECISION_LOG_WRITER,
     TUPLE_CHANGE_STREAM,
+    MEMBERSHIP_INDEX_STORE,
+    MEMBERSHIP_INDEXER,
   ],
 })
-export class AuthzModule implements OnApplicationShutdown {
+export class AuthzModule implements OnApplicationBootstrap, OnApplicationShutdown {
   constructor(
     @Inject(DECISION_LOG_WRITER) private readonly decisionLog: FlushableDecisionLog,
     @Inject(TUPLE_CHANGE_STREAM) private readonly changeStream: TupleChangeStream,
+    @Inject(MEMBERSHIP_INDEXER) private readonly indexer: MembershipIndexer,
+    @Inject(ENV) private readonly env: Env,
   ) {}
 
+  onApplicationBootstrap(): void {
+    if (this.env.MEMBERSHIP_INDEX_ENABLED) {
+      this.indexer.start();
+    }
+  }
+
   async onApplicationShutdown(): Promise<void> {
+    this.indexer.stop();
     this.changeStream.close();
     await this.decisionLog.close();
   }

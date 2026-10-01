@@ -2,7 +2,15 @@ import { OrgId } from '../../shared/kernel/org-id';
 import { Revision } from '../../shared/kernel/revision';
 import { Action } from './action';
 import { type EntityRef } from './entity-ref';
-import { evaluate, expand, type EvaluationSnapshot, MAX_USERSET_DEPTH } from './evaluate';
+import {
+  evaluate,
+  expand,
+  type EvaluationSnapshot,
+  flatten,
+  flattenSet,
+  MAX_USERSET_DEPTH,
+} from './evaluate';
+import { IndexedMemberships } from './indexed-memberships';
 import { NamespaceConfig } from './namespace-config';
 import { NamespaceDefinition } from './namespace-definition';
 import { NamespaceRegistry } from './namespace-registry';
@@ -639,5 +647,149 @@ describe('expand — traversal bounds', () => {
       snap(readConfig, memberChainTo(resource, 'viewer', MAX_USERSET_DEPTH)),
     );
     expect(members).toContainEqual(alice);
+  });
+});
+
+describe('flatten', () => {
+  it('reports a direct member at depth zero', () => {
+    const members = flatten(
+      group,
+      'member',
+      snap(def(['member'], { read: ['member'] }, orgA, 'group'), [
+        tuple(group, 'member', asSubject(alice)),
+      ]),
+    );
+
+    expect(members).toEqual([{ ref: alice, depth: 0 }]);
+  });
+
+  it('counts one hop per nested userset', () => {
+    const leads: EntityRef = { type: 'group', id: 'leads' };
+    const members = flatten(
+      group,
+      'member',
+      snap(def(['member'], { read: ['member'] }, orgA, 'group'), [
+        tuple(group, 'member', userset(leads, 'member')),
+        tuple(leads, 'member', asSubject(alice)),
+      ]),
+    );
+
+    expect(members).toEqual([{ ref: alice, depth: 1 }]);
+  });
+
+  it('keeps the shallowest depth when a member is reachable two ways', () => {
+    const leads: EntityRef = { type: 'group', id: 'leads' };
+    const members = flatten(
+      group,
+      'member',
+      snap(def(['member'], { read: ['member'] }, orgA, 'group'), [
+        tuple(group, 'member', userset(leads, 'member')),
+        tuple(leads, 'member', asSubject(alice)),
+        tuple(group, 'member', asSubject(alice)),
+      ]),
+    );
+
+    expect(members).toEqual([{ ref: alice, depth: 0 }]);
+  });
+
+  it('reports each member once, and agrees with expand on the member set', () => {
+    const leads: EntityRef = { type: 'group', id: 'leads' };
+    const snapshot = snap(def(['member'], { read: ['member'] }, orgA, 'group'), [
+      tuple(group, 'member', asSubject(alice)),
+      tuple(group, 'member', userset(leads, 'member')),
+      tuple(leads, 'member', asSubject(alice)),
+      tuple(leads, 'member', asSubject(bob)),
+    ]);
+
+    const flattened = flatten(group, 'member', snapshot);
+
+    expect(flattened.map((member) => member.ref)).toEqual(expand(orgA, group, 'member', snapshot));
+    expect(flattened).toEqual([
+      { ref: alice, depth: 0 },
+      { ref: bob, depth: 1 },
+    ]);
+  });
+
+  it('yields nothing for a set with no members', () => {
+    expect(flatten(group, 'member', snap(null, []))).toEqual([]);
+  });
+});
+
+describe('flattenSet', () => {
+  it('marks a closure built from unions and nested sets as monotonic', () => {
+    const leads: EntityRef = { type: 'group', id: 'leads' };
+    const flattened = flattenSet(
+      group,
+      'member',
+      snap(def(['member'], { read: ['member'] }, orgA, 'group'), [
+        tuple(group, 'member', userset(leads, 'member')),
+        tuple(leads, 'member', asSubject(alice)),
+      ]),
+    );
+
+    expect(flattened).toEqual({ members: [{ ref: alice, depth: 1 }], monotonic: true });
+  });
+
+  it('marks a closure that crosses an exclusion as non-monotonic', () => {
+    const suspendedGroup = def(
+      ['active', 'banned', 'member'],
+      { read: ['member'] },
+      orgA,
+      'group',
+      {
+        member: {
+          kind: 'exclusion',
+          base: { kind: 'computedUserset', relation: 'active' },
+          subtract: { kind: 'computedUserset', relation: 'banned' },
+        },
+      },
+    );
+
+    const flattened = flattenSet(
+      group,
+      'member',
+      snap(suspendedGroup, [tuple(group, 'active', asSubject(alice))]),
+    );
+
+    expect(flattened.members).toEqual([{ ref: alice, depth: 0 }]);
+    expect(flattened.monotonic).toBe(false);
+  });
+});
+
+describe('evaluate with an indexed membership', () => {
+  const viewerConfig = def(['viewer'], { read: ['viewer'] });
+  const sharedWithEng = tuple(resource, 'viewer', userset(group, 'member'));
+  const withIndex = (depth: number): EvaluationSnapshot => ({
+    ...snap(viewerConfig, [sharedWithEng]),
+    memberships: IndexedMemberships.of(alice, [{ object: group, relation: 'member', depth }]),
+  });
+
+  it('grants through the indexed set without the set being loaded', () => {
+    const decision = evaluate(
+      { orgId: orgA, subject: alice, action: read, resource },
+      withIndex(3),
+    );
+
+    expect(decision.effect).toBe('permit');
+    expect(decision.reasons[0]).toMatchObject({
+      code: 'grant.indexed_userset',
+      relation: 'viewer',
+      path: ['document:doc-1#viewer@group:eng#member'],
+    });
+  });
+
+  it('does not use a membership deeper than the remaining traversal budget', () => {
+    const decision = evaluate(
+      { orgId: orgA, subject: alice, action: read, resource },
+      withIndex(MAX_USERSET_DEPTH),
+    );
+
+    expect(decision.effect).toBe('deny');
+  });
+
+  it('does not grant a subject the index holds nothing for', () => {
+    const decision = evaluate({ orgId: orgA, subject: bob, action: read, resource }, withIndex(0));
+
+    expect(decision.effect).toBe('deny');
   });
 });

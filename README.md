@@ -128,9 +128,13 @@ layer instead of re-implementing auth per service. Full context in
 - **Hot-path scale work** — a **revision-keyed decision cache** (Redis) that caches only
   context-independent decisions, so a write to any tuple/policy invalidates it implicitly and a
   cached `permit` can never bypass a later step-up ([ADR-023](docs/adr/023-decision-cache-consistency-model.md)),
-  and an **async batched decision log** that keeps the audit insert off the check hot path while
+  an **async batched decision log** that keeps the audit insert off the check hot path while
   degrading to synchronous writes rather than losing entries
-  ([ADR-024](docs/adr/024-async-decision-log.md)).
+  ([ADR-024](docs/adr/024-async-decision-log.md)), and a **Leopard-style flattened membership
+  index**: an async materializer keeps each group's transitive members, and a check through nested
+  groups becomes one lookup instead of one query per level. It is gated per tenant on a revision
+  watermark, so a stale index can only fail to accelerate, never change a decision
+  ([ADR-026](docs/adr/026-leopard-flattened-membership-index.md)).
 - **Observability** — a Prometheus `GET /metrics` floor: process/runtime metrics, per-route HTTP
   latency, **authz-domain** metrics (`authz_decisions_total{effect}`, PDP latency), and
   decision-log writer health (buffer depth, flush lag, degraded/dropped counts); structured
@@ -250,7 +254,7 @@ concentric **rings** in value order. Deferring a ring is a decision, not an omis
 | 6     | Account security & audit — TOTP MFA + step-up (AAL 2), per-account/per-IP lockout, tamper-evident audit hash chain                             | **Shipped** |
 | 7     | Admin console (Next.js) — read + write screens (schema/relationships/policies), Authorization Playground, account security, EN/ES              | **Shipped** |
 | 8     | Observability & ops floor — Prometheus `/metrics` (HTTP + authz-domain), least-privilege DB role, structured pino logging                      | **Shipped** |
-| Scale | Zanzibar-scale ring — revision-keyed decision cache, async batched decision log, Watch API (SSE tuple changelog); Leopard index in progress    | **Shipped** |
+| Scale | Zanzibar-scale ring — revision-keyed decision cache, async batched decision log, Watch API (SSE tuple changelog), Leopard membership index     | **Shipped** |
 | Rings | Passkeys · RFC 8693 token exchange · service accounts · full OIDC provider + federation + SCIM · access analyzer/reviews/SoD · HA              | Planned     |
 
 ## Quick start
@@ -325,7 +329,8 @@ curl -sS -X POST "$API/authz/expand" \
 ```
 
 Every `permit` carries its **derivation**: `reasons[].code` names the mechanism (`grant.direct` /
-`grant.userset` / `grant.computed_userset` / `grant.tuple_to_userset`) and, on a `check`,
+`grant.userset` / `grant.computed_userset` / `grant.tuple_to_userset` / `grant.indexed_userset`)
+and, on a `check`,
 `reasons[].path` is the exact chain of tuples that granted it — the explainability that feeds the
 decision log and the Authorization Playground.
 

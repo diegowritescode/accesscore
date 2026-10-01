@@ -53,6 +53,9 @@ class StubChangelog implements RelationTupleChangelog {
     this.queries.push(query);
     return Promise.resolve(this.pages.shift() ?? []);
   }
+  sinceAll(): Promise<never[]> {
+    return Promise.resolve([]);
+  }
 }
 
 const change = (revision: number, id = `doc-${revision}`): TupleChange => ({
@@ -186,6 +189,7 @@ describe('TupleChangeStream', () => {
     const stream = new TupleChangeStream(
       {
         append: () => Promise.reject(new Error('not used')),
+        sinceAll: () => Promise.resolve([]),
         since: (query) => {
           revisions.high = 4;
           return inner.since(query);

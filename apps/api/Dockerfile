@@ -12,7 +12,6 @@ COPY apps/api/package.json ./apps/api/package.json
 COPY apps/console/package.json ./apps/console/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/sdk/package.json ./packages/sdk/package.json
-COPY packages/policy-engine/package.json ./packages/policy-engine/package.json
 RUN pnpm install --frozen-lockfile
 
 # --- build: compile the API, then emit a pruned production bundle to /app ---

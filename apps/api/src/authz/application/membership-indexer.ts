@@ -1,10 +1,10 @@
 import { Logger } from '@nestjs/common';
 import { type OrgId } from '../../shared/kernel/org-id';
-import { type Revision } from '../../shared/kernel/revision';
+import { Revision } from '../../shared/kernel/revision';
 import { type RevisionsRepository } from '../../shared/persistence/revisions-repository';
 import { type Tx, type UnitOfWork } from '../../shared/persistence/unit-of-work';
 import { formatEntityRef } from '../domain/entity-ref';
-import { flatten, type EvaluationSnapshot } from '../domain/evaluate';
+import { type EvaluationSnapshot, type FlatMember, flattenSet } from '../domain/evaluate';
 import { NamespaceRegistry } from '../domain/namespace-registry';
 import { type MembershipIndexStore, type MembershipSetRef } from '../domain/ports/membership-index';
 import { type NamespaceDefinitionsRepository } from '../domain/ports/namespace-definitions-repository';
@@ -80,21 +80,28 @@ export class MembershipIndexer {
         { afterRevision: cursor, limit: this.options.changePageSize },
         tx,
       );
-      if (changes.length === 0) {
+      const last = changes.at(-1)?.revision ?? cursor;
+      const upTo =
+        changes.length === this.options.changePageSize
+          ? last
+          : Revision.fromValue(Math.max(high.value, last.value));
+      if (upTo.value <= cursor.value) {
         return idle(cursor);
       }
+
       const orgs = new Map<string, OrgId>();
-      let reached = cursor;
       for (const change of changes) {
         orgs.set(change.orgId.value, change.orgId);
-        reached = change.revision;
+      }
+      for (const orgId of await this.index.listOrgsWithNamespaceChanges(cursor, upTo, tx)) {
+        orgs.set(orgId.value, orgId);
       }
 
       let indexed = 0;
       let removed = 0;
       let skippedOrgs = 0;
       for (const orgId of orgs.values()) {
-        const result = await this.reindexOrg(orgId, high, tx);
+        const result = await this.reindexOrg(orgId, upTo, tx);
         if (result === null) {
           skippedOrgs += 1;
           continue;
@@ -102,8 +109,8 @@ export class MembershipIndexer {
         indexed += result.indexed;
         removed += result.removed;
       }
-      await this.index.writeCursor(reached, tx);
-      return { indexed, removed, skippedOrgs, cursor: reached };
+      await this.index.writeCursor(upTo, tx);
+      return { indexed, removed, skippedOrgs, cursor: upTo };
     });
   }
 
@@ -127,10 +134,13 @@ export class MembershipIndexer {
       tuples: TupleIndex.of(orgId, tuples),
     };
 
-    const wanted = new Map<string, MembershipSetRef>();
+    const wanted = new Map<string, { set: MembershipSetRef; members: FlatMember[] }>();
     for (const userset of await this.tuples.listReferencedUsersets(orgId, tx)) {
       const set: MembershipSetRef = { object: userset.ref, relation: userset.relation };
-      wanted.set(setKey(set), set);
+      const flattened = flattenSet(set.object, set.relation, snapshot);
+      if (flattened.monotonic) {
+        wanted.set(setKey(set), { set, members: flattened.members });
+      }
     }
 
     let removed = 0;
@@ -142,8 +152,7 @@ export class MembershipIndexer {
     }
 
     let indexed = 0;
-    for (const set of wanted.values()) {
-      const members = flatten(set.object, set.relation, snapshot);
+    for (const { set, members } of wanted.values()) {
       await this.index.replace(orgId, set, members, validAt, tx);
       indexed += 1;
     }

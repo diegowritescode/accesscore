@@ -61,6 +61,7 @@ export const relationTupleChangelog = pgTable(
         table.subject,
       ],
     }),
+    index('relation_tuple_changelog_revision_idx').on(table.revision),
   ],
 );
 
@@ -104,6 +105,7 @@ export const flattenedMemberships = pgTable(
         table.memberId,
       ],
     }),
+    index('flattened_memberships_member_idx').on(table.orgId, table.memberType, table.memberId),
   ],
 );
 

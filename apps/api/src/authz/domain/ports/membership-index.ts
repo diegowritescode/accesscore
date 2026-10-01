@@ -9,12 +9,6 @@ export interface MembershipSetRef {
   readonly relation: string;
 }
 
-export interface MaterializedSet {
-  readonly set: MembershipSetRef;
-  readonly validAtRevision: Revision;
-  readonly members: readonly FlatMember[];
-}
-
 export interface MembershipIndexStore {
   tryLock(tx: Tx): Promise<boolean>;
   replace(
@@ -26,9 +20,22 @@ export interface MembershipIndexStore {
   ): Promise<void>;
   remove(orgId: OrgId, set: MembershipSetRef, tx: Tx): Promise<void>;
   listSets(orgId: OrgId, tx?: Tx): Promise<MembershipSetRef[]>;
-  load(orgId: OrgId, sets: readonly MembershipSetRef[], tx?: Tx): Promise<MaterializedSet[]>;
+  listOrgsWithNamespaceChanges(after: Revision, upTo: Revision, tx: Tx): Promise<OrgId[]>;
   readCursor(tx?: Tx): Promise<Revision>;
   writeCursor(revision: Revision, tx: Tx): Promise<void>;
 }
 
 export const MEMBERSHIP_INDEX_STORE = Symbol('MEMBERSHIP_INDEX_STORE');
+
+export interface MembershipHit {
+  readonly set: MembershipSetRef;
+  readonly depth: number;
+  readonly validAtRevision: Revision;
+}
+
+export interface MembershipIndexReader {
+  membershipsOf(orgId: OrgId, member: EntityRef, tx: Tx): Promise<MembershipHit[]>;
+  organizationVersion(orgId: OrgId, tx: Tx): Promise<Revision>;
+}
+
+export const MEMBERSHIP_INDEX_READER = Symbol('MEMBERSHIP_INDEX_READER');

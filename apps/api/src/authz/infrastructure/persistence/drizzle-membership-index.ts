@@ -1,24 +1,101 @@
-import { and, eq, or, sql } from 'drizzle-orm';
+import { and, eq, gt, lte, sql } from 'drizzle-orm';
 import { type Database, type Executor } from '../../../db/db.module';
-import { type OrgId } from '../../../shared/kernel/org-id';
+import { OrgId } from '../../../shared/kernel/org-id';
 import { Revision } from '../../../shared/kernel/revision';
 import { type Tx } from '../../../shared/persistence/unit-of-work';
+import { type EntityRef } from '../../domain/entity-ref';
 import { type FlatMember } from '../../domain/evaluate';
 import {
-  type MaterializedSet,
+  type MembershipHit,
+  type MembershipIndexReader,
   type MembershipIndexStore,
   type MembershipSetRef,
 } from '../../domain/ports/membership-index';
-import { flattenedMemberships, flattenedMembershipSets, indexCursors } from './schema';
+import {
+  flattenedMemberships,
+  flattenedMembershipSets,
+  indexCursors,
+  namespaceDefinitions,
+  relationTupleChangelog,
+} from './schema';
 
 const CURSOR_NAME = 'flattened_memberships';
 const LOCK_KEY = 4242442443;
 
-const setKey = (set: MembershipSetRef): string =>
-  `${set.object.type}${set.object.id}${set.relation}`;
+export class NoopMembershipIndexReader implements MembershipIndexReader {
+  membershipsOf(): Promise<MembershipHit[]> {
+    return Promise.resolve([]);
+  }
 
-export class DrizzleMembershipIndexStore implements MembershipIndexStore {
+  organizationVersion(): Promise<Revision> {
+    return Promise.resolve(Revision.fromValue(Number.MAX_SAFE_INTEGER));
+  }
+}
+
+export class DrizzleMembershipIndexStore implements MembershipIndexStore, MembershipIndexReader {
   constructor(private readonly db: Database) {}
+
+  async membershipsOf(orgId: OrgId, member: EntityRef, tx: Tx): Promise<MembershipHit[]> {
+    const executor = tx.executor as Executor;
+    const rows = await executor
+      .select({
+        setType: flattenedMemberships.setType,
+        setId: flattenedMemberships.setId,
+        setRelation: flattenedMemberships.setRelation,
+        depth: flattenedMemberships.depth,
+        validAtRevision: flattenedMembershipSets.validAtRevision,
+      })
+      .from(flattenedMemberships)
+      .innerJoin(
+        flattenedMembershipSets,
+        and(
+          eq(flattenedMembershipSets.orgId, flattenedMemberships.orgId),
+          eq(flattenedMembershipSets.setType, flattenedMemberships.setType),
+          eq(flattenedMembershipSets.setId, flattenedMemberships.setId),
+          eq(flattenedMembershipSets.setRelation, flattenedMemberships.setRelation),
+        ),
+      )
+      .where(
+        and(
+          eq(flattenedMemberships.orgId, orgId.value),
+          eq(flattenedMemberships.memberType, member.type),
+          eq(flattenedMemberships.memberId, member.id),
+        ),
+      );
+    return rows.map((row) => ({
+      set: { object: { type: row.setType, id: row.setId }, relation: row.setRelation },
+      depth: row.depth,
+      validAtRevision: Revision.fromValue(row.validAtRevision),
+    }));
+  }
+
+  async organizationVersion(orgId: OrgId, tx: Tx): Promise<Revision> {
+    const executor = tx.executor as Executor;
+    const result = await executor.execute<{ version: string | number }>(
+      sql`SELECT GREATEST(
+        COALESCE((SELECT MAX(${relationTupleChangelog.revision}) FROM ${relationTupleChangelog}
+          WHERE ${relationTupleChangelog.orgId} = ${orgId.value}), 0),
+        COALESCE((SELECT MAX(${namespaceDefinitions.revision}) FROM ${namespaceDefinitions}
+          WHERE ${namespaceDefinitions.orgId} = ${orgId.value}), 0)
+      ) AS version`,
+    );
+    const rows = result as unknown as { rows?: { version: string | number }[] };
+    return Revision.fromValue(Number(rows.rows?.[0]?.version ?? 0));
+  }
+
+  async listOrgsWithNamespaceChanges(after: Revision, upTo: Revision, tx: Tx): Promise<OrgId[]> {
+    const executor = tx.executor as Executor;
+    const rows = await executor
+      .selectDistinct({ orgId: namespaceDefinitions.orgId })
+      .from(namespaceDefinitions)
+      .where(
+        and(
+          gt(namespaceDefinitions.revision, after.value),
+          lte(namespaceDefinitions.revision, upTo.value),
+        ),
+      );
+    return rows.map((row) => OrgId.fromString(row.orgId));
+  }
 
   async replace(
     orgId: OrgId,
@@ -87,81 +164,6 @@ export class DrizzleMembershipIndexStore implements MembershipIndexStore {
       object: { type: row.setType, id: row.setId },
       relation: row.setRelation,
     }));
-  }
-
-  async load(orgId: OrgId, sets: readonly MembershipSetRef[], tx?: Tx): Promise<MaterializedSet[]> {
-    if (sets.length === 0) {
-      return [];
-    }
-    const executor = (tx?.executor as Executor | undefined) ?? this.db;
-
-    const setRows = await executor
-      .select()
-      .from(flattenedMembershipSets)
-      .where(
-        and(
-          eq(flattenedMembershipSets.orgId, orgId.value),
-          or(
-            ...sets.map((set) =>
-              and(
-                eq(flattenedMembershipSets.setType, set.object.type),
-                eq(flattenedMembershipSets.setId, set.object.id),
-                eq(flattenedMembershipSets.setRelation, set.relation),
-              ),
-            ),
-          ),
-        ),
-      );
-    if (setRows.length === 0) {
-      return [];
-    }
-
-    const memberRows = await executor
-      .select()
-      .from(flattenedMemberships)
-      .where(
-        and(
-          eq(flattenedMemberships.orgId, orgId.value),
-          or(
-            ...setRows.map((row) =>
-              and(
-                eq(flattenedMemberships.setType, row.setType),
-                eq(flattenedMemberships.setId, row.setId),
-                eq(flattenedMemberships.setRelation, row.setRelation),
-              ),
-            ),
-          ),
-        ),
-      );
-    const bySet = new Map<string, FlatMember[]>();
-    for (const row of memberRows) {
-      const key = setKey({
-        object: { type: row.setType, id: row.setId },
-        relation: row.setRelation,
-      });
-      const bucket = bySet.get(key);
-      const member: FlatMember = {
-        ref: { type: row.memberType, id: row.memberId },
-        depth: row.depth,
-      };
-      if (bucket) {
-        bucket.push(member);
-      } else {
-        bySet.set(key, [member]);
-      }
-    }
-
-    return setRows.map((row) => {
-      const set: MembershipSetRef = {
-        object: { type: row.setType, id: row.setId },
-        relation: row.setRelation,
-      };
-      return {
-        set,
-        validAtRevision: Revision.fromValue(row.validAtRevision),
-        members: bySet.get(setKey(set)) ?? [],
-      };
-    });
   }
 
   async readCursor(tx?: Tx): Promise<Revision> {

@@ -24,4 +24,6 @@ CREATE TABLE "index_cursors" (
 );
 --> statement-breakpoint
 ALTER TABLE "flattened_membership_sets" ADD CONSTRAINT "flattened_membership_sets_org_id_organizations_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "flattened_memberships" ADD CONSTRAINT "flattened_memberships_org_id_organizations_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "flattened_memberships" ADD CONSTRAINT "flattened_memberships_org_id_organizations_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "flattened_memberships_member_idx" ON "flattened_memberships" USING btree ("org_id","member_type","member_id");--> statement-breakpoint
+CREATE INDEX "relation_tuple_changelog_revision_idx" ON "relation_tuple_changelog" USING btree ("revision");

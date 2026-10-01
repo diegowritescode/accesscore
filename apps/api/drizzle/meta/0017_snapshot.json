@@ -1,5 +1,5 @@
 {
-  "id": "f12021a7-8063-46fe-981d-62d2a359264f",
+  "id": "c4d0649f-129c-4f76-9ffc-12a3152b6174",
   "prevId": "654bd070-2a73-48eb-b2ba-c366eb58b4ed",
   "version": "7",
   "dialect": "postgresql",
@@ -1170,7 +1170,35 @@
           "notNull": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "flattened_memberships_member_idx": {
+          "name": "flattened_memberships_member_idx",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "member_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "flattened_memberships_org_id_organizations_id_fk": {
           "name": "flattened_memberships_org_id_organizations_id_fk",
@@ -1460,7 +1488,23 @@
           "notNull": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "relation_tuple_changelog_revision_idx": {
+          "name": "relation_tuple_changelog_revision_idx",
+          "columns": [
+            {
+              "expression": "revision",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "relation_tuple_changelog_org_id_organizations_id_fk": {
           "name": "relation_tuple_changelog_org_id_organizations_id_fk",

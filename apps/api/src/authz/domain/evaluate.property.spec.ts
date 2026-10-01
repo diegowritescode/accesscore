@@ -4,12 +4,13 @@ import { Revision } from '../../shared/kernel/revision';
 import { Action } from './action';
 import { type AuthorizationQuery } from './authorization-query';
 import { type EntityRef } from './entity-ref';
-import { evaluate, expand, type EvaluationSnapshot } from './evaluate';
+import { evaluate, expand, type EvaluationSnapshot, flattenSet } from './evaluate';
+import { IndexedMemberships } from './indexed-memberships';
 import { NamespaceConfig } from './namespace-config';
 import { NamespaceDefinition } from './namespace-definition';
 import { NamespaceRegistry } from './namespace-registry';
 import { RelationTuple } from './relation-tuple';
-import { type SubjectRef } from './subject-ref';
+import { encodeSubject, type SubjectRef } from './subject-ref';
 import { TupleIndex } from './tuple-index';
 
 const orgId = OrgId.generate();
@@ -324,6 +325,107 @@ describe('evaluate (properties)', () => {
         );
         expect(permitted).toBe(inClosure);
       }),
+    );
+  });
+});
+
+describe('membership index (properties)', () => {
+  const groupIds = ['g0', 'g1', 'g2', 'g3'];
+  const userIds = ['u0', 'u1', 'u2'];
+  const groupRef = fc.constantFrom(...groupIds).map((id): EntityRef => ({ type: 'group', id }));
+  const userRef = fc.constantFrom(...userIds).map((id): EntityRef => ({ type: 'user', id }));
+  const member: fc.Arbitrary<SubjectRef> = fc.oneof(
+    userRef.map((ref) => ({ kind: 'subject', ref }) as const),
+    fc
+      .record({ ref: groupRef, relation: fc.constantFrom('member', 'admin') })
+      .map(({ ref, relation }) => ({ kind: 'userset', ref, relation }) as const),
+  );
+  const writeTuple = (object: EntityRef, relation: string, subject: SubjectRef): RelationTuple =>
+    RelationTuple.write({
+      orgId,
+      object,
+      relation,
+      subject,
+      revision: Revision.fromValue(0),
+      createdAt: now,
+    });
+  const graph = fc.array(
+    fc.oneof(
+      member.map((subject) => writeTuple({ type: 'document', id: 'd' }, 'viewer', subject)),
+      fc
+        .record({ group: groupRef, relation: fc.constantFrom('member', 'admin'), subject: member })
+        .map(({ group, relation, subject }) => writeTuple(group, relation, subject)),
+    ),
+    { maxLength: 14 },
+  );
+
+  const define = (namespace: string, data: Parameters<typeof NamespaceConfig.create>[0]) => {
+    const config = NamespaceConfig.create(data);
+    if (!config.ok) {
+      throw new Error(`invalid config: ${config.error}`);
+    }
+    return NamespaceDefinition.define({
+      orgId,
+      namespace,
+      config: config.value,
+      revision: Revision.fromValue(1),
+      createdAt: now,
+    });
+  };
+  const registry = NamespaceRegistry.of([
+    define('document', { relations: ['viewer'], actions: { read: ['viewer'] } }),
+    define('group', {
+      relations: ['admin', 'member'],
+      actions: {},
+      rewrites: {
+        member: {
+          kind: 'union',
+          children: [{ kind: 'this' }, { kind: 'computedUserset', relation: 'admin' }],
+        },
+      },
+    }),
+  ]);
+
+  const indexFor = (snapshot: EvaluationSnapshot, ts: RelationTuple[], subject: EntityRef) => {
+    const referenced = new Map<string, { object: EntityRef; relation: string }>();
+    for (const t of ts) {
+      if (t.subject.kind === 'userset') {
+        referenced.set(encodeSubject(t.subject), {
+          object: t.subject.ref,
+          relation: t.subject.relation,
+        });
+      }
+    }
+    const entries = [...referenced.values()].flatMap(({ object, relation }) => {
+      const flattened = flattenSet(object, relation, snapshot);
+      const hit = flattened.members.find(
+        (m) => m.ref.type === subject.type && m.ref.id === subject.id,
+      );
+      return flattened.monotonic && hit ? [{ object, relation, depth: hit.depth }] : [];
+    });
+    return IndexedMemberships.of(subject, entries);
+  };
+
+  it('a fresh index never changes a decision', () => {
+    fc.assert(
+      fc.property(graph, userRef, (ts, subject) => {
+        const snapshot: EvaluationSnapshot = {
+          namespaces: registry,
+          tuples: TupleIndex.of(orgId, ts),
+        };
+        const q: AuthorizationQuery = {
+          orgId,
+          subject,
+          action: Action.of('document.read'),
+          resource: { type: 'document', id: 'd' },
+        };
+
+        const live = evaluate(q, snapshot);
+        const indexed = evaluate(q, { ...snapshot, memberships: indexFor(snapshot, ts, subject) });
+
+        expect(indexed.effect).toBe(live.effect);
+      }),
+      { numRuns: 500 },
     );
   });
 });

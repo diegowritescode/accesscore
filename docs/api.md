@@ -181,7 +181,10 @@ provenance rule, enforced by construction: the DTO has no `subject`/`org` field)
   | code                      | meaning                                                           |
   | ------------------------- | ----------------------------------------------------------------- |
   | `grant.direct`            | a direct relationship tuple granted access                        |
-  | `grant.userset`           | a one-level userset (role/group) membership granted access        |
+  | `grant.userset`           | a userset (role/group) membership granted access                  |
+  | `grant.computed_userset`  | a computed relation (e.g. owner ⇒ editor ⇒ viewer) granted access |
+  | `grant.tuple_to_userset`  | a relation inherited from a parent object granted access          |
+  | `grant.indexed_userset`   | a group membership answered by the flattened index (ADR-026)      |
   | `default_deny`            | no matching grant (the default)                                   |
   | `unknown_action`          | the action is not bound to a relation in the resource's namespace |
   | `org_mismatch`            | the resource/tuple org did not match the principal's org          |

@@ -8,10 +8,12 @@ import { type Principal, type RequestContext } from '../domain/authorization-req
 import { ConsistencyToken } from '../domain/consistency-token';
 import { type EntityRef } from '../domain/entity-ref';
 import { type Decision } from '../domain/decision';
+import { MAX_USERSET_DEPTH } from '../domain/evaluate';
 import { NamespaceConfig } from '../domain/namespace-config';
 import { NamespaceDefinition } from '../domain/namespace-definition';
 import { type DecisionCache, type DecisionCacheKey } from '../domain/ports/decision-cache';
 import { type DecisionLog, type DecisionLogRecord } from '../domain/ports/decision-log';
+import { type MembershipHit, type MembershipIndexReader } from '../domain/ports/membership-index';
 import {
   type ObjectRelationQuery,
   type RelationTupleKey,
@@ -110,6 +112,30 @@ class FakeDecisionCache implements DecisionCache {
     this.sets += 1;
     this.store.set(this.keyOf(key), decision);
     return Promise.resolve();
+  }
+}
+
+interface FakeMembership extends MembershipHit {
+  readonly member: EntityRef;
+}
+
+class FakeMembershipIndex implements MembershipIndexReader {
+  lookups = 0;
+  constructor(
+    private readonly memberships: readonly FakeMembership[] = [],
+    private readonly version = 0,
+  ) {}
+  membershipsOf(_orgId: OrgId, member: EntityRef): Promise<MembershipHit[]> {
+    this.lookups += 1;
+    return Promise.resolve(
+      this.memberships.filter(
+        (membership) =>
+          membership.member.type === member.type && membership.member.id === member.id,
+      ),
+    );
+  }
+  organizationVersion(): Promise<Revision> {
+    return Promise.resolve(Revision.fromValue(this.version));
   }
 }
 
@@ -270,6 +296,7 @@ function build(options: {
   policies?: Policy[];
   revision?: number;
   cache?: FakeDecisionCache;
+  index?: FakeMembershipIndex;
 }): {
   pdp: PdpService;
   log: RecordingDecisionLog;
@@ -288,6 +315,7 @@ function build(options: {
     new ImmediateUnitOfWork(),
     clock,
     cache,
+    options.index ?? new FakeMembershipIndex(),
   );
   return { pdp, log, cache, tuples };
 }
@@ -586,6 +614,7 @@ describe('PdpService', () => {
       new ImmediateUnitOfWork(),
       clock,
       new FakeDecisionCache(),
+      new FakeMembershipIndex(),
     );
 
     const decisions = await pdp.batchCheck([
@@ -804,6 +833,132 @@ describe('PdpService', () => {
 
       expect(cache.gets).toBe(0);
       expect(cache.sets).toBe(0);
+    });
+  });
+
+  describe('membership index', () => {
+    const g0: EntityRef = { type: 'group', id: 'g0' };
+    const g1: EntityRef = { type: 'group', id: 'g1' };
+    const nestedGroups = [
+      tuple('viewer', { kind: 'userset', ref: g0, relation: 'member' }),
+      objectTuple(g0, 'member', { kind: 'userset', ref: g1, relation: 'member' }),
+      objectTuple(g1, 'member', { kind: 'subject', ref: alice }),
+    ];
+    const aliceInG0 = (depth: number, validAt: number): FakeMembership => ({
+      member: alice,
+      set: { object: g0, relation: 'member' },
+      depth,
+      validAtRevision: Revision.fromValue(validAt),
+    });
+    const groupLoads = (tuples: FakeTuples): jest.SpyInstance => jest.spyOn(tuples, 'listByObject');
+
+    it('answers a nested-group check from a fresh index without walking the groups', async () => {
+      const index = new FakeMembershipIndex([aliceInG0(1, 7)], 7);
+      const { pdp, tuples } = build({
+        definition: namespaceDef(),
+        tuples: nestedGroups,
+        revision: 9,
+        index,
+      });
+      const loads = groupLoads(tuples);
+
+      const decision = await pdp.check(principal(orgId.value), read, resource, fullContext);
+
+      expect(decision.effect).toBe('permit');
+      expect(decision.reasons[0]?.code).toBe('grant.indexed_userset');
+      expect(decision.reasons[0]?.path).toEqual(['document:1#viewer@group:g0#member']);
+      expect(loads.mock.calls.map(([query]) => query.object.type)).toEqual(['document']);
+    });
+
+    it('ignores an entry older than the organization version and walks live', async () => {
+      const index = new FakeMembershipIndex([aliceInG0(1, 6)], 7);
+      const { pdp } = build({
+        definition: namespaceDef(),
+        tuples: nestedGroups,
+        revision: 9,
+        index,
+      });
+
+      const decision = await pdp.check(principal(orgId.value), read, resource, fullContext);
+
+      expect(decision.effect).toBe('permit');
+      expect(decision.reasons[0]?.code).toBe('grant.userset');
+      expect(decision.reasons[0]?.path).toHaveLength(3);
+    });
+
+    it('never turns a stale entry into a permit the live walk would not give', async () => {
+      const index = new FakeMembershipIndex([aliceInG0(0, 6)], 7);
+      const { pdp } = build({
+        definition: namespaceDef(),
+        tuples: [tuple('viewer', { kind: 'userset', ref: g0, relation: 'member' })],
+        revision: 9,
+        index,
+      });
+
+      const decision = await pdp.check(principal(orgId.value), read, resource, fullContext);
+
+      expect(decision.effect).toBe('deny');
+    });
+
+    it('walks live when the indexed depth exceeds the remaining traversal budget', async () => {
+      const index = new FakeMembershipIndex([aliceInG0(MAX_USERSET_DEPTH, 7)], 7);
+      const { pdp } = build({
+        definition: namespaceDef(),
+        tuples: nestedGroups,
+        revision: 9,
+        index,
+      });
+
+      const decision = await pdp.check(principal(orgId.value), read, resource, fullContext);
+
+      expect(decision.reasons[0]?.code).toBe('grant.userset');
+    });
+
+    it('does not consult the index for a direct grant', async () => {
+      const index = new FakeMembershipIndex([aliceInG0(1, 7)], 7);
+      const { pdp } = build({
+        definition: namespaceDef(),
+        tuples: [tuple('viewer', { kind: 'subject', ref: alice })],
+        revision: 9,
+        index,
+      });
+
+      await pdp.check(principal(orgId.value), read, resource, fullContext);
+
+      expect(index.lookups).toBe(0);
+    });
+
+    it("never applies one subject's memberships to another subject", async () => {
+      const bob: EntityRef = { type: 'user', id: 'bob' };
+      const index = new FakeMembershipIndex([aliceInG0(1, 7)], 7);
+      const { pdp } = build({
+        definition: namespaceDef(),
+        tuples: [tuple('viewer', { kind: 'userset', ref: g0, relation: 'member' })],
+        revision: 9,
+        index,
+      });
+
+      const decisions = await pdp.batchCheck([
+        { principal: principal(orgId.value, bob), action: read, resource, context: fullContext },
+        { principal: principal(orgId.value), action: read, resource, context: fullContext },
+      ]);
+
+      expect(decisions.map((decision) => decision.effect)).toEqual(['deny', 'permit']);
+    });
+
+    it('expands from the live graph, never from the index', async () => {
+      const index = new FakeMembershipIndex([aliceInG0(1, 7)], 7);
+      const { pdp } = build({
+        definition: namespaceDef(),
+        tuples: nestedGroups,
+        revision: 9,
+        index,
+      });
+
+      const members = await pdp.expand(principal(orgId.value), resource, 'viewer');
+
+      expect(members).toEqual([alice]);
+      expect(index.lookups).toBe(0);
     });
   });
 });

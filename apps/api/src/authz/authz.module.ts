@@ -36,7 +36,12 @@ import { RELATION_TUPLE_WRITER, RelationTupleWriter } from './application/relati
 import { POLICY_DECISION_POINT } from './domain/policy-decision-point';
 import { DECISION_CACHE, type DecisionCache } from './domain/ports/decision-cache';
 import { DECISION_LOG, type DecisionLog } from './domain/ports/decision-log';
-import { MEMBERSHIP_INDEX_STORE, type MembershipIndexStore } from './domain/ports/membership-index';
+import {
+  MEMBERSHIP_INDEX_READER,
+  MEMBERSHIP_INDEX_STORE,
+  type MembershipIndexReader,
+  type MembershipIndexStore,
+} from './domain/ports/membership-index';
 import {
   RELATION_TUPLE_CHANGELOG,
   type RelationTupleChangelog,
@@ -55,7 +60,10 @@ import {
   ImmediateDecisionLog,
 } from './infrastructure/persistence/buffered-decision-log';
 import { DrizzleDecisionLog } from './infrastructure/persistence/drizzle-decision-log';
-import { DrizzleMembershipIndexStore } from './infrastructure/persistence/drizzle-membership-index';
+import {
+  DrizzleMembershipIndexStore,
+  NoopMembershipIndexReader,
+} from './infrastructure/persistence/drizzle-membership-index';
 import { DrizzleRelationTupleChangelog } from './infrastructure/persistence/drizzle-relation-tuple-changelog';
 import { DrizzleNamespaceDefinitionsRepository } from './infrastructure/persistence/drizzle-namespace-definitions.repository';
 import { DrizzlePoliciesRepository } from './infrastructure/persistence/drizzle-policies.repository';
@@ -107,6 +115,12 @@ import { WatchController } from './interface/watch.controller';
       inject: [DB],
       useFactory: (db: Database): DrizzleMembershipIndexStore =>
         new DrizzleMembershipIndexStore(db),
+    },
+    {
+      provide: MEMBERSHIP_INDEX_READER,
+      inject: [MEMBERSHIP_INDEX_STORE, ENV],
+      useFactory: (store: DrizzleMembershipIndexStore, env: Env): MembershipIndexReader =>
+        env.MEMBERSHIP_INDEX_ENABLED ? store : new NoopMembershipIndexReader(),
     },
     {
       provide: MEMBERSHIP_INDEXER,
@@ -236,6 +250,7 @@ import { WatchController } from './interface/watch.controller';
         UNIT_OF_WORK,
         CLOCK,
         DECISION_CACHE,
+        MEMBERSHIP_INDEX_READER,
       ],
       useFactory: (
         namespaces: NamespaceDefinitionsRepository,
@@ -246,6 +261,7 @@ import { WatchController } from './interface/watch.controller';
         unitOfWork: UnitOfWork,
         clock: Clock,
         decisionCache: DecisionCache,
+        membershipIndex: MembershipIndexReader,
       ): PdpService =>
         new PdpService(
           namespaces,
@@ -256,6 +272,7 @@ import { WatchController } from './interface/watch.controller';
           unitOfWork,
           clock,
           decisionCache,
+          membershipIndex,
         ),
     },
   ],

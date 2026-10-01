@@ -1,7 +1,7 @@
 # ADR-026: Leopard-style flattened membership index
 
-- **Status:** Accepted (2026-08-01). **Implementation:** the index tables and the asynchronous
-  materializer ship in this slice; the evaluator read path that consults them lands next.
+- **Status:** Accepted (2026-08-01). The read path and the per-organization freshness gate were
+  added on 2026-10-01; sections 5 and 6 describe the shipped design.
 - **Date:** 2026-08-01
 - Materialize the transitive closure of **positive set membership** into
   `flattened_memberships`, refreshed **asynchronously** from the relationship-tuple changelog
@@ -68,25 +68,77 @@ and logged**, leaving its index stale — which is safe, because a stale index i
 practice, is precise inverse-dependency tracking (which sets depend on which nodes) so only affected
 sets are recomputed.
 
-### 5. The watermark is the safety mechanism
+An org is recomputed when the tick sees a **tuple change** for it in the changelog **or a namespace
+change** (a `namespace_definitions` row whose revision falls in the tick's window). Namespace edits
+never reach the tuple changelog, yet a rewrite change alters closures, so the materializer reads both.
 
-Each set records `valid_at_revision`: the global revision the materializer had caught up to when it
-recomputed that set. The read path may consult a set **only if `valid_at_revision >= the revision the
-request requires`** (full consistency: the current high-water mark; bounded staleness: the token's
-revision). Therefore:
+**Sets whose closure crosses an `exclusion` are not indexed.** A member of `base − subtract` is
+proven by a positive path through `base` _and_ by the absence of a path through `subtract`. The
+stored depth only measures the first; the live walk, starting deeper, might run out of budget while
+proving the second and deny (fail-closed) where the index would permit. Rather than encode the cost
+of a negative proof, the materializer leaves such sets out (`flattenSet(...).monotonic === false`)
+and the evaluator walks them live. `intersection` stays indexable: every operand is a positive proof,
+and the stored depth is the deepest of them.
 
-- A stale index **cannot** cause the new-enemy problem — it fails the gate and the evaluator walks
-  live. Staleness can only cost performance, never correctness.
-- A namespace or policy change, which alters closures without touching a tuple, also invalidates the
-  index implicitly: it advances the global revision, so every watermark falls behind until the
-  indexer recomputes. No separate invalidation path is needed — the same mechanism as ADR-023.
+### 5. The watermark is the safety mechanism, gated per organization
 
-**Read the high-water mark before computing, then stamp with it.** The materializer reads
-`revisions.current()` first and stamps that value, so the closure it writes always reflects data at
-least as fresh as the stamp. Under-claiming freshness is safe; over-claiming would serve a stale
-permit. (The Watch heartbeat in ADR-025 has the same ordering requirement for the same reason.)
+Each set records `valid_at_revision`: the revision the materializer had caught up to when it
+recomputed that set. The read path consults the index **only if `valid_at_revision` is at least the
+organization's version** — the newest revision of any tuple change (from the changelog) or namespace
+change for that organization, read **inside the check's own repeatable-read snapshot**. Therefore:
 
-### 6. Depth is stored per member, because the live walk is bounded
+- A stale index **cannot** cause the new-enemy problem. Any change to the organization's graph that
+  the check can see advances the organization's version past the watermark, the gate fails, and the
+  evaluator walks live. Staleness can only cost performance, never correctness.
+- A namespace change, which alters closures without touching a tuple, invalidates the index the same
+  way: it advances the organization's version.
+- Policy writes do not affect membership closures, so they do not count toward the version.
+
+**Why per organization, not the global revision.** Revisions are global (one counter for every
+tenant). Gating on the global high-water mark would make every organization's index unusable after
+_any_ tenant's write, so under steady multi-tenant traffic the index would almost never be fresh.
+Tenants cannot affect each other's closures, so each one is versioned by its own changes.
+
+**Why the snapshot's version, not the request's consistency token.** A bounded-staleness request
+(`at-least`) still evaluates the tuples at the snapshot it reads. Gating the index on the token's
+older revision would combine an older membership closure with newer tuples — a state that never
+existed at any single revision, which is exactly how a removed member could keep a grant made after
+the removal. The gate is therefore the same for both consistency modes.
+
+**Stamp with a revision the closure is at least as fresh as.** The materializer stamps each set with
+the end of the window it processed: the later of the high-water mark read before the changelog page
+and the newest change in that page (only the newest change, when the page is full). Every change at or below that revision has committed — revision allocation is
+serialized by an advisory lock held until commit — and the closure is computed afterwards, so it
+reflects data at least as fresh as the stamp. Under-claiming freshness is safe; over-claiming would
+serve a stale permit. (The Watch heartbeat in ADR-025 has the same ordering requirement for the same
+reason.)
+
+### 6. The read path: one member-to-sets lookup per check
+
+Zanzibar's Leopard answers "is U in S?" by intersecting the sets S expands to with the sets U belongs
+to. The read path does the same with one lookup: the first time a check's walk reaches a userset
+subject, `PdpService` loads **every indexed set the checked subject belongs to**
+(`flattened_memberships_member_idx` on `(org_id, member_type, member_id)`), reads the organization's
+version only if that returned anything, keeps the entries whose watermark passes the gate, and caches
+that view for the rest of the transaction. Checks that resolve
+directly never pay for it.
+
+The view is used in two places, with the same rule:
+
+- **The closure loader** skips loading a userset's subtree when the subject is an indexed member
+  within the remaining depth budget — this is where the queries are saved.
+- **The evaluator** (`deriveThis`) grants through such a membership with reason
+  `grant.indexed_userset`. Its `path` holds the stored tuple that references the set; the hops
+  below it are summarized by the index rather than listed.
+
+**Positive answers only.** An entry that is absent, stale, or deeper than the remaining budget means
+"walk live", never "deny". The index can therefore only replace a live walk that would have found the
+same membership. A property test pins this: over random group graphs with rewrites, evaluating with
+a fresh index never changes the decision.
+
+`expand` always walks live: it must list members, not answer a membership question.
+
+### 7. Depth is stored per member, because the live walk is bounded
 
 The live evaluator truncates at `MAX_USERSET_DEPTH`. If the index reported a member reachable in 8
 hops while the live walk had only 3 hops of budget left, using it would turn a truncated deny into a
@@ -94,7 +146,7 @@ permit — the fail-**open** direction. So each row stores the **minimum hop cou
 the member, and a hit is usable only when that depth fits the remaining budget. Storing depth is what
 makes the read path's gate exact instead of approximate.
 
-### 7. Derived state, deliberately mutable — and deliberately not new attack surface
+### 8. Derived state, deliberately mutable — and deliberately not new attack surface
 
 Unlike `decision_log`, `revisions`, `security_audit` and `relation_tuple_changelog`, these tables are
 a **cache**: they are rewritten on every refresh, so they carry no append-only `REVOKE`
@@ -106,19 +158,20 @@ but that same attacker could equally write a relationship tuple and manufacture 
 index adds no privilege that the tuple table did not already grant. What protects both is the
 least-privilege role boundary and the fact that neither is reachable from the HTTP surface.
 
-### 8. One indexer at a time, with no coordination service
+### 9. One indexer at a time, with no coordination service
 
 The whole tick runs in one transaction guarded by `pg_try_advisory_xact_lock`. A second instance that
 cannot take the lock **skips its tick** and tries again later. No leader election, no external lock
 service, no duplicated work — and because the tick is one transaction, the index is never observed
 half-rebuilt.
 
-### 9. How it composes with the decision cache
+### 10. How it composes with the decision cache
 
 The two accelerate different things: the cache is a **whole-decision** shortcut (keyed by the
-decision's inputs), the index is a **membership sub-walk** shortcut. Both are revision-gated, which
-means both are usable only when nothing has been written since they were populated. So the index's
-real contribution is _cold-cache_ checks during quiescent periods and bounded-staleness reads — not a
+decision's inputs), the index is a **membership sub-walk** shortcut. The cache is keyed by the
+**global** revision, so any tenant's write orphans every entry; the index is gated by the
+**organization's** version, so it keeps serving a tenant while other tenants write. The index's real
+contribution is therefore _cold-cache_ checks and checks during other tenants' write traffic — not a
 second win on the same request the cache already answers. Stating that plainly is more useful than
 implying they multiply.
 
@@ -132,8 +185,10 @@ Config: `MEMBERSHIP_INDEX_ENABLED` (default `true`), `MEMBERSHIP_INDEX_INTERVAL_
 - Deep nested-group membership becomes a single indexed lookup instead of one query per level — the
   cost that grows with the customer's hierarchy rather than with our traffic.
 - The safety argument is **structural**, not procedural: the revision gate makes a stale index
-  unusable, and the depth column makes the bound exact. There is no code path where "the index was
-  behind" becomes "the wrong answer".
+  unusable, the depth column makes the bound exact, and only positive answers are used. There is no
+  code path where "the index was behind" becomes "the wrong answer".
+- At most two small queries per check that reaches a userset (the subject's sets, then the
+  organization's version), independent of how deep the hierarchy is.
 - One traversal implementation serves evaluation, `expand`, and materialization, so they cannot
   drift apart.
 - No new infrastructure: Postgres tables, a background timer, and an advisory lock.
@@ -144,8 +199,15 @@ Config: `MEMBERSHIP_INDEX_ENABLED` (default `true`), `MEMBERSHIP_INDEX_INTERVAL_
   org's candidate sets on the next tick. Bounded by the tuple ceiling and paid off the request path,
   but it is real work, and a write-heavy org will spend most ticks recomputing an index its own
   writes keep invalidating.
-- **Only useful during quiescence** (§9), like the decision cache, because the revision is global.
-  Per-object versioning is the same escape hatch ADR-023 documented.
+- **Only useful while the organization is quiescent.** A tenant's own write makes its index stale
+  until the next tick (`MEMBERSHIP_INDEX_INTERVAL_MS`). Per-set versioning (inverse dependencies) is
+  the escape hatch.
+- **A negative answer still walks live**, now one lookup heavier. Using negatives would need the cost
+  of the proof of absence, which the index does not record (§4, exclusion).
+- **The organization's version reads the changelog.** A future changelog retention job (ADR-025) must
+  keep each organization's newest entry, or the version could move backwards and pass a stale gate.
+- The `path` of an indexed grant stops at the set; the full chain is available from `expand` or by
+  disabling the index.
 - **Positive membership only.** The index accelerates set membership; it does not flatten ABAC
   conditions, and the evaluator still resolves `intersection`/`exclusion` and conditions live. That
   is exactly Zanzibar's Leopard scoping, and it is a limit, not an oversight.
@@ -156,6 +218,13 @@ Config: `MEMBERSHIP_INDEX_ENABLED` (default `true`), `MEMBERSHIP_INDEX_INTERVAL_
   invalidation exists.
 
 ## Alternatives considered
+
+- **Gate on the global revision** — rejected (§5): correct, but any tenant's write would disable
+  every tenant's index.
+- **Gate a bounded-staleness request on its token's revision** — rejected (§5): it would mix a closure
+  from one revision with tuples from another.
+- **Look up each reached set individually** — rejected for one member-to-sets query (§6): per-node
+  lookups would add a round trip at every level of exactly the deep hierarchies the index is for.
 
 - **Compute the closure with a recursive CTE at query time** — rejected, and it is the closest
   alternative: it would collapse N round-trips into one without any staleness to reason about. But it

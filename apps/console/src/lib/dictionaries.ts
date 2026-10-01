@@ -299,6 +299,8 @@ const en: Dict = {
   'reason.grant.computed_userset':
     'Granted through a computed role (e.g. owner ⇒ editor ⇒ viewer).',
   'reason.grant.tuple_to_userset': 'Granted by inheritance from a parent resource.',
+  'reason.grant.indexed_userset':
+    'Granted through a group the subject belongs to, answered by the flattened membership index.',
   'reason.grant.intersection': 'Granted — the subject satisfied every required set.',
   'reason.grant.exclusion': 'Granted — in the base set and not excluded.',
   'reason.grant.policy': 'Permitted by an ABAC policy.',
@@ -664,6 +666,8 @@ const es: Dict = {
   'reason.grant.computed_userset':
     'Otorgado por un rol computado (p. ej. owner ⇒ editor ⇒ viewer).',
   'reason.grant.tuple_to_userset': 'Otorgado por herencia de un recurso padre.',
+  'reason.grant.indexed_userset':
+    'Otorgado a través de un grupo al que pertenece el sujeto, resuelto por el índice de membresías.',
   'reason.grant.intersection': 'Otorgado — el sujeto cumplió todos los conjuntos requeridos.',
   'reason.grant.exclusion': 'Otorgado — está en el conjunto base y no fue excluido.',
   'reason.grant.policy': 'Permitido por una política ABAC.',

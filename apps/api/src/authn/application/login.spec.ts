@@ -130,7 +130,11 @@ const recordingLockout = (): RecordingLockout => {
   };
 };
 
-const build = (check: CredentialCheck | null, lockout: RecordingLockout = recordingLockout()) => {
+const build = (
+  check: CredentialCheck | null,
+  lockout: RecordingLockout = recordingLockout(),
+  publicCredentialEmail: string | null = null,
+) => {
   const sessions = new FakeSessions();
   const families = new FakeFamilies();
   const refreshTokens = new FakeRefreshTokens();
@@ -150,6 +154,7 @@ const build = (check: CredentialCheck | null, lockout: RecordingLockout = record
       refreshTtlSeconds: 1_000,
       accountLockout: { threshold: 5, windowSeconds: 900 },
       ipLockout: { threshold: 50, windowSeconds: 900 },
+      publicCredentialEmail,
     },
   );
   return { handler, sessions, families, refreshTokens, lockout };
@@ -240,6 +245,7 @@ describe('LoginHandler', () => {
         refreshTtlSeconds: 1_000,
         accountLockout: { threshold: 5, windowSeconds: 900 },
         ipLockout: { threshold: 50, windowSeconds: 900 },
+        publicCredentialEmail: null,
       },
     );
 
@@ -253,5 +259,55 @@ describe('LoginHandler', () => {
     expect(result).toEqual({ ok: false, error: 'locked' });
     expect(verified).toBe(false);
     expect(sessions.created).toHaveLength(0);
+  });
+
+  describe('the account whose password is published', () => {
+    it('never counts failures against it, but still against the address', async () => {
+      const { handler, lockout } = build(null, recordingLockout(), 'demo@accesscore.dev');
+
+      const result = await handler.execute({
+        email: ' Demo@AccessCore.dev ',
+        password: 'wrong',
+        userAgent: null,
+        ip: '203.0.113.7',
+      });
+
+      expect(result).toEqual({ ok: false, error: 'invalid_credentials' });
+      expect(lockout.failures).toEqual(['ip:203.0.113.7']);
+    });
+
+    it('stays reachable while another visitor holds a lock on the account key', async () => {
+      const lockout = recordingLockout();
+      lockout.lockedKeys.add('acct:demo@accesscore.dev');
+      const { handler } = build(
+        { userId: '0b9c6f0e-6b8f-4b7e-9d68-0d3f8a6b2c11', aal: 1, mfaRequired: false },
+        lockout,
+        'demo@accesscore.dev',
+      );
+
+      const result = await handler.execute({
+        email: 'demo@accesscore.dev',
+        password: 'correct horse battery staple',
+        userAgent: null,
+        ip: '203.0.113.7',
+      });
+
+      expect(result.ok).toBe(true);
+    });
+
+    it('is still locked out per address', async () => {
+      const lockout = recordingLockout();
+      lockout.lockedKeys.add('ip:203.0.113.7');
+      const { handler } = build(null, lockout, 'demo@accesscore.dev');
+
+      const result = await handler.execute({
+        email: 'demo@accesscore.dev',
+        password: 'correct horse battery staple',
+        userAgent: null,
+        ip: '203.0.113.7',
+      });
+
+      expect(result).toEqual({ ok: false, error: 'locked' });
+    });
   });
 });

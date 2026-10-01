@@ -101,6 +101,21 @@ when `DEMO_ACCOUNT_EMAIL` is set that account is restricted by `DemoAccountGuard
   out; session listing would reveal other visitors' IP addresses and user agents.
 - **Allowed:** everything the demo exists to show — `check`/`expand`/`simulate`, PAP writes, MFA
   status, and logging out the caller's own session.
+- **Never locked out per account.** Its password is published, so per-account lockout protects no
+  secret and would only let one visitor lock every other visitor out with five wrong passwords. Its
+  failures still count against the caller's address (per-IP lockout and the login throttle), and
+  every other account keeps per-account lockout.
+
+### Rate limits behind the console's backend-for-frontend
+
+The console signs visitors in **server-side**, so without care the API would see every console
+login as coming from the console container. The per-IP login throttle and per-IP lockout would then
+be shared by all visitors, and any one of them could exhaust them for everyone. The BFF therefore
+forwards the visitor's address and user agent on every upstream call. It takes the **last**
+`X-Forwarded-For` entry, the one appended by the edge proxy (Traefik), so a client-supplied header
+cannot spoof it. The API trusts exactly one proxy hop (`trust proxy = 1`), which on this path is the
+BFF. This holds as long as the console is only reachable through that single edge proxy, as in the
+production compose file.
 
 Writes by visitors are undone by a nightly reset (`deploy/demo-reset.sh`, see
 [`deploy-vps.md`](deploy-vps.md)), which recreates the database and reseeds it. The guard resolves

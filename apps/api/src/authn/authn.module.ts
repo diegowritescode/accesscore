@@ -269,6 +269,7 @@ import { JwksController } from './interface/jwks.controller';
               threshold: env.LOCKOUT_IP_THRESHOLD,
               windowSeconds: env.LOCKOUT_WINDOW_SECONDS,
             },
+            publicCredentialEmail: env.DEMO_ACCOUNT_EMAIL?.trim().toLowerCase() ?? null,
           },
         ),
     },
